@@ -30,12 +30,8 @@ for l in looks:
     save(f"{l}.png", f"look-{l}", [(1600, ""), (800, "-sm")])
     save(f"{l}-menu.png", f"look-{l}-menu", [(1600, ""), (800, "-sm")])
     save(f"lock-{l}.png", f"lock-{l}", [(1200, "")])
-for s in ["matrix", "matrix-hud", "starfield", "plexus", "radar", "bokeh", "zen-desk", "gaming-desk", "hacker-desk"]:
-    save(f"live-{s}.png", f"live-{s}", [(800, "")])
 for lang in ["de", "en"]:
     save(f"app-terminal-{lang}.png", f"app-{lang}", [(0, "")], q=88)
-save("app-tasks.png", "hacker-tasks", [(0, "")], q=88)
-save("app-files.png", "hacker-files", [(0, "")], q=88)
 
 # share picture: four looks on black, 2 × 2
 from PIL import ImageOps

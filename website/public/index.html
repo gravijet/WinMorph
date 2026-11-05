@@ -2,10 +2,10 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>WinMorph – Windows-Looks per Klick</title>
-<meta name="description" content="WinMorph legt ein komplett eigenes Design über Windows 10 und 11: Taskleiste, Startmenü, Alt+Tab, Hintergrund und Sperrbildschirm. 15 Looks, kostenlos, mit einem Klick zurück.">
-<meta name="theme-color" content="#000000">
+<meta name="description" content="WinMorph legt ein eigenes Design über Windows 10 und 11: Taskleiste, Startmenü, Alt+Tab, Hintergrund und Sperrbildschirm. 15 Looks, kostenlos, mit einem Klick zurück.">
+<meta name="theme-color" content="#07080c">
 <link rel="canonical" href="https://winmorph.benjaminberger.at/">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="/fonts/InterTight.woff2" as="font" type="font/woff2" crossorigin>
@@ -20,183 +20,126 @@
 </head>
 <body>
 
-<header class="top">
-  <a class="brand" href="#start" aria-label="WinMorph"><img src="/favicon.svg" alt="" width="26" height="26"><span>WinMorph</span></a>
-  <div class="top-r">
-    <div class="lang" role="group" aria-label="Sprache / Language">
-      <button type="button" data-lang="de" aria-pressed="true">DE</button>
-      <button type="button" data-lang="en" aria-pressed="false">EN</button>
-    </div>
-    <a class="pill" href="/download/setup" data-dl data-en="Download">Download</a>
-  </div>
-</header>
+<!-- the colour of the page follows the look on screen -->
+<div class="sky" aria-hidden="true"><i></i><i></i><i></i></div>
 
 <main>
 
-<!-- the name rises in front of a screen that keeps changing its look -->
-<section class="hero" id="start">
-  <div class="hero-stage">
-    <div class="hero-tilt" id="hero-tilt">
-      <div class="screen hero-screen" id="hero-screen">
-        <img src="/shots/look-terminal.webp" srcset="/shots/look-terminal-sm.webp 800w, /shots/look-terminal.webp 1600w" sizes="(max-width: 760px) 92vw, 64vw" alt="" width="1600" height="900" class="on" fetchpriority="high">
-      </div>
+<!-- a desktop that fills the window, then shrinks into a screen that scrolls through every look -->
+<section class="morph" id="top">
+  <div class="morph-pin">
+    <p class="look-name" id="look-name" aria-live="polite"></p>
+    <p class="look-desc" id="look-desc"></p>
+    <div class="screen" id="screen">
+      <img src="/shots/look-terminal.webp" srcset="/shots/look-terminal-sm.webp 800w, /shots/look-terminal.webp 1600w" sizes="100vw" alt="" width="1600" height="900" class="on" fetchpriority="high">
     </div>
+    <div class="hero" id="hero">
+      <h1 class="wordmark" id="wordmark" data-look="terminal">WinMorph</h1>
+      <p class="tagline" data-en="Windows looks in one click.">Windows-Looks per Klick.</p>
+      <a class="cta magnet" href="/download/setup" data-dl data-en="Download">Herunterladen</a>
+    </div>
+    <ol class="chips" id="chips">
+      <li data-id="terminal" data-c="#00ff41,#00320f"><button type="button">Hacker</button><span data-en="Status line and a real terminal with 50+ commands, in your colour.">Statuszeile und ein echtes Terminal mit über 50 Befehlen, in deiner Farbe.</span></li>
+      <li data-id="macos" data-c="#ff6fae,#5b3cff"><button type="button">macOS</button><span data-en="Menu bar on top, magnifying dock, Launchpad. Light or dark.">Menüleiste oben, Dock mit Vergrößerung, Launchpad. Hell oder dunkel.</span></li>
+      <li data-id="xp" data-c="#2f6fe4,#3c8d0d"><button type="button">Windows XP</button><span data-en="Blue Luna bar, green start button, green hill.">Blaue Luna-Leiste, grüner Start-Knopf, grüner Hügel.</span></li>
+      <li data-id="nexus" data-c="#7c5cff,#00e5ff"><button type="button">Nexus AI</button><span data-en="No taskbar – just a command line that understands what you type.">Keine Taskleiste – nur eine Befehlszeile, die versteht, was du schreibst.</span></li>
+      <li data-id="win95" data-c="#008080,#000080"><button type="button">Windows 95</button><span data-en="Grey 3D bar, a Start menu with a blue banner, teal desktop.">Graue 3D-Leiste, Startmenü mit blauem Banner, Petrol-Desktop.</span></li>
+      <li data-id="ubuntu" data-c="#e95420,#77216f"><button type="button">Ubuntu</button><span data-en="GNOME bar on top, dock on the left, full-screen overview.">GNOME-Leiste oben, Dock links, Vollbild-Übersicht.</span></li>
+      <li data-id="zen" data-c="#c8a06a,#5a3f22"><button type="button">Zen</button><span data-en="A landscape in the light of the hour, focus timer, breathing.">Landschaft im Licht der Tageszeit, Fokus-Timer, Atemübung.</span></li>
+      <li data-id="win7" data-c="#2b8fe0,#0b2f66"><button type="button">Windows 7</button><span data-en="Glass bar with the start orb, Aero wallpaper.">Glas-Leiste mit Startkugel, Aero-Hintergrund.</span></li>
+      <li data-id="arch" data-c="#1793d1,#0b1e2d"><button type="button">Arch Linux</button><span data-en="Floating Waybar with modules, a Rofi-style launcher.">Schwebende Waybar mit Modulen, Starter im Rofi-Stil.</span></li>
+      <li data-id="gaming" data-c="#e81e4a,#3a0010"><button type="button">Gaming</button><span data-en="Game library, performance mode, CPU, GPU and ping in the bar.">Spiele-Bibliothek, Leistungsmodus, CPU, GPU und Ping in der Leiste.</span></li>
+      <li data-id="nova" data-c="#8b5cf6,#22d3ee"><button type="button">NovaOS</button><span data-en="An invented OS: black glass, aurora, a floating bar.">Ein erfundenes System: schwarzes Glas, Aurora, schwebende Leiste.</span></li>
+      <li data-id="chromeos" data-c="#1a73e8,#34a853"><button type="button">ChromeOS</button><span data-en="Shelf with the launcher circle, a playful app grid.">Regal mit Launcher-Kreis, verspieltes App-Raster.</span></li>
+      <li data-id="mint" data-c="#6fa33a,#1f3a1a"><button type="button">Linux Mint</button><span data-en="Cinnamon panel, a menu with search and places.">Cinnamon-Leiste, Menü mit Suche und Orten.</span></li>
+      <li data-id="debian" data-c="#d70a53,#2a1030"><button type="button">Debian</button><span data-en="GNOME bar on top, dock below, Debian red.">GNOME-Leiste oben, Dock unten, Debian-Rot.</span></li>
+      <li data-id="win10" data-c="#0078d7,#001b3d"><button type="button">Windows 10</button><span data-en="Flat bar with a search box, Start menu with tiles.">Flache Leiste mit Suchfeld, Startmenü mit Kacheln.</span></li>
+    </ol>
   </div>
-  <div class="hero-meta">
-    <p class="hero-sub" data-en="Windows looks in one click.">Windows-Looks per Klick.</p>
-    <p class="hero-now" aria-hidden="true"><span class="hero-count" id="hero-count">01 / 15</span><span class="roll" id="hero-name"></span></p>
-  </div>
-  <h1 class="display hero-title"><span class="sr-only">WinMorph</span><span class="rise" aria-hidden="true">WinMorph</span></h1>
 </section>
 
-<section class="statement" id="statement">
-  <div class="sticky">
-    <p class="display scrub" data-en="One click, and Windows looks like macOS, Windows 95 or a hacker terminal. Your settings stay exactly as they are.">Ein Klick, und Windows sieht aus wie macOS, Windows 95 oder ein Hacker-Terminal. Deine Einstellungen bleiben, wie sie sind.</p>
+<!-- a terminal to type into -->
+<section class="part" id="hacker" data-look="terminal">
+  <h2>Hacker</h2>
+  <div class="term" id="term">
+    <div class="term-out" id="term-out" aria-live="polite"></div>
+    <label class="term-line"><span class="term-ps">gast@winmorph:~$</span><input id="term-in" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Befehl" data-en-aria="Command"></label>
   </div>
 </section>
 
-<section class="block" id="app">
-  <h2 class="display h-xl rise" data-en="The app">Die App</h2>
-  <p class="lead blur" data-en="Pick a look, see the preview, apply. What a look may change in your Windows settings is up to you, look by look.">Look auswählen, Vorschau ansehen, anwenden. Was ein Look an Windows-Einstellungen ändern darf, entscheidest du pro Look selbst.</p>
-  <div class="app-stage" id="app-stage">
-    <figure class="window" id="app-window">
-      <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i><span>WinMorph</span></div>
-      <img src="/shots/app-de.webp" data-src-en="/shots/app-en.webp" width="1304" height="801" loading="lazy" decoding="async" alt="Das Fenster von WinMorph mit der Auswahl der Looks und der Vorschau des Hacker-Looks" data-en-alt="The WinMorph window with the looks to choose from and a preview of the Hacker look">
-    </figure>
+<!-- a deck of lock screens to flick through -->
+<section class="part" id="lock" data-look="pick">
+  <h2 data-en="Lock screen">Sperrbildschirm</h2>
+  <div class="deck" id="deck" role="button" tabindex="0" aria-label="Nächster Sperrbildschirm" data-en-aria="Next lock screen">
+    <img src="/shots/lock-terminal.webp" width="1200" height="675" alt="Hacker">
+    <img src="/shots/lock-macos.webp" width="1200" height="675" loading="lazy" alt="macOS">
+    <img src="/shots/lock-xp.webp" width="1200" height="675" loading="lazy" alt="Windows XP">
+    <img src="/shots/lock-zen.webp" width="1200" height="675" loading="lazy" alt="Zen">
+    <img src="/shots/lock-nexus.webp" width="1200" height="675" loading="lazy" alt="Nexus AI">
+    <img src="/shots/lock-gaming.webp" width="1200" height="675" loading="lazy" alt="Gaming">
+    <img src="/shots/lock-win95.webp" width="1200" height="675" loading="lazy" alt="Windows 95">
+    <img src="/shots/lock-ubuntu.webp" width="1200" height="675" loading="lazy" alt="Ubuntu">
   </div>
 </section>
 
-<!-- one screen held while the page scrolls through all looks -->
-<section class="looks" id="looks">
-  <div class="block looks-head">
-    <h2 class="display h-xl rise">15 Looks</h2>
-    <p class="lead blur" data-en="Taskbar, Start menu, Alt+Tab, title bars, wallpaper and lock screen – every detail drawn anew, in the style of the system.">Taskleiste, Startmenü, Alt+Tab, Titelleisten, Hintergrund und Sperrbildschirm – jedes Detail neu gezeichnet, im Stil des Systems.</p>
-  </div>
-  <div class="looks-track" id="looks-track">
-    <div class="looks-sticky">
-      <div class="looks-glow" aria-hidden="true"></div>
-      <div class="looks-info">
-        <p class="looks-group" id="looks-group"></p>
-        <div class="looks-name display" aria-hidden="true"><div class="looks-names" id="looks-names"></div></div>
-        <p class="looks-desc" id="looks-desc" aria-live="polite"></p>
-      </div>
-      <div class="screen looks-screen" id="looks-screen"></div>
-      <div class="looks-bar" aria-hidden="true"><span id="looks-bar"></span></div>
-      <ol class="looks-list" id="looks-list">
-        <li data-id="win10" data-accent="#0078D7" data-group="windows"><b>Windows 10</b><span data-en="Flat bar with a search box, Start menu with tiles.">Flache Leiste mit Suchfeld, Startmenü mit Kacheln.</span></li>
-        <li data-id="win7" data-accent="#2B6CB3" data-group="windows"><b>Windows 7</b><span data-en="Glass bar with the start orb, Aero wallpaper.">Glas-Leiste mit Startkugel, Aero-Hintergrund.</span></li>
-        <li data-id="xp" data-accent="#245EDC" data-group="windows"><b>Windows XP</b><span data-en="Blue Luna bar, green start button, green hill.">Blaue Luna-Leiste, grüner Start-Knopf, grüner Hügel.</span></li>
-        <li data-id="win95" data-accent="#008080" data-group="windows"><b>Windows 95</b><span data-en="Grey 3D bar, a Start menu with a blue banner, teal desktop.">Graue 3D-Leiste, Startmenü mit blauem Banner, Petrol-Desktop.</span></li>
-        <li data-id="macos" data-accent="#007AFF" data-group="apple"><b>macOS</b><span data-en="Menu bar on top, magnifying dock, Launchpad. Light or dark.">Menüleiste oben, Dock mit Vergrößerung, Launchpad. Hell oder dunkel.</span></li>
-        <li data-id="ubuntu" data-accent="#E95420" data-group="linux"><b>Ubuntu</b><span data-en="GNOME bar on top, dock on the left, full-screen overview.">GNOME-Leiste oben, Dock links, Vollbild-Übersicht.</span></li>
-        <li data-id="debian" data-accent="#D70A53" data-group="linux"><b>Debian</b><span data-en="GNOME bar on top, dock below, Debian red.">GNOME-Leiste oben, Dock unten, Debian-Rot.</span></li>
-        <li data-id="arch" data-accent="#1793D1" data-group="linux"><b>Arch Linux</b><span data-en="Floating Waybar with modules, a Rofi-style launcher.">Schwebende Waybar mit Modulen, Rofi-artiger Starter.</span></li>
-        <li data-id="mint" data-accent="#6FA33A" data-group="linux"><b>Linux Mint</b><span data-en="Cinnamon panel, a menu with search and places.">Cinnamon-Leiste, Menü mit Suche und Orten.</span></li>
-        <li data-id="chromeos" data-accent="#1A73E8" data-group="linux"><b>ChromeOS</b><span data-en="Shelf with the launcher circle, a playful app grid.">Regal mit Launcher-Kreis, verspieltes App-Raster.</span></li>
-        <li data-id="nova" data-accent="#8B5CF6" data-group="future"><b>NovaOS</b><span data-en="An invented OS: black glass, aurora, a floating bar.">Ein erfundenes System: schwarzes Glas, Aurora, schwebende Leiste.</span></li>
-        <li data-id="nexus" data-accent="#7C5CFF" data-group="future"><b>Nexus AI</b><span data-en="No taskbar – just an AI command line that understands what you type.">Keine Taskleiste – nur eine KI-Befehlszeile, die versteht, was du schreibst.</span></li>
-        <li data-id="terminal" data-accent="#00FF41" data-group="future"><b>Hacker</b><span data-en="Status line and a real terminal with 50+ commands, in your colour.">Statuszeile und ein echtes Terminal mit über 50 Befehlen, in deiner Farbe.</span></li>
-        <li data-id="zen" data-accent="#C8A06A" data-group="special"><b>Zen</b><span data-en="A landscape in the light of the hour, focus timer, breathing.">Landschaft im Licht der Tageszeit, Fokus-Timer, Atemübung.</span></li>
-        <li data-id="gaming" data-accent="#E81E4A" data-group="special"><b>Gaming</b><span data-en="Game library, performance mode, CPU, GPU and ping in the bar.">Spiele-Bibliothek, Leistungsmodus, CPU, GPU und Ping in der Leiste.</span></li>
-      </ol>
-      <ul class="sr-only" id="looks-groups">
-        <li data-key="windows" data-en="Windows classics">Windows-Klassiker</li>
-        <li data-key="apple" data-en="Apple">Apple</li>
-        <li data-key="linux" data-en="Linux &amp; co.">Linux &amp; Co.</li>
-        <li data-key="future" data-en="Future &amp; AI">Zukunft &amp; KI</li>
-        <li data-key="special" data-en="Special">Spezial</li>
-      </ul>
+<!-- live wallpapers, running for real -->
+<section class="live" id="live" data-look="terminal">
+  <canvas id="live-canvas" aria-hidden="true"></canvas>
+  <div class="live-text">
+    <h2>Live</h2>
+    <p data-en="Behind your desktop icons. Pauses as soon as a window fills the screen.">Hinter deinen Desktop-Symbolen. Pausiert, sobald ein Fenster den Bildschirm füllt.</p>
+    <div class="scenes" role="group" aria-label="Hintergrund" data-en-aria="Wallpaper">
+      <button type="button" data-scene="matrix" aria-pressed="true">Matrix</button>
+      <button type="button" data-scene="stars" aria-pressed="false" data-en="Star flight">Sternenflug</button>
+      <button type="button" data-scene="net" aria-pressed="false" data-en="Network">Netzwerk</button>
     </div>
   </div>
 </section>
 
-<!-- three windows of the hacker look open out into a fan -->
-<section class="block" id="hacker">
-  <h2 class="display h-xl rise">Hacker</h2>
-  <p class="lead blur" data-en="The Windows key opens a real terminal. Plus its own task manager, file explorer, notifications and a lock screen where you type your Windows password right there. In any colour.">Die Windows-Taste öffnet ein echtes Terminal. Dazu ein eigener Task-Manager, Datei-Explorer, Benachrichtigungen und ein Sperrbildschirm, an dem du dein Windows-Passwort direkt eintippst. In jeder Farbe.</p>
-  <div class="fan" id="fan">
-    <div class="fan-tilt">
-      <figure data-side="-1"><img src="/shots/hacker-tasks.webp" width="844" height="555" loading="lazy" decoding="async" alt="Der eigene Task-Manager des Hacker-Looks" data-en-alt="The Hacker look's own task manager"><i></i></figure>
-      <figure data-side="1"><img src="/shots/hacker-files.webp" width="964" height="595" loading="lazy" decoding="async" alt="Der eigene Datei-Explorer des Hacker-Looks" data-en-alt="The Hacker look's own file explorer"><i></i></figure>
-      <figure data-side="0"><img src="/shots/look-terminal-menu.webp" width="1600" height="900" loading="lazy" decoding="async" alt="Das Terminal, das die Windows-Taste im Hacker-Look öffnet" data-en-alt="The terminal the Windows key opens in the Hacker look"><i></i></figure>
-    </div>
+<!-- the way back, on keys you can press -->
+<section class="part undo" id="undo" data-look="win11">
+  <h2 data-en="One click back.">Ein Klick zurück.</h2>
+  <div class="keys" id="keys">
+    <kbd data-en="Ctrl">Strg</kbd><kbd>Alt</kbd><kbd data-en="Shift">Umschalt</kbd><kbd>F12</kbd>
   </div>
+  <p data-en="Undo, restore the original, or the emergency key – Windows is back to how it was.">Rückgängig, Original wiederherstellen oder die Notfall-Taste – Windows ist sofort wie vorher.</p>
 </section>
 
-<!-- the lock screens run past sideways while the page scrolls down -->
-<section class="locks" id="locks">
-  <div class="block">
-    <h2 class="display h-l rise" data-en="Down to the lock screen">Bis zum Sperrbildschirm</h2>
-    <p class="lead blur" data-en="Every look brings its own lock screen – password protected, and the secure Windows sign-in stays.">Jeder Look bringt seinen eigenen Sperrbildschirm mit – kennwortgeschützt, die sichere Windows-Anmeldung bleibt.</p>
-  </div>
-  <div class="locks-track" id="locks-track">
-    <div class="locks-sticky">
-      <div class="locks-row" id="locks-row">
-        <figure><img src="/shots/lock-terminal.webp" width="1200" height="675" loading="lazy" decoding="async" alt=""><figcaption>Hacker</figcaption></figure>
-        <figure><img src="/shots/lock-macos.webp" width="1200" height="675" loading="lazy" decoding="async" alt=""><figcaption>macOS</figcaption></figure>
-        <figure><img src="/shots/lock-xp.webp" width="1200" height="675" loading="lazy" decoding="async" alt=""><figcaption>Windows XP</figcaption></figure>
-        <figure><img src="/shots/lock-zen.webp" width="1200" height="675" loading="lazy" decoding="async" alt=""><figcaption>Zen</figcaption></figure>
-        <figure><img src="/shots/lock-nexus.webp" width="1200" height="675" loading="lazy" decoding="async" alt=""><figcaption>Nexus AI</figcaption></figure>
-        <figure><img src="/shots/lock-gaming.webp" width="1200" height="675" loading="lazy" decoding="async" alt=""><figcaption>Gaming</figcaption></figure>
-        <figure><img src="/shots/lock-win95.webp" width="1200" height="675" loading="lazy" decoding="async" alt=""><figcaption>Windows 95</figcaption></figure>
-        <figure><img src="/shots/lock-ubuntu.webp" width="1200" height="675" loading="lazy" decoding="async" alt=""><figcaption>Ubuntu</figcaption></figure>
-      </div>
-    </div>
-  </div>
+<section class="part get" id="download" data-look="pick">
+  <figure class="app" id="app">
+    <img src="/shots/app-de.webp" data-src-en="/shots/app-en.webp" width="1304" height="801" loading="lazy" decoding="async" alt="Das Fenster von WinMorph" data-en-alt="The WinMorph window">
+  </figure>
+  <a class="cta big magnet" href="/download/setup" data-dl data-en="Download">Herunterladen</a>
+  <p class="get-meta" id="dl-info"></p>
+  <p class="get-meta" data-en="Free · Windows 10 and 11 · no admin rights · updates itself">Kostenlos · Windows 10 und 11 · ohne Admin-Rechte · aktualisiert sich selbst</p>
+  <p class="get-hint" data-en="SmartScreen warning? “More info” → “Run anyway”.">SmartScreen-Warnung? „Weitere Informationen“ → „Trotzdem ausführen“.</p>
 </section>
 
-<section class="block" id="live">
-  <h2 class="display h-xl rise">Live</h2>
-  <p class="lead blur" data-en="Wallpapers that move and react to the mouse. They run behind the desktop icons and pause as soon as a window fills the screen – no stutter in games.">Hintergründe, die sich bewegen und auf die Maus reagieren. Sie laufen hinter den Desktop-Symbolen und pausieren, sobald ein Fenster den Bildschirm füllt – kein Ruckeln in Spielen.</p>
-  <ul class="mosaic">
-    <li class="pop"><img src="/shots/live-matrix.webp" width="800" height="450" loading="lazy" decoding="async" alt=""><span>Matrix</span></li>
-    <li class="pop"><img src="/shots/live-starfield.webp" width="800" height="450" loading="lazy" decoding="async" alt=""><span data-en="Star flight">Sternenflug</span></li>
-    <li class="pop"><img src="/shots/live-zen-desk.webp" width="800" height="450" loading="lazy" decoding="async" alt=""><span data-en="Zen landscape">Zen-Landschaft</span></li>
-    <li class="pop"><img src="/shots/live-plexus.webp" width="800" height="450" loading="lazy" decoding="async" alt=""><span data-en="Network">Netzwerk</span></li>
-    <li class="pop"><img src="/shots/live-radar.webp" width="800" height="450" loading="lazy" decoding="async" alt=""><span>Radar</span></li>
-    <li class="pop"><img src="/shots/live-gaming-desk.webp" width="800" height="450" loading="lazy" decoding="async" alt=""><span>Gaming-HUD</span></li>
-  </ul>
-</section>
-
-<section class="block" id="safe">
-  <h2 class="display h-xl rise right" data-en="One click back">Ein Klick zurück</h2>
-  <ol class="safe">
-    <li class="blur"><span class="n">01</span><h3 data-en="Undo last look">Letzten Look rückgängig</h3><p data-en="Back to the previous look, as many steps as you like.">Zurück zum vorherigen Look, beliebig viele Schritte.</p></li>
-    <li class="blur"><span class="n">02</span><h3 data-en="Restore original">Original wiederherstellen</h3><p data-en="Windows exactly as before the first use: wallpaper, lock screen, sounds and fonts.">Windows exakt wie vor der ersten Nutzung: Hintergrund, Sperrbildschirm, Klänge und Schriften.</p></li>
-    <li class="blur"><span class="n">03</span><h3 data-en="Ctrl+Alt+Shift+F12">Strg+Alt+Umschalt+F12</h3><p data-en="The emergency key stops the design shell at once. The normal taskbar is back.">Die Notfall-Taste beendet den Design-Shell sofort. Die normale Taskleiste ist zurück.</p></li>
-  </ol>
-</section>
-
-<section class="block" id="facts">
-  <ul class="facts">
-    <li class="blur"><h3 class="display" data-en="Free">Kostenlos</h3><p data-en="Open source under the MIT licence.">Open Source unter MIT-Lizenz.</p></li>
-    <li class="blur"><h3 class="display" data-en="No admin rights">Ohne Admin-Rechte</h3><p data-en="Installs just for you. Normal changes only affect your own account.">Installiert nur für dich. Normale Änderungen betreffen nur dein Konto.</p></li>
-    <li class="blur"><h3 class="display" data-en="Updates itself">Aktualisiert sich selbst</h3><p data-en="New versions download and install in the background.">Neue Versionen laden und installieren sich im Hintergrund.</p></li>
-    <li class="blur"><h3 class="display" data-en="Light">Leicht</h3><p data-en="Menus are prepared once, wallpapers pause in full screen, the keyboard runs on its own thread.">Menüs sind vorbereitet, Hintergründe pausieren im Vollbild, die Tastatur läuft in einem eigenen Thread.</p></li>
-    <li class="blur"><h3 class="display">Windows 10 &amp; 11</h3><p data-en="Needs nothing but the .NET Framework 4.8 built into Windows.">Braucht nur das in Windows eingebaute .NET Framework 4.8.</p></li>
-  </ul>
-</section>
-
-<section class="download" id="download">
-  <p class="eyebrow" data-en="For Windows 10 and 11">Für Windows 10 und 11</p>
-  <a class="dl-big group" href="/download/setup" data-dl>
-    <span class="display"><span class="line" data-en="Download">Herunterladen</span><svg class="arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v15m0 0-6.5-6.5M12 19l6.5-6.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-  </a>
-  <p class="dl-info" id="dl-info"></p>
-  <p class="dl-hint" data-en="Free, no admin rights needed. If Windows warns about an unknown publisher, choose “More info” and then “Run anyway”.">Kostenlos, ohne Administratorrechte. Warnt Windows vor einem unbekannten Herausgeber: „Weitere Informationen“ und dann „Trotzdem ausführen“.</p>
-</section>
+<footer class="foot">
+  <a href="https://benjaminberger.at">Benjamin Berger</a>
+  <a href="https://benjaminberger.at/impressum" data-en="Imprint">Impressum</a>
+  <a href="https://benjaminberger.at/datenschutz" data-en="Privacy">Datenschutz</a>
+  <p data-en="Windows, macOS, Ubuntu and the other names are trademarks of their owners. WinMorph is an independent project.">Windows, macOS, Ubuntu und die anderen Namen sind Marken ihrer Inhaber. WinMorph ist ein unabhängiges Projekt.</p>
+</footer>
 
 </main>
 
-<footer class="foot">
-  <p><span data-en="A program by">Ein Programm von</span> <a class="group" href="https://benjaminberger.at"><span class="line">Benjamin Berger</span></a></p>
-  <nav>
-    <a class="group" href="https://github.com/gravijet/WinMorph"><span class="line">GitHub</span></a>
-    <a class="group" href="https://benjaminberger.at/impressum"><span class="line" data-en="Imprint">Impressum</span></a>
-    <a class="group" href="https://benjaminberger.at/datenschutz"><span class="line" data-en="Privacy">Datenschutz</span></a>
-  </nav>
-  <p class="tm" data-en="Windows, macOS, Ubuntu and the other names are trademarks of their owners. WinMorph is an independent project and only imitates their style.">Windows, macOS, Ubuntu und die anderen Namen sind Marken ihrer Inhaber. WinMorph ist ein unabhängiges Projekt und ahmt nur ihren Stil nach.</p>
-</footer>
+<!-- the site's navigation is a taskbar that turns into the taskbar of the look on screen -->
+<nav class="bar" id="bar" data-look="terminal" aria-label="Navigation">
+  <a class="b-start" href="#top" aria-label="WinMorph"><img src="/favicon.svg" alt="" width="18" height="18"><span id="b-start"></span></a>
+  <div class="b-tasks">
+    <a href="#top">Looks</a>
+    <a href="#hacker">Hacker</a>
+    <a href="#lock" data-en="Lock">Sperre</a>
+    <a href="#live">Live</a>
+    <a href="/download/setup" class="b-dl" data-dl>Download</a>
+  </div>
+  <div class="b-tray">
+    <button type="button" data-lang="de" aria-pressed="true">DE</button>
+    <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    <time id="b-clock"></time>
+  </div>
+</nav>
 
 <script src="/app.js"></script>
 </body>
