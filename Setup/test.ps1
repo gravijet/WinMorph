@@ -25,4 +25,3 @@ while (Test-Path "$dir\WinMorph.exe") {
 }
 if ((Get-Content "$dir\keep.txt") -ne 'User file that must survive uninstall') { throw 'Uninstall deleted user data' }
 Remove-Item "$dir\keep.txt"
-
