@@ -84,7 +84,7 @@ namespace WinMorph
         {
             InitializeComponent();
             Shell.RenderGuard.Watch(this);
-            Logo.Source = BitmapFrame.Create(new Uri("pack://application:,,,/WinMorph.ico"));
+            Logo.Source = new IconBitmapDecoder(new Uri("pack://application:,,,/WinMorph.ico"), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames.OrderByDescending(frame => frame.PixelWidth).First();
             try { Icon = BitmapFrame.Create(new Uri("pack://application:,,,/WinMorph.ico")); } catch { }
             selected = Presets.All[0];
             Shell.AppCatalog.Loaded += () =>
