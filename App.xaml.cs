@@ -115,7 +115,7 @@ namespace WinMorph
                         shot.Stop();
                         var win = System.Linq.Enumerable.Last(System.Linq.Enumerable.Cast<Window>(Windows));
                         var root = (FrameworkElement)win.Content;
-                        var bmp = new RenderTargetBitmap((int)root.ActualWidth, (int)root.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+                        var bmp = new RenderTargetBitmap((int)root.ActualWidth * 2, (int)root.ActualHeight * 2, 192, 192, PixelFormats.Pbgra32);
                         var bg = new DrawingVisual();
                         using (var dc = bg.RenderOpen()) dc.DrawRectangle(win.Background, null, new Rect(0, 0, root.ActualWidth, root.ActualHeight));
                         bmp.Render(bg); bmp.Render(root);

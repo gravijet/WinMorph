@@ -56,8 +56,10 @@ jobs:
           New-Item -ItemType Directory -Force shots | Out-Null
           function Shot([string[]]$a) {
             $p = Start-Process build\WinMorph.exe -ArgumentList $a -PassThru
-            if (-not $p.WaitForExit(90000)) { $p.Kill(); Write-Warning "timeout: $a" }
+            if (-not $p.WaitForExit(180000)) { $p.Kill(); Write-Warning "timeout: $a" }
           }
+          # the first start loads the app list cold; warm it once so no picture runs into the time limit
+          Shot "--shell-preview", "win11", "$pwd\shots\warmup.png"; Remove-Item shots\warmup.png -ErrorAction SilentlyContinue
           $looks = "win11","win10","win7","xp","win95","macos","ubuntu","debian","arch","mint","chromeos","nova","nexus","terminal","zen","gaming"
           foreach ($l in $looks) {
             Shot "--shell-preview", $l, "$pwd\shots\$l.png"

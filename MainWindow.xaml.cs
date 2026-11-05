@@ -868,9 +868,10 @@ namespace WinMorph
                 else if (presetId != null && Presets.Find(presetId) != null) selected = Presets.Find(presetId);
                 RebuildAll();
                 if (liveItem != null) ShowLiveDetail(liveItem);   // e.g. "live:mixkit-49122" opens that card
+                // the full window size even on a small screen, at twice the resolution (sharp on the website)
+                Root.Width = 1320; Root.Height = 840;
                 await Task.Delay(6000);
-                var dpi = VisualTreeHelper.GetDpi(this);
-                var bmp = new RenderTargetBitmap((int)(Root.ActualWidth * dpi.DpiScaleX), (int)(Root.ActualHeight * dpi.DpiScaleY), dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
+                var bmp = new RenderTargetBitmap((int)(Root.ActualWidth * 2), (int)(Root.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
                 bmp.Render(Root);
                 var enc = new PngBitmapEncoder();
                 enc.Frames.Add(BitmapFrame.Create(bmp));
