@@ -124,7 +124,7 @@ namespace WinMorph
                 ShowUpdate();
                 if (updateFile != null) { await updateFile; ShowUpdate(); }
             }
-            catch { updateFile = null; ShowUpdate(); }
+            catch { ShowUpdate(); }
         }
 
         void ShowUpdate()
@@ -140,8 +140,9 @@ namespace WinMorph
         async void Update_Click(object sender, RoutedEventArgs e)
         {
             if (busy || update == null) return;
-            if (!Updater.Installed || updateFile == null) { Website_Click(null, null); return; }
+            if (!Updater.Installed) { Website_Click(null, null); return; }
             UpdBtn.IsEnabled = false;
+            if (updateFile == null || updateFile.IsFaulted) updateFile = Updater.Download(update, pct => Dispatcher.BeginInvoke(new Action(() => UpdText.Text = Loc.F("upd.progress", pct))));
             try
             {
                 var file = await updateFile;
