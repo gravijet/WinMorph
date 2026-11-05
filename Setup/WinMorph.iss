@@ -44,7 +44,7 @@ en.RestoreFailed=Windows could not be fully restored. WinMorph and its backup ha
 de.RestoreFailed=Windows konnte nicht vollständig wiederhergestellt werden. WinMorph und das Backup bleiben erhalten. Bitte in WinMorph Original wiederherstellen wählen und erneut versuchen.
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:DesktopShortcut}"
+Name: "desktopicon"; Description: "{cm:DesktopShortcut}"; Flags: unchecked
 
 [Files]
 Source: "..\build\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -78,12 +78,17 @@ begin
 end;
 
 function InitializeSetup: Boolean;
-var Code: Integer;
+var Code, I: Integer; Arguments: String;
 begin
   Result := True;
-  // Older WinMorph versions use /S. Keep their update invocation working.
+  // Forward only public arguments; Inno's internal /SL5 loader handle belongs to this process.
   if HasArg('/S') and not WizardSilent then begin
-    if not Exec(ExpandConstant('{srcexe}'), GetCmdTail + ' /VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewNoWait, Code) then
+    Arguments := '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART';
+    if HasArg('/update') then Arguments := Arguments + ' /update';
+    if HasArg('/launch') then Arguments := Arguments + ' /launch';
+    for I := 1 to ParamCount do
+      if Pos('/LOG=', Uppercase(ParamStr(I))) = 1 then Arguments := Arguments + ' "' + ParamStr(I) + '"';
+    if not Exec(ExpandConstant('{srcexe}'), Arguments, '', SW_HIDE, ewNoWait, Code) then
       RaiseException(CustomMessage('InstallFailed'));
     Result := False;
   end;
