@@ -37,11 +37,13 @@ for lang in ["de", "en"]:
 save("app-tasks.png", "hacker-tasks", [(0, "")], q=88)
 save("app-files.png", "hacker-files", [(0, "")], q=88)
 
-# share picture: four looks on black
-tiles = [Image.open(src / f"{l}.png").convert("RGB").resize((592, 333), Image.LANCZOS) for l in ["terminal", "macos", "xp", "zen"] if (src / f"{l}.png").exists()]
-if len(tiles) == 4:
+# share picture: four looks on black, 2 × 2
+from PIL import ImageOps
+names = ["lock-terminal", "macos", "xp", "zen"]
+if all((src / f"{n}.png").exists() for n in names):
     og = Image.new("RGB", (1200, 630), (0, 0, 0))
-    for i, t in enumerate(tiles):
-        og.paste(t, (8 + (i % 2) * 600, (i // 2) * 297 - 18 if i // 2 else -36))
+    for i, n in enumerate(names):
+        t = ImageOps.fit(Image.open(src / f"{n}.png").convert("RGB"), (596, 311), Image.LANCZOS)
+        og.paste(t, ((i % 2) * 604, (i // 2) * 319))
     og.save(out.parent / "og.png", optimize=True)
 print("done:", len(list(out.glob("*.webp"))), "pictures")
