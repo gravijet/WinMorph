@@ -50,6 +50,8 @@ jobs:
 
       - name: Screenshots
         continue-on-error: true
+        env:
+          WINMORPH_DEMO_APPS: "Firefox;Google Chrome;Microsoft Edge;File Explorer;Calculator;Command Prompt;Windows PowerShell;Notepad;Paint;Visual Studio Code;Task Manager;Control Panel;Snipping Tool;Settings;Character Map;Git Bash;Windows Media Player;Remote Desktop Connection;Steam;Spotify;Microsoft Store;Photos;Camera;Clock;Weather;Mail;Calendar;Maps;Terminal;Windows Terminal"
         run: |
           New-Item -ItemType Directory -Force shots | Out-Null
           function Shot([string[]]$a) {

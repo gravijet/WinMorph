@@ -85,6 +85,9 @@ namespace WinMorph.Shell
                 }
                 catch { }
                 list = list.GroupBy(a => a.Name).Select(g => g.First()).OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+                // screenshots on the build machine: only everyday apps instead of its developer tools
+                var demo = Environment.GetEnvironmentVariable("WINMORPH_DEMO_APPS");
+                if (!string.IsNullOrEmpty(demo)) { var keep = new HashSet<string>(demo.Split(';'), StringComparer.OrdinalIgnoreCase); list = list.Where(a => keep.Contains(a.Name)).ToList(); }
                 ui.BeginInvoke(new Action(() => { Apps = list; Loaded?.Invoke(); }));
                 // warm the icon cache in the background
                 foreach (var a in list) { try { a.Prefetch(); } catch { } }
