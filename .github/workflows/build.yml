@@ -54,6 +54,8 @@ jobs:
           WINMORPH_DEMO_APPS: "Firefox;Google Chrome;Microsoft Edge;File Explorer;Calculator;Command Prompt;Windows PowerShell;Notepad;Paint;Visual Studio Code;Task Manager;Control Panel;Snipping Tool;Settings;Character Map;Git Bash;Windows Media Player;Remote Desktop Connection;Steam;Spotify;Microsoft Store;Photos;Camera;Clock;Weather;Mail;Calendar;Maps;Terminal;Windows Terminal"
         run: |
           New-Item -ItemType Directory -Force shots | Out-Null
+          # the runner's screen is 1024×768; the app window (1320×840) needs more room
+          try { Set-DisplayResolution -Width 1920 -Height 1080 -Force } catch { Write-Warning "resolution: $_" }
           function Shot([string[]]$a) {
             $p = Start-Process build\WinMorph.exe -ArgumentList $a -PassThru
             if (-not $p.WaitForExit(180000)) { $p.Kill(); Write-Warning "timeout: $a" }

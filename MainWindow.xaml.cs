@@ -869,15 +869,8 @@ namespace WinMorph
                 RebuildAll();
                 if (liveItem != null) ShowLiveDetail(liveItem);   // e.g. "live:mixkit-49122" opens that card
                 await Task.Delay(6000);
-                // the full window size even on a small screen (the window cannot grow past it), at twice the resolution
-                Content = null;
-                Root.Width = 1320; Root.Height = 840;
-                for (int i = 0; i < 2; i++)
-                {
-                    Root.Measure(new Size(1320, 840)); Root.Arrange(new Rect(0, 0, 1320, 840)); Root.UpdateLayout();
-                    await Task.Delay(600);   // the cards take their new width, then the layout settles
-                }
-                var bmp = new RenderTargetBitmap(2640, 1680, 192, 192, PixelFormats.Pbgra32);
+                // twice the resolution, so the picture stays sharp on the website
+                var bmp = new RenderTargetBitmap((int)(Root.ActualWidth * 2), (int)(Root.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
                 bmp.Render(Root);
                 var enc = new PngBitmapEncoder();
                 enc.Frames.Add(BitmapFrame.Create(bmp));
