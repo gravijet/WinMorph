@@ -9,6 +9,10 @@
   var inout = function (t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
   var lang = root.getAttribute("lang") === "en" ? "en" : "de";
   var L = function (de, en) { return lang === "en" ? en : de; };
+  var swap = function (el, text) {
+    if (text != null) el.textContent = text;
+    el.classList.remove("swap"); void el.offsetWidth; el.classList.add("swap");
+  };
 
   // ---- language ------------------------------------------------------------------------------
   var texts = new Map(), alts = new Map(), arias = new Map();
@@ -30,12 +34,12 @@
       if (!img.dataset.srcDe) img.dataset.srcDe = img.getAttribute("src");
       img.setAttribute("src", l === "en" ? img.dataset.srcEn : img.dataset.srcDe);
     });
-    $$(".b-tray [data-lang]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lang === l)); });
+    $$(".n-lang [data-lang]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lang === l)); });
     document.title = meta[l][0];
     $('meta[name="description"]').content = meta[l][1];
     onLang.forEach(function (f) { f(); });
   }
-  $$(".b-tray [data-lang]").forEach(function (b) {
+  $$(".n-lang [data-lang]").forEach(function (b) {
     b.addEventListener("click", function () {
       try { localStorage.setItem("wm-lang", b.dataset.lang); } catch (e) {}
       applyLang(b.dataset.lang);
@@ -76,44 +80,26 @@
     requestAnimationFrame(frame);
   }
 
-  // ---- the look: colours of the page and the taskbar follow it --------------------------------------
+  // ---- the look: the colours of the page follow it -------------------------------------------------
   var looks = $$("#chips li").map(function (li) {
-    return { li: li, id: li.dataset.id, name: $("button", li).textContent, c: li.dataset.c.split(","), desc: $("span", li) };
+    return { li: li, id: li.dataset.id, name: $("b", li).textContent, c: li.dataset.c.split(","), desc: $("span", li) };
   });
-  var byId = {}; looks.forEach(function (l, i) { byId[l.id] = i; });
+  var n = looks.length, byId = {};
+  looks.forEach(function (l, i) { byId[l.id] = i; });
   var extra = { win11: ["#3b82f6", "#0b1f4a"] };
-  var starts = {
-    terminal: ["~/winmorph", "~/winmorph"], macos: ["WinMorph", "WinMorph"], xp: ["start", "start"], win95: ["Start", "Start"],
-    ubuntu: ["Aktivitäten", "Activities"], debian: ["Aktivitäten", "Activities"], mint: ["Menü", "Menu"], arch: ["winmorph", "winmorph"],
-    nova: ["WinMorph", "WinMorph"], nexus: ["✦", "✦"], gaming: ["WinMorph", "WinMorph"],
-  };
-  var bar = $("#bar"), startLabel = $("#b-start"), barLook = bar.dataset.look, barTimer = 0, wanted = barLook, pick = "terminal", current = null;
-  function label() { var s = starts[barLook]; startLabel.textContent = s ? s[lang === "en" ? 1 : 0] : ""; }
-  onLang.push(label);
+  var pick = "terminal", wallLook = "terminal", current = null;
   function setLook(id) {
     if (id === current) return;
     current = id;
     var c = byId[id] != null ? looks[byId[id]].c : extra[id];
     root.style.setProperty("--c1", c[0]); root.style.setProperty("--c2", c[1]);
-    // the bar ducks away and comes back as the bar of the new look
-    wanted = id;
-    if (barTimer) return;
-    if (still) { bar.dataset.look = barLook = id; label(); return; }
-    bar.classList.add("swap");
-    barTimer = setTimeout(function () {
-      bar.dataset.look = barLook = wanted; label();
-      setTimeout(function () { bar.classList.remove("swap"); barTimer = 0; if (wanted !== barLook) { var w = wanted; current = null; setLook(w); } }, 300);
-    }, 200);
   }
-  label();
-  var clock = $("#b-clock");
-  function tick() { clock.textContent = new Date().toLocaleTimeString(lang === "de" ? "de-AT" : "en-GB", { hour: "2-digit", minute: "2-digit" }); }
-  tick(); setInterval(tick, 10000); onLang.push(tick);
 
   // ---- the desktop that becomes a screen ----------------------------------------------------------------
   var morph = $("#top"), pin = $(".morph-pin"), screen = $("#screen"), hero = $("#hero"), wordmark = $("#wordmark");
-  var nameEl = $("#look-name"), descEl = $("#look-desc");
-  var imgs = { terminal: $("img", screen) }, z = 1, shownKey = "terminal", shownLook = -1, heroAt = 0;
+  var nameEl = $("#look-name"), descEl = $("#look-desc"), nowEl = $("#prog-now");
+  var imgs = { terminal: $("img", screen) }, z = 1, shownKey = "terminal", wantKey = "terminal", shownLook = -1;
+  imgs.terminal.style.zIndex = 1;
   function img(key) {
     if (!imgs[key]) {
       var im = new Image();
@@ -126,23 +112,30 @@
     }
     return imgs[key];
   }
+  var base = function (key) { return key.replace("-menu", ""); };
+  // a new look spreads out from the start corner with a soft edge; the Start menu of the same look fades in
   function showKey(key) {
+    wantKey = key;
     if (key === shownKey) return;
     var im = img(key);
     var go = function () {
-      if (im !== imgs[key]) return;
-      im.style.zIndex = ++z;
-      im.classList.add("on");
-      var old = imgs[shownKey];
+      if (wantKey !== key || shownKey === key) return;
+      var fade = base(key) === base(shownKey), myZ = ++z;
+      im.classList.add("off"); im.classList.toggle("fade", fade); im.classList.remove("on");
+      im.style.zIndex = myZ;
+      void im.offsetWidth;
+      im.classList.remove("off"); im.classList.add("on");
       shownKey = key;
-      // the old picture folds away underneath, once the new one covers it
-      setTimeout(function () { if (old && old !== imgs[shownKey]) old.classList.remove("on"); }, 1000);
+      // once it covers everything, the pictures below are put away
+      setTimeout(function () {
+        if (+im.style.zIndex !== myZ) return;
+        Object.keys(imgs).forEach(function (k) {
+          var x = imgs[k];
+          if (x !== im && x.classList.contains("on") && +x.style.zIndex < myZ) { x.classList.add("off"); x.classList.remove("on", "fade"); }
+        });
+      }, fade ? 650 : 1400);
     };
-    if (im.complete) go(); else im.onload = go;
-  }
-  function swap(el, text) {
-    el.textContent = text;
-    el.classList.remove("swap"); void el.offsetWidth; el.classList.add("swap");
+    if (im.complete && im.naturalWidth) go(); else im.addEventListener("load", go, { once: true });
   }
   function showLook(i) {
     if (i === shownLook) return;
@@ -151,41 +144,56 @@
     looks.forEach(function (x, j) { x.li.classList.toggle("on", j === i); });
     swap(nameEl, l.name);
     swap(descEl, l.desc.textContent);
+    swap(nowEl, (i + 1) + " / " + n + "  ·  " + l.name);
   }
   onLang.push(function () { if (shownLook >= 0) descEl.textContent = looks[shownLook].desc.textContent; });
 
-  // on the first screen the whole desktop changes its look every few seconds, the wordmark with it
-  function heroStep() {
-    if (document.hidden || scrollY > view.h * 0.1) return;
-    var next = looks[(heroAt + 1) % looks.length], im = img(next.id);
-    if (!im.complete) return;
-    heroAt = (heroAt + 1) % looks.length;
-    showKey(next.id);
-    wordmark.dataset.look = next.id;
-    wordmark.classList.remove("swap"); void wordmark.offsetWidth; wordmark.classList.add("swap");
-    setLook(next.id);
-    img(looks[(heroAt + 1) % looks.length].id);
+  // the progress bar: looks before the current one are full, the current one fills up
+  var progP = [];
+  function progress(i, f) {
+    for (var j = 0; j < n; j++) {
+      var v = j < i ? 1 : j === i ? Math.round(f * 1000) / 1000 : 0;
+      if (progP[j] !== v) { progP[j] = v; looks[j].li.style.setProperty("--p", v); }
+    }
+  }
+
+  // on the first screen the desktop changes its look every few seconds, the wordmark with it
+  var HERO = 3.4, heroAt = 0, heroT = 0, inHero = true;
+  function heroGo(i) {
+    var id = looks[i].id, im = img(id);
+    var go = function () {
+      if (!inHero) return;
+      heroAt = i; heroT = 0;
+      showKey(id);
+      wordmark.dataset.look = id;
+      swap(wordmark);
+      img(looks[(i + 1) % n].id);
+    };
+    if (im.complete && im.naturalWidth) { go(); return true; }
+    im.addEventListener("load", go, { once: true });
+    return false;
   }
   img(looks[1].id);
-  if (!still) setInterval(heroStep, 2600);
 
   var hold = function () { return view.h * 0.6; };
   function range() { return morph.offsetHeight - view.h; }
   looks.forEach(function (l, i) {
     $("button", l.li).addEventListener("click", function () {
-      var top = morph.offsetTop + hold() + ((i + 0.3) / looks.length) * (range() - hold());
+      if (inHero) { heroGo(i); return; }
+      var top = morph.offsetTop + hold() + ((i + 0.3) / n) * (range() - hold());
       scrollTo({ top: top, behavior: still ? "auto" : "smooth" });
     });
   });
 
-  ticks.push(function () {
+  ticks.push(function (dt) {
     var r = morph.getBoundingClientRect();
     if (r.bottom < 0) return;
     var y = -r.top, k = clamp01(y / hold()), e = inout(k);
     var W = screen.offsetWidth, H = W * 9 / 16;
-    var cover = Math.max(view.w / W, view.h / H) * 1.002;
+    // full screen it is zoomed in a little, so the bars of the picture stay out from under the navigation
+    var cover = Math.max(view.w / W, view.h / H) * 1.07;
     var s = cover + (1 - cover) * e;
-    var dy = (0.5 - 0.52) * view.h * (1 - e) + (view.w < 760 ? (0.5 - 0.46) * view.h * (1 - e) : 0);
+    var dy = (0.5 - 0.52) * view.h * (1 - e) + (view.w < 760 ? (0.5 - 0.47) * view.h * (1 - e) : 0);
     var tilt = e * (still ? 0 : 1);
     screen.style.transform = "translate(-50%,-50%) translate3d(0," + dy.toFixed(1) + "px,0) perspective(1600px) rotateX(" + (-pointer.sy * 5 * tilt).toFixed(2) + "deg) rotateY(" + (pointer.sx * 7 * tilt).toFixed(2) + "deg) scale(" + s.toFixed(4) + ")";
     screen.style.setProperty("--r", (14 * e / s).toFixed(2) + "px");
@@ -193,31 +201,60 @@
     hero.style.opacity = (1 - clamp01(k * 1.7)).toFixed(3);
     hero.style.transform = "translateY(" + (-k * 70).toFixed(1) + "px)";
     hero.style.pointerEvents = k > 0.4 ? "none" : "";
-    var after = clamp01((k - 0.55) / 0.45);
-    pin.style.setProperty("--after", after.toFixed(3));
-    pin.style.setProperty("--chips", after > 0.5 ? "auto" : "none");
-    if (k < 1) return;
+    pin.style.setProperty("--after", clamp01((k - 0.55) / 0.45).toFixed(3));
+
+    inHero = y < view.h * 0.04;
+    if (inHero) {
+      if (!still && !document.hidden) {
+        heroT = Math.min(HERO, heroT + dt);
+        if (heroT >= HERO) heroGo((heroAt + 1) % n);
+      }
+      showLook(heroAt);
+      progress(heroAt, still ? 0 : heroT / HERO);
+      return;
+    }
     // the looks, one after another, each with its Start menu opening in the second half
-    var p = clamp01((y - hold()) / (range() - hold())), n = looks.length;
+    var p = clamp01((y - hold()) / (range() - hold()));
     var f = Math.min(n - 1e-6, p * n), i = Math.floor(f), l = looks[i];
     showLook(i);
     showKey(l.id + (f - i > 0.55 ? "-menu" : ""));
-    pick = l.id;
+    progress(i, f - i);
+    pick = l.id; heroAt = i; heroT = 0;
+    if (wordmark.dataset.look !== l.id && k > 0.6) wordmark.dataset.look = l.id;
     [i - 1, i + 1].forEach(function (j) { if (j >= 0 && j < n) { img(looks[j].id); img(looks[j].id + "-menu"); } });
     img(l.id + "-menu");
   });
 
-  // whichever part is in the middle of the window sets the look of the page
-  var parts = $$("[data-look]").filter(function (el) { return el.tagName === "SECTION"; });
+  // ---- which part is on screen: the colours follow it, the navigation marks it ---------------------------------
+  var nav = $("#nav"), pill = $("#n-pill"), links = $$("#n-links a"), navOn = undefined;
+  var parts = $$("main > section");
+  function placePill() {
+    var a = links.filter(function (x) { return x.dataset.to === navOn; })[0];
+    links.forEach(function (x) { x.classList.toggle("on", x === a); });
+    if (!a) { pill.style.opacity = "0"; return; }
+    var jump = pill.style.opacity !== "1";
+    if (jump) pill.style.transition = "none";
+    pill.style.width = a.offsetWidth + "px";
+    pill.style.transform = "translateX(" + a.offsetLeft + "px)";
+    if (jump) { void pill.offsetWidth; pill.style.transition = ""; }
+    pill.style.opacity = "1";
+  }
+  onLang.push(placePill);
+  addEventListener("resize", placePill, { passive: true });
   ticks.push(function () {
-    var mid = view.h / 2, id = null;
+    var mid = view.h / 2, sec = null;
     for (var i = 0; i < parts.length; i++) {
       var r = parts[i].getBoundingClientRect();
-      if (r.top < mid && r.bottom > mid) { id = parts[i].dataset.look; break; }
+      if (r.top < mid && r.bottom > mid) { sec = parts[i]; break; }
     }
+    var id = !sec ? null : sec === morph ? (shownLook >= 0 ? looks[shownLook].id : null) : sec.dataset.look;
     if (id === "pick") id = pick;
+    if (id === "wall") id = wallLook;
     if (id) setLook(id);
-    else if (scrollY > view.h * 0.1 && shownLook >= 0) setLook(looks[shownLook].id);
+    var to = sec ? sec.id : null;
+    if (to === "top" && scrollY < view.h * 0.3) to = null;
+    if (to !== navOn) { navOn = to; placePill(); }
+    nav.classList.toggle("solid", scrollY > view.h * 0.3);
   });
 
   // ---- terminal ----------------------------------------------------------------------------------------
@@ -272,7 +309,7 @@
         if (!c) { line(L("color grün | cyan | bernstein | rot | violett | weiß | #rrggbb", "color green | cyan | amber | red | violet | white | #rrggbb")); return; }
         setColor(c); line(L("Farbe: ", "colour: ") + c);
       },
-      matrix: function () { line(L("wake up …", "wake up …"), "dim"); setTimeout(function () { live.scene("matrix"); $("#live").scrollIntoView({ behavior: still ? "auto" : "smooth" }); }, 500); },
+      matrix: function () { line(L("wake up …", "wake up …"), "dim"); setTimeout(function () { walls.select("matrix"); $("#walls").scrollIntoView({ behavior: still ? "auto" : "smooth" }); }, 500); },
       date: function () { line(new Date().toLocaleString(lang === "de" ? "de-AT" : "en-GB")); },
       whoami: function () { line(L("gast", "guest")); },
       echo: function (a) { line(a.join(" ")); },
@@ -349,9 +386,9 @@
     layout();
   })();
 
-  // ---- live wallpapers, running right here ------------------------------------------------------------------
+  // ---- live wallpapers, running right here on the stage ------------------------------------------------------------------
   var live = (function () {
-    var cv = $("#live-canvas"), ctx = cv.getContext("2d"), section = $("#live"), scene = "matrix", on = false, w = 0, h = 0, dpr = 1, st = null;
+    var cv = $("#live-canvas"), ctx = cv.getContext("2d"), section = $("#stage"), scene = "matrix", on = false, seen = false, active = true, w = 0, h = 0, dpr = 1, st = null;
     var mouse = { x: -1, y: -1, burst: 0 };
     section.addEventListener("pointermove", function (e) { var r = cv.getBoundingClientRect(); mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top; });
     section.addEventListener("pointerleave", function () { mouse.x = mouse.y = -1; });
@@ -448,16 +485,115 @@
     });
     function setScene(s) {
       scene = s;
-      $$(".scenes button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.scene === s)); });
       if (w) { st = init[s](); if (still) draw[s](); }
     }
-    $$(".scenes button").forEach(function (b) { b.addEventListener("click", function () { setScene(b.dataset.scene); }); });
-    new IntersectionObserver(function (es) {
-      on = es[0].isIntersecting && !still;
-      if (es[0].isIntersecting && !w) { size(); if (still) draw[scene](); }
-    }).observe(section);
+    function update() {
+      on = seen && active && !still;
+      if (seen && active && !w) { size(); if (still) draw[scene](); }
+    }
+    new IntersectionObserver(function (es) { seen = es[0].isIntersecting; update(); }).observe(section);
     addEventListener("resize", function () { if (w) size(); });
-    return { scene: setScene };
+    return { scene: setScene, run: function (v) { active = v; update(); } };
+  })();
+
+  // ---- wallpapers: a stage, and the tiles that put a wallpaper on it -------------------------------------------
+  var walls = (function () {
+    var stage = $("#stage"), pics = $("#stage-pics"), cap = $("#stage-cap"), capName = $("#cap-name"), capHint = $("#cap-hint");
+    var file = $("#own-file"), tiles = $$("#tiles button"), cur = tiles[1], layer = null, own = null, ownUrl = null, ownName = "";
+    var pickBtn = document.createElement("button");
+    pickBtn.type = "button"; pickBtn.className = "pick-btn";
+    pickBtn.addEventListener("click", function () { file.click(); });
+
+    function caption(anim) {
+      capName.textContent = $("b", cur).textContent;
+      var h = cur.dataset.own != null
+        ? (ownUrl ? ownName + " · " : "") + L("Bild oder Video – bleibt auf deinem Gerät.", "Picture or video – stays on your device.")
+        : cur.dataset.hint ? (lang === "en" ? cur.dataset.hintEn : cur.dataset.hint)
+        : L("In deiner Bildschirmauflösung erzeugt", "Generated at your screen resolution");
+      capHint.textContent = h;
+      pickBtn.textContent = ownUrl ? L("Andere Datei", "Another file") : L("Datei wählen", "Choose file");
+      if (cur.dataset.own != null) cap.appendChild(pickBtn); else if (pickBtn.parentNode) pickBtn.remove();
+      if (anim) swap(cap);
+    }
+    onLang.push(function () { caption(false); });
+
+    function show(el) {
+      var old = layer;
+      layer = el;
+      if (el && !el.parentNode) pics.appendChild(el);
+      if (el) { void el.offsetWidth; el.classList.add("on"); }
+      if (old && old !== el) {
+        old.classList.remove("on");
+        setTimeout(function () { if (old !== layer && old !== own) old.remove(); }, 900);
+      }
+    }
+    function picture(src) {
+      var im = new Image();
+      im.decoding = "async"; im.alt = "";
+      im.sizes = "(max-width: 760px) 100vw, 1300px";
+      im.srcset = src + "-sm.webp 480w, " + src + ".webp 1600w";
+      im.src = src + ".webp";
+      return im;
+    }
+    function placeholder() {
+      var d = document.createElement("div");
+      d.className = "own-ph";
+      return d;
+    }
+
+    function select(b, anim) {
+      cur = b;
+      tiles.forEach(function (t) { t.setAttribute("aria-pressed", String(t === b)); });
+      if (b.dataset.look) wallLook = b.dataset.look;
+      if (b.dataset.scene) { live.scene(b.dataset.scene); live.run(true); show(null); }
+      else if (b.dataset.pic) {
+        var im = picture(b.dataset.pic);
+        var go = function () { if (cur === b) { show(im); live.run(false); } };
+        if (im.complete && im.naturalWidth) go(); else im.addEventListener("load", go, { once: true });
+      } else {
+        show(own || placeholder()); live.run(false);
+        if (!ownUrl) file.click();
+      }
+      caption(anim);
+    }
+    tiles.forEach(function (b) { b.addEventListener("click", function () { if (b !== cur || b.dataset.own != null) select(b, true); }); });
+
+    // your own picture or video, the way the app shows it: muted in a loop, or a picture that follows the mouse
+    file.addEventListener("change", function () {
+      var f = file.files && file.files[0];
+      if (!f) return;
+      var video = /^video\//.test(f.type);
+      if (!video && !/^image\//.test(f.type)) return;
+      if (ownUrl) URL.revokeObjectURL(ownUrl);
+      ownUrl = URL.createObjectURL(f); ownName = f.name;
+      var el = document.createElement(video ? "video" : "img");
+      if (video) { el.muted = true; el.loop = true; el.playsInline = true; el.autoplay = true; }
+      else el.alt = "";
+      el.src = ownUrl;
+      var prev = own;
+      own = el;
+      if (cur.dataset.own != null) { show(el); caption(true); }
+      if (prev && prev !== el) setTimeout(function () { prev.remove(); }, 900);
+      if (video) el.play().catch(function () {});
+      file.value = "";
+    });
+
+    // pictures move a little with the mouse
+    var px = 0, py = 0;
+    ticks.push(function (dt) {
+      if (!layer || layer.tagName !== "IMG" || still) return;
+      var r = stage.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > view.h) return;
+      var tx = 0, ty = 0;
+      if (pointer.cx >= r.left && pointer.cx <= r.right && pointer.cy >= r.top && pointer.cy <= r.bottom) {
+        tx = (pointer.cx - r.left) / r.width - 0.5; ty = (pointer.cy - r.top) / r.height - 0.5;
+      }
+      var k = 1 - Math.exp(-dt * 2.5);
+      px += (tx - px) * k; py += (ty - py) * k;
+      layer.style.transform = "scale(1.06) translate3d(" + (-px * 3).toFixed(2) + "%," + (-py * 3).toFixed(2) + "%,0)";
+    });
+    caption(false);
+    return { select: function (id) { var b = tiles.filter(function (t) { return t.dataset.scene === id; })[0]; if (b) select(b, true); } };
   })();
 
   // ---- the emergency keys press themselves once, and by hand --------------------------------------------------
@@ -496,6 +632,12 @@
       im.style.transform = "rotateX(" + ((1 - e) * 24 - pointer.sy * 4).toFixed(2) + "deg) rotateY(" + (pointer.sx * 6).toFixed(2) + "deg) translateY(" + ((1 - e) * 60).toFixed(1) + "px)";
     });
   })();
+
+  // ---- parts glide in the first time they come into view ---------------------------------------------------------
+  var io = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, { rootMargin: "0px 0px -8% 0px", threshold: 0.12 });
+  $$(".rv").forEach(function (el) { io.observe(el); });
 
   applyLang(lang);
   setLook("terminal");

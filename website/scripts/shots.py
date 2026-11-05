@@ -30,6 +30,11 @@ for l in looks:
     save(f"{l}.png", f"look-{l}", [(1600, ""), (800, "-sm")])
     save(f"{l}-menu.png", f"look-{l}-menu", [(1600, ""), (800, "-sm")])
     save(f"lock-{l}.png", f"lock-{l}", [(1200, "")])
+# wallpapers: the generated one of every look, and stills of the live ones
+for l in looks + ["win11"]:
+    save(f"walls/{l}.png", f"wall-{l}", [(1600, ""), (480, "-sm")])
+for w in ["matrix", "starfield", "plexus", "radar", "bokeh", "zen-desk", "gaming-desk"]:
+    save(f"live-{w}.png", f"live-{w}", [(1600, ""), (480, "-sm")])
 for lang in ["de", "en"]:
     save(f"app-terminal-{lang}.png", f"app-{lang}", [(0, "")], q=88)
 
