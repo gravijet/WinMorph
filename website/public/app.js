@@ -10,8 +10,16 @@
   var lang = root.getAttribute("lang") === "en" ? "en" : "de";
   var L = function (de, en) { return lang === "en" ? en : de; };
   var swap = function (el, text) {
-    if (text != null) el.textContent = text;
-    el.classList.remove("swap"); void el.offsetWidth; el.classList.add("swap");
+    clearTimeout(el.swapTimer);
+    var enter = function () {
+      if (text != null) el.textContent = text;
+      el.classList.remove("leaving", "swap");
+      if (!still) { void el.offsetWidth; el.classList.add("swap"); }
+    };
+    if (!still && text != null && el.textContent && el.textContent !== text) {
+      el.classList.add("leaving");
+      el.swapTimer = setTimeout(enter, 160);
+    } else enter();
   };
 
   // ---- language ------------------------------------------------------------------------------
@@ -24,6 +32,15 @@
     en: ["WinMorph – Windows looks in one click", "WinMorph lays a design of its own over Windows 10 and 11: taskbar, Start menu, Alt+Tab, wallpaper and lock screen. 15 looks, free, one click back."],
   };
   var onLang = [];
+  function localized(src) { return src.replace(/\/shots\/(?:de|en)\//g, "/shots/" + lang + "/"); }
+  function localizePictures() {
+    $$("img").forEach(function (im) {
+      ["src", "srcset"].forEach(function (attr) {
+        var value = im.getAttribute(attr);
+        if (value && /\/shots\/(de|en)\//.test(value)) im.setAttribute(attr, localized(value));
+      });
+    });
+  }
   function applyLang(l) {
     lang = l;
     root.setAttribute("lang", l);
@@ -37,11 +54,17 @@
     $$(".n-lang [data-lang]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lang === l)); });
     document.title = meta[l][0];
     $('meta[name="description"]').content = meta[l][1];
+    $('meta[property="og:title"]').content = meta[l][0];
+    $('meta[property="og:description"]').content = meta[l][1];
+    localizePictures();
     onLang.forEach(function (f) { f(); });
   }
   $$(".n-lang [data-lang]").forEach(function (b) {
     b.addEventListener("click", function () {
       try { localStorage.setItem("wm-lang", b.dataset.lang); } catch (e) {}
+      var url = new URL(location.href);
+      url.searchParams.set("lang", b.dataset.lang);
+      history.replaceState(null, "", url);
       applyLang(b.dataset.lang);
     });
   });
@@ -49,12 +72,12 @@
   // ---- newest version -----------------------------------------------------------------------------
   var rel = null;
   function render() {
-    if (!rel) return;
+    if (!rel || !/^\d+\.\d+\.\d+$/.test(rel.version)) return;
     var s = (rel.files || {}).setup;
     var parts = ["Version " + rel.version];
     if (s && s.size) parts.push((s.size / 1048576).toFixed(1).replace(".", lang === "de" ? "," : ".") + " MB");
     $("#dl-info").textContent = parts.join(" · ");
-    if (s && s.url) $$("[data-dl]").forEach(function (a) { a.setAttribute("href", s.url); });
+    if (s && s.url === "/download/setup") $$("[data-dl]").forEach(function (a) { a.setAttribute("href", s.url); });
   }
   onLang.push(render);
   try { rel = JSON.parse(localStorage.getItem("wm-rel") || "null"); } catch (e) {}
@@ -99,14 +122,15 @@
   var morph = $("#top"), pin = $(".morph-pin"), screen = $("#screen"), hero = $("#hero"), wordmark = $("#wordmark");
   var nameEl = $("#look-name"), descEl = $("#look-desc"), nowEl = $("#prog-now");
   var imgs = { terminal: $("img", screen) }, z = 1, shownKey = "terminal", wantKey = "terminal", shownLook = -1;
+  var pictureSizes = "max(100vw, 178svh)";
   imgs.terminal.style.zIndex = 1;
   function img(key) {
     if (!imgs[key]) {
       var im = new Image();
-      im.decoding = "async"; im.alt = "";
-      im.sizes = "100vw";
-      im.srcset = "/shots/look-" + key + "-sm.webp 800w, /shots/look-" + key + ".webp 1600w";
-      im.src = "/shots/look-" + key + ".webp";
+      im.decoding = "async"; im.alt = L("Design-Vorschau: ", "Look preview: ") + looks[byId[key.replace("-menu", "")]].name;
+      im.sizes = pictureSizes;
+      im.srcset = "/shots/" + lang + "/look-" + key + "-sm.webp 800w, /shots/" + lang + "/look-" + key + ".webp 1600w, /shots/" + lang + "/look-" + key + "-2x.webp 3200w";
+      im.src = "/shots/" + lang + "/look-" + key + ".webp";
       screen.appendChild(im);
       imgs[key] = im;
     }
@@ -128,10 +152,14 @@
       shownKey = key;
       // once it covers everything, the pictures below are put away
       setTimeout(function () {
-        if (+im.style.zIndex !== myZ) return;
+        if (+im.style.zIndex !== myZ || shownKey !== key) return;
         Object.keys(imgs).forEach(function (k) {
           var x = imgs[k];
           if (x !== im && x.classList.contains("on") && +x.style.zIndex < myZ) { x.classList.add("off"); x.classList.remove("on", "fade"); }
+        });
+        var at = byId[base(shownKey)];
+        Object.keys(imgs).forEach(function (k) {
+          if (k !== wantKey && Math.abs(byId[base(k)] - at) > 1) { imgs[k].remove(); delete imgs[k]; }
         });
       }, fade ? 650 : 1400);
     };
@@ -141,12 +169,19 @@
     if (i === shownLook) return;
     shownLook = i;
     var l = looks[i];
-    looks.forEach(function (x, j) { x.li.classList.toggle("on", j === i); });
+    looks.forEach(function (x, j) {
+      x.li.classList.toggle("on", j === i);
+      $("button", x.li).setAttribute("aria-pressed", String(j === i));
+    });
     swap(nameEl, l.name);
     swap(descEl, l.desc.textContent);
     swap(nowEl, (i + 1) + " / " + n + "  ·  " + l.name);
   }
-  onLang.push(function () { if (shownLook >= 0) descEl.textContent = looks[shownLook].desc.textContent; });
+  onLang.push(function () {
+    if (shownLook >= 0) swap(descEl, looks[shownLook].desc.textContent);
+    looks.forEach(function (look) { $("button", look.li).setAttribute("aria-label", L("Design ansehen: ", "View look: ") + look.name); });
+    Object.keys(imgs).forEach(function (key) { imgs[key].alt = L("Design-Vorschau: ", "Look preview: ") + looks[byId[key.replace("-menu", "")]].name; });
+  });
 
   // the progress bar: looks before the current one are full, the current one fills up
   var progP = [];
@@ -193,10 +228,16 @@
     // full screen it is zoomed in a little, so the bars of the picture stay out from under the navigation
     var cover = Math.max(view.w / W, view.h / H) * 1.07;
     var s = cover + (1 - cover) * e;
+    var sizes = Math.ceil(W * s / 50) * 50 + "px";
+    if (sizes !== pictureSizes) {
+      pictureSizes = sizes;
+      Object.keys(imgs).forEach(function (key) { imgs[key].sizes = sizes; });
+    }
     var dy = (0.5 - 0.52) * view.h * (1 - e) + (view.w < 760 ? (0.5 - 0.47) * view.h * (1 - e) : 0);
     var tilt = e * (still ? 0 : 1);
     screen.style.transform = "translate(-50%,-50%) translate3d(0," + dy.toFixed(1) + "px,0) perspective(1600px) rotateX(" + (-pointer.sy * 5 * tilt).toFixed(2) + "deg) rotateY(" + (pointer.sx * 7 * tilt).toFixed(2) + "deg) scale(" + s.toFixed(4) + ")";
     screen.style.setProperty("--r", (14 * e / s).toFixed(2) + "px");
+    screen.style.setProperty("--edge", (12 * e).toFixed(2) + "px");
     screen.style.setProperty("--veil", (1 - e).toFixed(3));
     hero.style.opacity = (1 - clamp01(k * 1.7)).toFixed(3);
     hero.style.transform = "translateY(" + (-k * 70).toFixed(1) + "px)";
@@ -225,22 +266,8 @@
     img(l.id + "-menu");
   });
 
-  // ---- which part is on screen: the colours follow it, the navigation marks it ---------------------------------
-  var nav = $("#nav"), pill = $("#n-pill"), links = $$("#n-links a"), navOn = undefined;
-  var parts = $$("main > section");
-  function placePill() {
-    var a = links.filter(function (x) { return x.dataset.to === navOn; })[0];
-    links.forEach(function (x) { x.classList.toggle("on", x === a); });
-    if (!a) { pill.style.opacity = "0"; return; }
-    var jump = pill.style.opacity !== "1";
-    if (jump) pill.style.transition = "none";
-    pill.style.width = a.offsetWidth + "px";
-    pill.style.transform = "translateX(" + a.offsetLeft + "px)";
-    if (jump) { void pill.offsetWidth; pill.style.transition = ""; }
-    pill.style.opacity = "1";
-  }
-  onLang.push(placePill);
-  addEventListener("resize", placePill, { passive: true });
+  // ---- page colours follow the visible section ---------------------------------------------------
+  var nav = $("#nav"), parts = $$("main > section");
   ticks.push(function () {
     var mid = view.h / 2, sec = null;
     for (var i = 0; i < parts.length; i++) {
@@ -251,9 +278,6 @@
     if (id === "pick") id = pick;
     if (id === "wall") id = wallLook;
     if (id) setLook(id);
-    var to = sec ? sec.id : null;
-    if (to === "top" && scrollY < view.h * 0.3) to = null;
-    if (to !== navOn) { navOn = to; placePill(); }
     nav.classList.toggle("solid", scrollY > view.h * 0.3);
   });
 
@@ -281,14 +305,14 @@
         line("  matrix · date · whoami · echo · clear · download");
       },
       neofetch: function () {
-        var v = rel ? rel.version : "5.2.0";
+        var v = rel ? rel.version : L("Vorschau", "preview");
         [
-          [" __      __ __  __   ", "gast@winmorph"],
+          [" __      __ __  __   ", L("gast", "guest") + "@winmorph"],
           [" \\ \\    / /|  \\/  |  ", "─────────────"],
-          ["  \\ \\/\\/ / | |\\/| |  ", "os      WinMorph " + v],
+          ["  \\ \\/\\/ / | |\\/| |  ", L("system  WinMorph ", "os      WinMorph ") + v],
           ["   \\_/\\_/  |_|  |_|  ", "shell   winmorph-sh"],
-          ["                      ", "looks   " + looks.length],
-          ["                      ", "theme   hacker " + color],
+          ["                      ", L("designs ", "looks   ") + looks.length],
+          ["                      ", L("design  hacker ", "theme   hacker ") + color],
         ].forEach(function (r) {
           var d = document.createElement("div"), a = document.createElement("span"), b = document.createElement("span");
           d.className = "pre";
@@ -322,7 +346,7 @@
       var a = cmd.trim().split(/\s+/), c = (a.shift() || "").toLowerCase();
       if (!c) return;
       history.push(cmd); hi = history.length;
-      if (run[c]) run[c](a); else line(c + L(": Befehl nicht gefunden. help zeigt alle.", ": command not found. try help."));
+      if (Object.prototype.hasOwnProperty.call(run, c)) run[c](a); else line(c + L(": Befehl nicht gefunden. help zeigt alle.", ": command not found. try help."));
     }
     input.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { exec(input.value); input.value = ""; }
@@ -334,7 +358,12 @@
       }
     });
     term.addEventListener("click", function () { if (!getSelection().toString()) input.focus({ preventScroll: true }); });
-    line("winmorph-sh · " + L("tippe help", "type help"), "dim");
+    function welcome() {
+      outEl.textContent = "";
+      line("winmorph-sh · " + L("tippe help", "type help"), "dim");
+      if (typed) run.neofetch();
+    }
+    onLang.push(welcome);
     // once it is in view, it types neofetch by itself
     var typed = false;
     new IntersectionObserver(function (es, io) {
@@ -342,16 +371,16 @@
       typed = true; io.disconnect();
       var word = "neofetch", i = 0;
       var t = setInterval(function () {
-        if (document.activeElement === input && input.value && i === 0) { clearInterval(t); return; }
+        if (document.activeElement === input) { clearInterval(t); return; }
         input.value = word.slice(0, ++i);
-        if (i === word.length) { clearInterval(t); setTimeout(function () { exec(input.value); input.value = ""; }, 260); }
+        if (i === word.length) { clearInterval(t); setTimeout(function () { if (document.activeElement !== input) { exec(input.value); input.value = ""; } }, 260); }
       }, still ? 0 : 90);
     }, { threshold: 0.6 }).observe(term);
   })();
 
   // ---- lock screens: a deck to flick through ----------------------------------------------------------------
   (function deck() {
-    var el = $("#deck"), cards = $$("img", el), drag = null;
+    var el = $("#deck"), cards = $$("img", el), drag = null, busy = false;
     function layout() {
       cards.forEach(function (c, i) {
         c.style.zIndex = cards.length - i;
@@ -361,13 +390,15 @@
       });
     }
     function fling(dir) {
+      if (busy) return;
+      busy = true;
       var top = cards[0];
       top.classList.remove("drag");
       top.style.transform = "translate3d(" + dir * 115 + "%,-6%,0) rotate(" + dir * 16 + "deg)";
       top.style.opacity = "0";
-      setTimeout(function () { cards.push(cards.shift()); layout(); }, 280);
+      setTimeout(function () { cards.push(cards.shift()); layout(); busy = false; }, 280);
     }
-    el.addEventListener("pointerdown", function (e) { drag = { x: e.clientX, dx: 0, id: e.pointerId }; cards[0].classList.add("drag"); el.setPointerCapture(e.pointerId); });
+    el.addEventListener("pointerdown", function (e) { if (busy) return; drag = { x: e.clientX, dx: 0, id: e.pointerId }; cards[0].classList.add("drag"); el.setPointerCapture(e.pointerId); });
     el.addEventListener("pointermove", function (e) {
       if (!drag) return;
       drag.dx = e.clientX - drag.x;
@@ -381,7 +412,7 @@
       else { cards[0].classList.remove("drag"); layout(); }
     }
     el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up);
+    el.addEventListener("pointercancel", function () { drag = null; cards[0].classList.remove("drag"); layout(); });
     el.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " " || e.key === "ArrowRight") { e.preventDefault(); fling(-1); } });
     layout();
   })();
@@ -394,7 +425,7 @@
     section.addEventListener("pointerleave", function () { mouse.x = mouse.y = -1; });
     section.addEventListener("pointerdown", function (e) { if (e.target.closest("button")) return; mouse.burst = 1; });
     function size() {
-      dpr = Math.min(devicePixelRatio || 1, 1.5);
+      dpr = Math.min(devicePixelRatio || 1, 3);
       w = cv.clientWidth; h = cv.clientHeight;
       cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -515,14 +546,21 @@
       if (cur.dataset.own != null) cap.appendChild(pickBtn); else if (pickBtn.parentNode) pickBtn.remove();
       if (anim) swap(cap);
     }
-    onLang.push(function () { caption(false); });
+    onLang.push(function () {
+      caption(false);
+      if (cur.dataset.pic) select(cur, false);
+    });
 
     function show(el) {
       var old = layer;
       layer = el;
       if (el && !el.parentNode) pics.appendChild(el);
-      if (el) { void el.offsetWidth; el.classList.add("on"); }
+      if (el) {
+        void el.offsetWidth; el.classList.add("on");
+        if (el.tagName === "VIDEO") el.play().catch(function () {});
+      }
       if (old && old !== el) {
+        if (old.tagName === "VIDEO") old.pause();
         old.classList.remove("on");
         setTimeout(function () { if (old !== layer && old !== own) old.remove(); }, 900);
       }
@@ -530,8 +568,8 @@
     function picture(src) {
       var im = new Image();
       im.decoding = "async"; im.alt = "";
-      im.sizes = "(max-width: 760px) 100vw, 1300px";
-      im.srcset = src + "-sm.webp 480w, " + src + ".webp 1600w";
+      im.sizes = "(max-width: 760px) 100vw, min(92vw, 132svh)";
+      im.srcset = src + "-sm.webp 480w, " + src + ".webp 1600w, " + src + "-2x.webp " + (src.indexOf("wall-") >= 0 ? "3840w" : "3200w");
       im.src = src + ".webp";
       return im;
     }
@@ -547,8 +585,8 @@
       if (b.dataset.look) wallLook = b.dataset.look;
       if (b.dataset.scene) { live.scene(b.dataset.scene); live.run(true); show(null); }
       else if (b.dataset.pic) {
-        var im = picture(b.dataset.pic);
-        var go = function () { if (cur === b) { show(im); live.run(false); } };
+        var im = picture(localized(b.dataset.pic)), imageLang = lang;
+        var go = function () { if (cur === b && imageLang === lang) { show(im); live.run(false); } };
         if (im.complete && im.naturalWidth) go(); else im.addEventListener("load", go, { once: true });
       } else {
         show(own || placeholder()); live.run(false);
@@ -574,7 +612,6 @@
       own = el;
       if (cur.dataset.own != null) { show(el); caption(true); }
       if (prev && prev !== el) setTimeout(function () { prev.remove(); }, 900);
-      if (video) el.play().catch(function () {});
       file.value = "";
     });
 
@@ -629,7 +666,7 @@
       if ((r.bottom < -100 || r.top > view.h + 100) && e >= 0) return;
       var goal = still ? 1 : out(clamp01((view.h - r.top) / (view.h * 0.8)));
       e = e < 0 ? goal : e + (goal - e) * (1 - Math.exp(-dt * 6));
-      im.style.transform = "rotateX(" + ((1 - e) * 24 - pointer.sy * 4).toFixed(2) + "deg) rotateY(" + (pointer.sx * 6).toFixed(2) + "deg) translateY(" + ((1 - e) * 60).toFixed(1) + "px)";
+      im.style.transform = still ? "none" : "rotateX(" + ((1 - e) * 24 - pointer.sy * 4).toFixed(2) + "deg) rotateY(" + (pointer.sx * 6).toFixed(2) + "deg) translateY(" + ((1 - e) * 60).toFixed(1) + "px)";
     });
   })();
 

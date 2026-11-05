@@ -5,7 +5,15 @@ namespace WinMorph.Core
 {
     public static class Loc
     {
-        public static bool De = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de";
+        static bool de = (Reg.Get(@"HKCU\Software\WinMorph", "Language") as string ?? CultureInfo.CurrentUICulture.TwoLetterISOLanguageName) == "de";
+        public static bool De { get => de; set => de = value; }
+        public static CultureInfo Culture => CultureInfo.GetCultureInfo(De ? "de-DE" : "en-GB");
+
+        public static void SaveLanguage(bool german)
+        {
+            De = german;
+            using (var k = Reg.Create(@"HKCU\Software\WinMorph")) k.SetValue("Language", german ? "de" : "en");
+        }
 
         static readonly Dictionary<string, string[]> T = new Dictionary<string, string[]>
         {
@@ -93,6 +101,7 @@ namespace WinMorph.Core
             ["restoring"] = new[] { "Wird wiederhergestellt …", "Restoring …" },
             ["done"] = new[] { "Fertig: {0} Einstellungen geändert.", "Done: {0} settings changed." },
             ["problems"] = new[] { "Nicht möglich: {0}", "Not possible: {0}" },
+            ["restore.incomplete"] = new[] { "Noch nicht vollständig wiederhergestellt. Das Backup bleibt erhalten. Bitte erneut versuchen und eine nötige Admin-Abfrage bestätigen.", "Restoration is incomplete. Your backup has been kept. Please try again and accept an administrator prompt if needed." },
             ["restored"] = new[] { "Wiederhergestellt: {0} Werte. Dein ursprüngliches Windows ist zurück.", "Restored {0} values. Your original Windows is back." },
             ["confirm.title"] = new[] { "Preset anwenden", "Apply preset" },
             ["confirm.first"] = new[] { "WinMorph ändert jetzt das Aussehen von Windows.\n\nVorher wird automatisch ein Backup angelegt. Zurück geht es jederzeit über:\n• Letzten Look rückgängig (vorheriger Look)\n• Original wiederherstellen (Windows wie vorher)\n• Startmenü → WinMorph → Original wiederherstellen\n• Notfall: Strg+Alt+Umschalt+F12 beendet den Design-Shell sofort\n\nFortfahren?", "WinMorph will now change how Windows looks.\n\nA backup is created first. You can always go back via:\n• Undo last look (previous look)\n• Restore original (Windows as before)\n• Start menu → WinMorph → Restore original\n• Emergency: Ctrl+Alt+Shift+F12 stops the design shell at once\n\nContinue?" },

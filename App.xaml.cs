@@ -13,6 +13,8 @@ namespace WinMorph
         {
             base.OnStartup(e);
             var a = e.Args;
+            int language = Array.IndexOf(a, "--lang");
+            if (language >= 0 && language + 1 < a.Length) Loc.De = a[language + 1] == "de";
             Shell.RenderGuard.Start();
             try
             {
@@ -52,7 +54,7 @@ namespace WinMorph
                 if (a.Length >= 1 && a[0] == "--undo") { History.UndoLast(); Shutdown(0); return; }
                 if (a.Length >= 3 && a[0] == "--lockscreen-preview")
                 {
-                    var bmp = Shell.LockScreen.Render(a[1], 1600, 900, 1);
+                    var bmp = Shell.LockScreen.Render(a[1], 1600, 900, 2, still: true);
                     var enc = new PngBitmapEncoder();
                     enc.Frames.Add(BitmapFrame.Create(bmp));
                     using (var fs = File.Create(a[2])) enc.Save(fs);
@@ -90,7 +92,7 @@ namespace WinMorph
                     Shutdown(r.Failed == 0 ? 0 : 1);
                     return;
                 }
-                if (a.Length >= 1 && a[0] == "--restore") { History.RestoreOriginal(); Shutdown(0); return; }
+                if (a.Length >= 1 && a[0] == "--restore") { Shutdown(History.RestoreOriginal().Complete ? 0 : 1); return; }
                 if (a.Length >= 2 && a[0] == "--apply")
                 {
                     var p = Presets.Find(a[1]);
@@ -139,7 +141,7 @@ namespace WinMorph
                     bool menu = a.Length > 3 && a[3] == "menu";
                     Shell.AppCatalog.Loaded += () => Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        var bmp = host.RenderPreview(p, 1600, 900, menu);
+                        var bmp = host.RenderPreview(p, 1600, 900, menu, 2);
                         var enc = new PngBitmapEncoder();
                         enc.Frames.Add(BitmapFrame.Create(bmp));
                         using (var fs = File.Create(a[2])) enc.Save(fs);
@@ -165,7 +167,7 @@ namespace WinMorph
                 if (a.Length >= 3 && a[0] == "--live-preview")
                 {
                     // --live-preview <scene id> <png>: still picture of a scene
-                    var bmp = Live.LiveView.Snapshot(a[1], 1600, 900, 4);
+                    var bmp = Live.LiveView.Snapshot(a[1], 3200, 1800, 4, fullResolution: true);
                     var enc = new PngBitmapEncoder();
                     enc.Frames.Add(BitmapFrame.Create(bmp));
                     using (var fs = File.Create(a[2])) enc.Save(fs);
@@ -175,7 +177,8 @@ namespace WinMorph
                 if (a.Length >= 1 && a[0] == "--shell") { Shell.ShellControl.RunShell(this); return; }
                 if (a.Length >= 1 && a[0] == "--shell-stop") { Shell.ShellControl.Stop(); Shutdown(0); return; }
                 if (a.Length >= 2 && a[0] == "--selftest") { Shutdown(SelfTest.Run(a[1])); return; }
-                if (a.Length >= 1 && a[0] == "--post-install") { Installer.PostInstall(desktopShortcut: Array.IndexOf(a, "desktop") > 0); Shutdown(0); return; }
+                if (a.Length >= 1 && a[0] == "--post-install") { Installer.PostInstall(); Shutdown(0); return; }
+                if (a.Length >= 1 && a[0] == "--uninstall-cleanup") { Installer.Cleanup(); Shutdown(0); return; }
                 if (a.Length >= 1 && a[0] == "--uninstall") { ShutdownMode = ShutdownMode.OnExplicitShutdown; Installer.Uninstall(); Shutdown(0); return; }
                 if (a.Length >= 2 && a[0] == "--wifi-list")
                 {
@@ -189,7 +192,7 @@ namespace WinMorph
                 if (a.Length >= 2 && a[0] == "--render-walls")
                 {
                     Directory.CreateDirectory(a[1]);
-                    foreach (var p in Presets.All) WallpaperArt.RenderToFile(p, Path.Combine(a[1], p.Id + ".png"), 1600, 900);
+                    foreach (var p in Presets.All) WallpaperArt.RenderToFile(p, Path.Combine(a[1], p.Id + ".png"), 3840, 2160);
                     Shutdown(0);
                     return;
                 }
@@ -214,47 +217,11 @@ namespace WinMorph
             w.Show();
         }
 
-        /// <summary>Draws the app icon and saves it as a PNG-based .ico.</summary>
         static void MakeIcon(string path)
         {
-            var sizes = new[] { 256, 64, 48, 32, 16 };
-            var pngs = new byte[sizes.Length][];
-            for (int i = 0; i < sizes.Length; i++)
-            {
-                int s = sizes[i];
-                var dv = new DrawingVisual();
-                using (var dc = dv.RenderOpen())
-                {
-                    var bg = new LinearGradientBrush(Color.FromRgb(0x7C, 0x8C, 0xFF), Color.FromRgb(0x9B, 0x4D, 0xFF), 45);
-                    dc.DrawRoundedRectangle(bg, null, new Rect(0, 0, s, s), s * 0.22, s * 0.22);
-                    double q = s * 0.2, g = s * 0.05, x0 = s * 0.28, y0 = s * 0.28;
-                    var w = new SolidColorBrush(Color.FromArgb(240, 255, 255, 255));
-                    var w2 = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255));
-                    dc.DrawRoundedRectangle(w, null, new Rect(x0, y0, q, q), q * 0.25, q * 0.25);
-                    dc.DrawEllipse(w2, null, new Point(x0 + q * 1.5 + g, y0 + q / 2), q / 2, q / 2);
-                    dc.DrawEllipse(w2, null, new Point(x0 + q / 2, y0 + q * 1.5 + g), q / 2, q / 2);
-                    dc.DrawRoundedRectangle(w, null, new Rect(x0 + q + g, y0 + q + g, q, q), q * 0.5, q * 0.5);
-                }
-                var bmp = new RenderTargetBitmap(s, s, 96, 96, PixelFormats.Pbgra32);
-                bmp.Render(dv);
-                var enc = new PngBitmapEncoder();
-                enc.Frames.Add(BitmapFrame.Create(bmp));
-                using (var ms = new MemoryStream()) { enc.Save(ms); pngs[i] = ms.ToArray(); }
-            }
-            using (var fs = File.Create(path))
-            using (var bw = new BinaryWriter(fs))
-            {
-                bw.Write((short)0); bw.Write((short)1); bw.Write((short)sizes.Length);
-                int offset = 6 + 16 * sizes.Length;
-                for (int i = 0; i < sizes.Length; i++)
-                {
-                    bw.Write((byte)(sizes[i] >= 256 ? 0 : sizes[i])); bw.Write((byte)(sizes[i] >= 256 ? 0 : sizes[i]));
-                    bw.Write((byte)0); bw.Write((byte)0); bw.Write((short)1); bw.Write((short)32);
-                    bw.Write(pngs[i].Length); bw.Write(offset);
-                    offset += pngs[i].Length;
-                }
-                foreach (var p in pngs) bw.Write(p);
-            }
+            var resource = GetResourceStream(new Uri("pack://application:,,,/WinMorph.ico"));
+            using (var source = resource.Stream)
+            using (var target = File.Create(path)) source.CopyTo(target);
         }
     }
 }

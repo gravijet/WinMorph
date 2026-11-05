@@ -30,3 +30,18 @@ Every CI run of `Build & Release` uploads fresh screenshots of all looks. To ref
 gh run download <run-id> -R gravijet/WinMorph -n screenshots -D /tmp/shots
 python3 website/scripts/shots.py /tmp/shots
 ```
+
+The artifact must contain `de/`, `en/` and `walls/`. Looks, menus and lock screens are rendered separately in each language at 3200 × 1800; wallpapers at 3840 × 2160. Text in images is translated by the application before rendering. The exporter validates every source before writing and never enlarges a smaller image. Keep the generated assets in the repository so the static deployment needs no image processing.
+
+The SVG logo is the editable source. `logo.png`, `apple-touch-icon.png`, `og.png` and the application's `WinMorph.ico` are exports of that logo.
+
+## Checks
+
+```console
+python3 -m unittest discover -s website/tests -p 'test_*.py'
+python3 -m http.server 18765 --bind 127.0.0.1 --directory website/public
+# In another terminal, with Playwright installed in your development environment:
+node website/tests/site.cjs
+```
+
+Set `WINMORPH_TEST_URL` for a different server, or `CHROMIUM_PATH` for an existing Chromium installation. Browser checks cover desktop, mobile and reduced motion; language changes include accessible names, image variants, the terminal, and metadata. They also check high-density rendering, gallery controls and download-link validation.

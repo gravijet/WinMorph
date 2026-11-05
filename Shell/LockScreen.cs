@@ -379,14 +379,14 @@ namespace WinMorph.Shell
                     string user = ShellActions.UserName.ToLower().Replace(' ', '_'), host = Environment.MachineName.ToLower();
                     var lines = new List<string>
                     {
-                        "[  OK  ] session " + user + "@" + host + " sealed",
-                        "[  OK  ] screen locked at " + DateTime.Now.ToString("HH:mm:ss"),
-                        "[  OK  ] keyboard and mouse input captured",
-                        "[  OK  ] network " + SysInfo.LocalIp + " monitored",
-                        "[  OK  ] intrusion detection armed",
+                        "[  OK  ] " + L("sitzung ", "session ") + user + "@" + host + L(" gesichert", " sealed"),
+                        "[  OK  ] " + L("bildschirm gesperrt um ", "screen locked at ") + DateTime.Now.ToString("HH:mm:ss"),
+                        "[  OK  ] " + L("tastatur und maus übernommen", "keyboard and mouse input captured"),
+                        "[  OK  ] " + L("netzwerk ", "network ") + SysInfo.LocalIp + L(" überwacht", " monitored"),
+                        "[  OK  ] " + L("zugriffsschutz aktiv", "intrusion detection armed"),
                         "[ INFO ] " + SysInfo.Os.ToLowerInvariant(),
-                        "[ INFO ] uptime " + SysInfo.UptimeText,
-                        "[ WAIT ] awaiting authentication …",
+                        "[ INFO ] " + L("laufzeit ", "uptime ") + SysInfo.UptimeText,
+                        L("[ WARTE ] auf authentifizierung …", "[ WAIT ] awaiting authentication …"),
                     };
                     int li = 0, ci = 0;
                     var sbLog = new System.Text.StringBuilder();
@@ -402,8 +402,8 @@ namespace WinMorph.Shell
                     });
                     if (still)
                     {
-                        lines[1] = "[  OK  ] screen locked";
-                        lines[lines.Count - 1] = "[ WAIT ] awaiting authentication";
+                        lines[1] = "[  OK  ] " + L("bildschirm gesperrt", "screen locked");
+                        lines[lines.Count - 1] = L("[ WARTE ] auf authentifizierung", "[ WAIT ] awaiting authentication");
                         log.Text = string.Join("\n", lines);
                     }
                     else typer.Start();
@@ -411,7 +411,7 @@ namespace WinMorph.Shell
                     // centre: SYSTEM LOCKED, big clock, auth box
                     var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
                     var titleGrid = new Grid { HorizontalAlignment = HorizontalAlignment.Center };
-                    TextBlock Title(Color c) => new TextBlock { Text = "S Y S T E M   L O C K E D", FontFamily = new FontFamily(mono), FontSize = 26, FontWeight = FontWeights.Bold, Foreground = B(c), HorizontalAlignment = HorizontalAlignment.Center };
+                    TextBlock Title(Color c) => new TextBlock { Text = L("S Y S T E M   G E S P E R R T", "S Y S T E M   L O C K E D"), FontFamily = new FontFamily(mono), FontSize = 26, FontWeight = FontWeights.Bold, Foreground = B(c), HorizontalAlignment = HorizontalAlignment.Center };
                     var red = Title(C(0xFF2A55, 200)); var cyan = Title(C(0x00E5FF, 200)); var main = Title(G);
                     red.Opacity = 0; cyan.Opacity = 0;
                     var rt = new TranslateTransform(); var ct = new TranslateTransform();
@@ -434,7 +434,7 @@ namespace WinMorph.Shell
                     {
                         // Windows puts its own clock at the top – keep the design below it
                         sp.Margin = new Thickness(0, 260, 0, 0);
-                        var tag = new TextBlock { Text = "■  ENCRYPTED SESSION  ·  ACCESS RESTRICTED  ■", FontFamily = new FontFamily(mono), FontSize = 15, Foreground = B(C(0xFF3B5C)), HorizontalAlignment = HorizontalAlignment.Center };
+                        var tag = new TextBlock { Text = L("■  VERSCHLÜSSELTE SITZUNG  ·  ZUGRIFF BESCHRÄNKT  ■", "■  ENCRYPTED SESSION  ·  ACCESS RESTRICTED  ■"), FontFamily = new FontFamily(mono), FontSize = 15, Foreground = B(C(0xFF3B5C)), HorizontalAlignment = HorizontalAlignment.Center };
                         sp.Children.Add(new Border { Child = tag, BorderBrush = B(C(0xFF3B5C, 160)), BorderThickness = new Thickness(1), Background = B(0x000000, 170), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 22, 0, 0), HorizontalAlignment = HorizontalAlignment.Center });
                     }
                     else { sp.Children.Add(clock); sp.Children.Add(date); }
@@ -460,7 +460,7 @@ namespace WinMorph.Shell
                     if (still)
                     {
                         prompt.Text = "> " + L("authentifizieren: beliebige taste drücken", "authenticate: press any key") + " █";
-                        status.Text = "secure session   │   " + host + "   │   " + SysInfo.Os.ToLowerInvariant() + "   │   winmorph hacker";
+                        status.Text = L("geschützte sitzung   │   ", "secure session   │   ") + host + "   │   " + SysInfo.Os.ToLowerInvariant() + "   │   winmorph hacker";
                         break;
                     }
                     Tick(() =>
@@ -553,7 +553,7 @@ namespace WinMorph.Shell
         {
             var p = Core.Presets.Find(presetId) ?? Core.Presets.All[0];
             var t = ShellThemes.ForLock(p.Id);
-            ImageSource pic = p.Id == "terminal" ? (ImageSource)Live.LiveView.Snapshot("matrix", (int)(w * scale), (int)(h * scale), 3) : Core.WallpaperArt.Render(p, w, h, false);
+            ImageSource pic = p.Id == "terminal" ? (ImageSource)Live.LiveView.Snapshot("matrix", (int)(w * scale), (int)(h * scale), 3, fullResolution: true) : Core.WallpaperArt.Render(p, (int)(w * scale), (int)(h * scale), false);
             var ui = (FrameworkElement)Build(t, p, pic, null, still);
             ui.Width = w; ui.Height = h;
             var host = new Border { Child = ui, Width = w, Height = h, Background = Brushes.Black };

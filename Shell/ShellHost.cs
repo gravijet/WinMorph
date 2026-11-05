@@ -215,7 +215,7 @@ namespace WinMorph.Shell
             foreach (var r in refreshers) r();
             foreach (var c in clockUpdaters) c();
             var root = new Grid { Width = w, Height = h, ClipToBounds = true };
-            root.Children.Add(new Image { Source = Core.WallpaperArt.Render(p, w, h, false), Stretch = Stretch.Fill });
+            root.Children.Add(new Image { Source = Core.WallpaperArt.Render(p, (int)(w * outScale), (int)(h * outScale), false), Stretch = Stretch.Fill });
             var dock = new DockPanel { LastChildFill = true };
             foreach (var b in previewBars.OrderBy(x => x.edge == Edge.Left ? 1 : 0))
             {

@@ -177,7 +177,7 @@ namespace WinMorph.Shell
                 {
                     fails++;
                     if (fails >= 5) { auth.Message(L("zu viele versuche – windows übernimmt", "too many attempts – windows takes over"), true); RealLock(); return; }
-                    auth.Denied(L("ACCESS DENIED · falsches passwort (" + fails + "/5)", "ACCESS DENIED · wrong password (" + fails + "/5)"));
+                    auth.Denied(L("ZUGRIFF VERWEIGERT · falsches passwort (" + fails + "/5)", "ACCESS DENIED · wrong password (" + fails + "/5)"));
                 }
             }, TaskScheduler.FromCurrentSynchronizationContext());
         }
@@ -272,7 +272,7 @@ namespace WinMorph.Shell
             {
                 step++;
                 if (step == 1) { a.Begin(); foreach (var ch in "geheim12") a.Add(ch); }
-                else if (step == 2) { Shot(file1); a.Take(); a.Denied(De ? "ACCESS DENIED · falsches passwort (1/5)" : "ACCESS DENIED · wrong password (1/5)"); }
+                else if (step == 2) { Shot(file1); a.Take(); a.Denied(De ? "ZUGRIFF VERWEIGERT · falsches passwort (1/5)" : "ACCESS DENIED · wrong password (1/5)"); }
                 else if (step == 3) { Shot(file2); tm.Stop(); LockScreen.StopTimers(); w.Close(); done(); }
             };
             tm.Start();
@@ -368,15 +368,15 @@ namespace WinMorph.Shell
             {
                 Prompt.Text = Terminal ? "> " + L("authentifizieren: beliebige taste drücken", "authenticate: press any key") + " " + cursor
                                        : L("Taste drücken oder klicken, um zu entsperren", "Press a key or click to unlock");
-                if (Info != null) Info.Text = Terminal ? "[F1] windows hello   [F2] windows-anmeldung" : "";
+                if (Info != null) Info.Text = Terminal ? L("[F1] windows hello   [F2] windows-anmeldung", "[F1] windows hello   [F2] windows sign-in") : "";
             }
             else
             {
                 string dots = new string('•', Math.Min(pw.Length, 32));
-                Prompt.Text = Terminal ? "password for " + user + ": " + dots + cursor : (pw.Length == 0 ? L("Passwort", "Password") : dots) + (blink ? "|" : " ");
+                Prompt.Text = Terminal ? L("passwort für ", "password for ") + user + ": " + dots + cursor : (pw.Length == 0 ? L("Passwort", "Password") : dots) + (blink ? "|" : " ");
                 if (Info != null)
                 {
-                    Info.Text = message ?? (Terminal ? "[enter] " + L("entsperren", "unlock") + "   [esc] " + L("zurück", "back") + "   [F1] windows hello   [F2] windows-anmeldung"
+                    Info.Text = message ?? (Terminal ? "[enter] " + L("entsperren", "unlock") + "   [esc] " + L("zurück", "back") + L("   [F1] windows hello   [F2] windows-anmeldung", "   [F1] windows hello   [F2] windows sign-in")
                                                       : L("Enter: entsperren  ·  F1: Windows Hello  ·  F2: Windows-Anmeldung", "Enter: unlock  ·  F1: Windows Hello  ·  F2: Windows sign-in"));
                     Info.Foreground = B(message != null && messageBad ? Color.FromRgb(0xFF, 0x3B, 0x5C) : Core.Applier.Mix(Accent, Colors.Black, Terminal ? 0.35 : 0.0));
                     if (!Terminal && message == null) Info.Foreground = B(Color.FromArgb(190, 255, 255, 255));
@@ -403,10 +403,10 @@ namespace WinMorph.Shell
 
         public void Granted()
         {
-            message = Terminal ? "ACCESS GRANTED · " + L("willkommen zurück", "welcome back") : L("Willkommen zurück", "Welcome back");
+            message = Terminal ? L("ZUGRIFF ERLAUBT · willkommen zurück", "ACCESS GRANTED · welcome back") : L("Willkommen zurück", "Welcome back");
             messageBad = false;
             Typing = true; Clear();
-            if (Prompt != null) Prompt.Text = Terminal ? "> access granted" : "✓";
+            if (Prompt != null) Prompt.Text = Terminal ? L("> zugriff erlaubt", "> access granted") : "✓";
             if (Info != null) { Info.Text = message; Info.Foreground = B(Accent); }
             if (Box != null) Box.BorderBrush = B(Accent);
         }

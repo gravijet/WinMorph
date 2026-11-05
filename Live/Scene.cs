@@ -397,7 +397,8 @@ namespace WinMorph.Live
     // =====================================================================
     sealed class TerminalLogScene : Scene
     {
-        const string Ascii = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~█░▒▓";
+        static string L(string de, string en) => Core.Loc.De ? de : en;
+        const string Ascii = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~█░▒▓äöüÄÖÜß·…–";
         GlyphAtlas atlas;
         int cols, rows, cx, cy;
         string line = ""; int pos; Color lineColor;
@@ -411,7 +412,7 @@ namespace WinMorph.Live
             cols = W / atlas.CW; rows = H / atlas.CH;
             Fill(0);
             cx = 1; cy = 1;
-            Queue("WinMorph secure shell v4.2 · " + host, Mix(Accent, Colors.White, 0.6));
+            Queue(L("WinMorph – sichere Shell ", "WinMorph secure shell ") + Core.Updater.Version + " · " + host, Mix(Accent, Colors.White, 0.6));
             Queue("", Accent);
         }
 
@@ -420,24 +421,27 @@ namespace WinMorph.Live
         static readonly string[] Services = { "network-manager", "cryptd", "sshd", "firewalld", "sentinel", "kernel-audit", "tor-relay", "vault", "deepscan", "packet-sniffer", "neural-ids", "quantum-rng" };
         static readonly string[] Words = { "handshake", "payload", "checksum", "cipher", "socket", "buffer", "kernel", "sector", "token", "proxy", "tunnel", "daemon" };
 
+        static readonly string[] WordsDe = { "Handshake", "Nutzdaten", "Prüfsumme", "Chiffre", "Socket", "Puffer", "Kernel", "Sektor", "Token", "Proxy", "Tunnel", "Dienst" };
+        string Word() { int i = R.Next(Words.Length); return Core.Loc.De ? WordsDe[i] : Words[i]; }
+
         void Generate()
         {
             Color ok = Accent, dim = Mix(Accent, Colors.Black, 0.45), warn = Color.FromRgb(0xFF, 0xB0, 0x00), err = Color.FromRgb(0xFF, 0x3B, 0x3B), white = Mix(Accent, Colors.White, 0.7);
             int kind = R.Next(12);
             switch (kind)
             {
-                case 0: case 1: Queue("[  OK  ] Started " + Services[R.Next(Services.Length)] + ".service", ok); break;
+                case 0: case 1: Queue("[  OK  ] " + L("Gestartet ", "Started ") + Services[R.Next(Services.Length)] + ".service", ok); break;
                 case 2:
                     var sb = new System.Text.StringBuilder("0x" + R.Next(0x10000000).ToString("X8") + "  ");
                     for (int i = 0; i < 16; i++) sb.Append(R.Next(256).ToString("x2")).Append(i == 7 ? "  " : " ");
                     Queue(sb.ToString(), dim); break;
                 case 3: Queue(user + "@" + host + ":~$ " + new[] { "nmap -sV 10.0.0." + R.Next(255), "ssh root@" + R.Next(255) + "." + R.Next(255) + ".0.1", "cat /var/log/auth.log | grep fail", "./decrypt --key=" + R.Next(99999).ToString("X5") + " vault.bin", "tail -f /dev/neural", "sudo ./inject --stealth" }[R.Next(6)], white); break;
-                case 4: Queue("decrypting " + Words[R.Next(Words.Length)] + " block " + R.Next(4096) + "/4096 [" + new string('█', R.Next(4, 30)).PadRight(30, '░') + "]", ok); break;
-                case 5: Queue("[ WARN ] unusual " + Words[R.Next(Words.Length)] + " on port " + R.Next(1, 65535), warn); break;
-                case 6: Queue("trace route " + R.Next(255) + "." + R.Next(255) + "." + R.Next(255) + "." + R.Next(255) + " … " + R.Next(4, 30) + " hops, " + R.Next(4, 240) + " ms", dim); break;
-                case 7: if (R.Next(4) == 0) { Queue("", ok); Queue(">>> ACCESS GRANTED <<<", white); Queue("", ok); } else Queue("auth " + Words[R.Next(Words.Length)] + "… ok", ok); break;
-                case 8: if (R.Next(5) == 0) Queue("[ FAIL ] intrusion attempt blocked from " + R.Next(255) + "." + R.Next(255) + ".x.x", err); else Queue("sync " + R.Next(10, 999) + " MB … done", dim); break;
-                case 9: Queue("scan 10.0." + R.Next(255) + "." + R.Next(255) + "  port " + R.Next(20, 9000) + "/tcp  " + (R.Next(3) == 0 ? "open" : "filtered"), ok); break;
+                case 4: Queue(L("entschlüssle ", "decrypting ") + Word() + " block " + R.Next(4096) + "/4096 [" + new string('█', R.Next(4, 30)).PadRight(30, '░') + "]", ok); break;
+                case 5: Queue(L("[ WARN ] ungewöhnlicher ", "[ WARN ] unusual ") + Word() + L(" auf port ", " on port ") + R.Next(1, 65535), warn); break;
+                case 6: Queue(L("routenverfolgung ", "trace route ") + R.Next(255) + "." + R.Next(255) + "." + R.Next(255) + "." + R.Next(255) + " … " + R.Next(4, 30) + " hops, " + R.Next(4, 240) + " ms", dim); break;
+                case 7: if (R.Next(4) == 0) { Queue("", ok); Queue(L(">>> ZUGRIFF ERLAUBT <<<", ">>> ACCESS GRANTED <<<"), white); Queue("", ok); } else Queue("auth " + Word() + "… ok", ok); break;
+                case 8: if (R.Next(5) == 0) Queue(L("[ FEHLER ] zugriffsversuch blockiert von ", "[ FAIL ] intrusion attempt blocked from ") + R.Next(255) + "." + R.Next(255) + ".x.x", err); else Queue("sync " + R.Next(10, 999) + L(" MB … fertig", " MB … done"), dim); break;
+                case 9: Queue("scan 10.0." + R.Next(255) + "." + R.Next(255) + "  port " + R.Next(20, 9000) + "/tcp  " + (R.Next(3) == 0 ? L("offen", "open") : L("gefiltert", "filtered")), ok); break;
                 default: Queue("sha256 " + Hex(64), dim); break;
             }
         }
@@ -466,7 +470,7 @@ namespace WinMorph.Live
 
         public override void Step(double dt)
         {
-            if (Click && MouseIn) { Queue("", Accent); Queue("> signal traced to [" + (int)Mx + "," + (int)My + "] … locked", Color.FromRgb(0xFF, 0xB0, 0x00)); }
+            if (Click && MouseIn) { Queue("", Accent); Queue(L("> signal verfolgt bis [", "> signal traced to [") + (int)Mx + "," + (int)My + L("] … erfasst", "] … locked"), Color.FromRgb(0xFF, 0xB0, 0x00)); }
             Click = false;
             blink += dt;
             if (pause > 0) { pause -= dt; Cursor(((int)(blink * 2.5)) % 2 == 0); return; }

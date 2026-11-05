@@ -121,8 +121,8 @@ namespace WinMorph.Shell
                     var mono = new FontFamily("Consolas");
                     var dim = t.BarFgDim;
                     var sp = new StackPanel { Margin = new Thickness(10, 8, 10, 10), Width = 640 };
-                    sp.Children.Add(new TextBlock { Text = "[ alt+tab ]  " + wins.Count + (Core.Loc.De ? " fenster" : " windows") + "   ·   tab / ← → wählen · esc abbrechen", Foreground = B(dim), FontFamily = mono, FontSize = 12.5, Margin = new Thickness(6, 0, 6, 8) });
-                    sp.Children.Add(new TextBlock { Text = "  #   PID     PROCESS          TITLE", Foreground = B(dim), FontFamily = mono, FontSize = 13, Margin = new Thickness(6, 0, 6, 2) });
+                    sp.Children.Add(new TextBlock { Text = "[ alt+tab ]  " + wins.Count + (de ? " fenster   ·   tab / ← → wählen · esc abbrechen" : " windows   ·   tab / ← → choose · esc cancel"), Foreground = B(dim), FontFamily = mono, FontSize = 12.5, Margin = new Thickness(6, 0, 6, 8) });
+                    sp.Children.Add(new TextBlock { Text = de ? "  #   PID     PROZESS          TITEL" : "  #   PID     PROCESS          TITLE", Foreground = B(dim), FontFamily = mono, FontSize = 13, Margin = new Thickness(6, 0, 6, 2) });
                     for (int i = 0; i < wins.Count && i < 18; i++)
                     {
                         W32.GetWindowThreadProcessId(wins[i].Hwnd, out uint pid);

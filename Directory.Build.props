@@ -1,7 +1,7 @@
 <Project>
   <!-- one version for the app and the setup; a new number on main publishes a release (.github/workflows/build.yml) -->
   <PropertyGroup>
-    <Version>5.2.0</Version>
+    <Version>5.3.0</Version>
     <Company>Benjamin Berger</Company>
     <Authors>Benjamin Berger</Authors>
     <Copyright>© 2026 Benjamin Berger</Copyright>

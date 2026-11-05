@@ -216,7 +216,7 @@ namespace WinMorph.Shell
             switch (e.Key)
             {
                 case Key.Enter: e.Handled = true; RunSelected(); break;
-                case Key.Escape: e.Handled = true; if (answer != null) { answer = null; UpdatePrompt(); Print("abgebrochen", D); } else SafeHide(); break;
+                case Key.Escape: e.Handled = true; if (answer != null) { answer = null; UpdatePrompt(); Print(L("abgebrochen", "cancelled"), D); } else SafeHide(); break;
                 case Key.Up: e.Handled = true; if (input.Text.Trim().Length > 0 && cands.Count > 1 && histPos < 0) MoveSelection(-1); else History(-1); break;
                 case Key.Down: e.Handled = true; if (input.Text.Trim().Length > 0 && cands.Count > 1 && histPos < 0) MoveSelection(1); else History(1); break;
                 case Key.Tab: e.Handled = true; if (input.Text.Contains(" ") || tabList != null || !CompleteSelected()) Complete(); break;
@@ -304,7 +304,7 @@ namespace WinMorph.Shell
             if (history.Count == 0 || history[history.Count - 1] != line) history.Add(line);
             histPos = -1;
             try { Run(line); }
-            catch (Exception ex) { Print("error: " + ex.Message, Red); }
+            catch (Exception ex) { Print(L("fehler: ", "error: ") + ex.Message, Red); }
             UpdatePrompt();
         }
 
@@ -463,7 +463,7 @@ namespace WinMorph.Shell
 
         void OpenTarget(string a)
         {
-            if (a.Length == 0) { Print("open <app|datei|ordner|url>", D); return; }
+            if (a.Length == 0) { Print(L("open <app|datei|ordner|url>", "open <app|file|folder|url>"), D); return; }
             var path = ResolvePath(a);
             if (File.Exists(path) || Directory.Exists(path)) { ShellActions.Run(path); Print("→ " + path, D); SafeHide(); return; }
             if (a.Contains("://") || a.StartsWith("www.")) { ShellActions.Run(a.StartsWith("www.") ? "https://" + a : a); SafeHide(); return; }
@@ -515,14 +515,14 @@ namespace WinMorph.Shell
                 (new string('─', User.Length + Host.Length + 1), ""),
                 ("os", SysInfo.Os),
                 ("kernel", Environment.OSVersion.Version.ToString()),
-                ("uptime", SysInfo.UptimeText),
+                (L("laufzeit", "uptime"), SysInfo.UptimeText),
                 ("shell", "winmorph-sh " + Core.Updater.Version),
-                ("theme", t.Name.ToLowerInvariant() + " · " + (Live.LiveWall.Spec ?? "static")),
-                ("resolution", (mi.rcMonitor.Right - mi.rcMonitor.Left) + "x" + (mi.rcMonitor.Bottom - mi.rcMonitor.Top)),
+                (L("design", "theme"), t.Name.ToLowerInvariant() + " · " + (Live.LiveWall.Spec ?? L("statisch", "static"))),
+                (L("auflösung", "resolution"), (mi.rcMonitor.Right - mi.rcMonitor.Left) + "x" + (mi.rcMonitor.Bottom - mi.rcMonitor.Top)),
                 ("cpu", SysInfo.Cpu),
                 ("gpu", SysInfo.Gpu),
-                ("memory", SysInfo.Bytes(total - avail) + " / " + SysInfo.Bytes(total)),
-                ("disk", disk != null ? disk.Name.Substring(0, 2) + " " + SysInfo.Bytes(disk.TotalSize - disk.TotalFreeSpace) + " / " + SysInfo.Bytes(disk.TotalSize) : "-"),
+                (L("speicher", "memory"), SysInfo.Bytes(total - avail) + " / " + SysInfo.Bytes(total)),
+                (L("laufwerk", "disk"), disk != null ? disk.Name.Substring(0, 2) + " " + SysInfo.Bytes(disk.TotalSize - disk.TotalFreeSpace) + " / " + SysInfo.Bytes(disk.TotalSize) : "-"),
                 ("ip", SysInfo.LocalIp),
             };
             for (int i = 0; i < Math.Max(art.Length, info.Count); i++)

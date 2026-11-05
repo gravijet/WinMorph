@@ -87,7 +87,23 @@ namespace WinMorph.Shell
                 list = list.GroupBy(a => a.Name).Select(g => g.First()).OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
                 // screenshots on the build machine: only everyday apps instead of its developer tools
                 var demo = Environment.GetEnvironmentVariable("WINMORPH_DEMO_APPS");
-                if (!string.IsNullOrEmpty(demo)) { var keep = new HashSet<string>(demo.Split(';'), StringComparer.OrdinalIgnoreCase); list = list.Where(a => keep.Contains(a.Name)).ToList(); }
+                if (!string.IsNullOrEmpty(demo))
+                {
+                    var keep = new HashSet<string>(demo.Split(';'), StringComparer.OrdinalIgnoreCase);
+                    list = list.Where(a => keep.Contains(a.Name)).ToList();
+                    if (Core.Loc.De)
+                    {
+                        var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["File Explorer"] = "Datei-Explorer", ["Calculator"] = "Rechner", ["Command Prompt"] = "Eingabeaufforderung",
+                            ["Notepad"] = "Editor", ["Task Manager"] = "Task-Manager", ["Control Panel"] = "Systemsteuerung",
+                            ["Snipping Tool"] = "Ausschneiden und skizzieren", ["Settings"] = "Einstellungen", ["Character Map"] = "Zeichentabelle",
+                            ["Remote Desktop Connection"] = "Remotedesktopverbindung", ["Photos"] = "Fotos", ["Camera"] = "Kamera",
+                            ["Clock"] = "Uhr", ["Weather"] = "Wetter", ["Mail"] = "E-Mail", ["Calendar"] = "Kalender", ["Maps"] = "Karten",
+                        };
+                        foreach (var app in list) if (names.TryGetValue(app.Name, out var translated)) app.Name = translated;
+                    }
+                }
                 ui.BeginInvoke(new Action(() => { Apps = list; Loaded?.Invoke(); }));
                 // warm the icon cache in the background
                 foreach (var a in list) { try { a.Prefetch(); } catch { } }

@@ -3,3 +3,4 @@ obj/
 dist/
 Setup/out/
 build/
+__pycache__/

@@ -17,7 +17,8 @@ namespace WinMorph.Core
             if (file == null) return null;
             var b = new Backup(file);
             var r = Restorer.Run(b, restartExplorer: restartExplorer);
-            if (r.NeedsElevation) Tools.RunElevated("--restore-hklm \"" + file + "\"");
+            if (r.NeedsElevation && Tools.RunElevated("--restore-hklm \"" + file + "\"")) r.NeedsElevation = false;
+            if (!r.Complete) return r;
             try
             {
                 File.Delete(file);
@@ -33,13 +34,12 @@ namespace WinMorph.Core
             var b = new Backup(Backup.DefaultFile);
             if (!b.HasData) { WinMorph.Shell.ShellControl.Disable(); return new RestoreResult(); }
             var r = Restorer.Run(b, restartExplorer: restartExplorer);
-            if (r.NeedsElevation) Tools.RunElevated("--restore-hklm \"" + b.File + "\"");
+            if (r.NeedsElevation && Tools.RunElevated("--restore-hklm \"" + b.File + "\"")) r.NeedsElevation = false;
             WinMorph.Shell.ShellControl.Disable();
             WinMorph.Live.LiveWall.Stop();
             using (var k = Reg.Open(WinMorph.Shell.ShellControl.SettingsKey, true)) k?.DeleteValue("LiveWall", false);
             using (var k = Reg.Open(WinMorph.Shell.ShellControl.RunKey, true)) k?.DeleteValue(WinMorph.Live.LiveWall.RunValue, false);
-            b.Retire();
-            Backup.ClearSteps();
+            if (r.Complete) { b.Retire(); Backup.ClearSteps(); }
             return r;
         }
 
@@ -56,6 +56,8 @@ namespace WinMorph.Core
                 Make(Path.Combine(dir, "WinMorph.lnk"), exe, "", de ? "Looks wechseln" : "Change looks");
                 Make(Path.Combine(dir, de ? "WinMorph – Original wiederherstellen.lnk" : "WinMorph – Restore original.lnk"), exe, "--restore-ui", de ? "Setzt Windows auf den Zustand vor WinMorph zurück" : "Puts Windows back to how it was before WinMorph");
                 Make(Path.Combine(dir, de ? "WinMorph – Letzten Look rückgängig.lnk" : "WinMorph – Undo last look.lnk"), exe, "--undo-ui", de ? "Zurück zum vorherigen Look" : "Back to the previous look");
+                foreach (var old in de ? new[] { "Restore original", "Undo last look" } : new[] { "Original wiederherstellen", "Letzten Look rückgängig" })
+                    File.Delete(Path.Combine(dir, "WinMorph – " + old + ".lnk"));
             }
             catch { }
         }
@@ -83,6 +85,7 @@ namespace WinMorph.Core
                          : (de ? "Alles auf das Original-Windows zurücksetzen (Zustand vor WinMorph)?" : "Reset everything to the original Windows (before WinMorph)?");
             if (MessageBox.Show(q, "WinMorph", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             var r = undo ? UndoLast() : RestoreOriginal();
+            if (r != null && !r.Complete) { MessageBox.Show(Loc.Get("restore.incomplete"), "WinMorph"); return; }
             MessageBox.Show(de ? "Fertig – " + (r?.Restored ?? 0) + " Werte wiederhergestellt." : "Done – " + (r?.Restored ?? 0) + " values restored.", "WinMorph");
         }
     }

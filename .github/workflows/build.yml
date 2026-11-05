@@ -37,7 +37,40 @@ jobs:
         run: dotnet build WinMorph.csproj -c Release -o build -nologo
 
       - name: Build setup
-        run: dotnet build Setup/WinMorphSetup.csproj -c Release -o Setup/out -nologo
+        run: |
+          choco install nsis --version=3.12 -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "NSIS installation failed" }
+          New-Item -ItemType Directory -Force Setup/out | Out-Null
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" "/DAppVersion=${{ steps.ver.outputs.version }}" Setup/WinMorph.nsi
+          if ($LASTEXITCODE) { throw "setup build failed" }
+
+      - name: Defender scan when the runner provides an active engine
+        run: |
+          $status = Get-MpComputerStatus -ErrorAction SilentlyContinue
+          if ($status.AMServiceEnabled -and $status.AntivirusEnabled) {
+            Write-Host "Defender signatures: $($status.AntivirusSignatureVersion) ($($status.AntivirusSignatureLastUpdated))"
+            $scanner = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+            if (-not $scanner) { throw "Active Defender has no scanner" }
+            $scanDir = Join-Path $env:LOCALAPPDATA 'WinMorphScan'
+            New-Item -ItemType Directory -Force $scanDir | Out-Null
+            $scanFile = Join-Path $scanDir 'WinMorph-Setup.exe'
+            Copy-Item Setup/out/WinMorph-Setup.exe $scanFile
+            try {
+              $output = & $scanner.FullName -Scan -ScanType 3 -File $scanFile -DisableRemediation 2>&1
+              $output | Write-Host
+              if ($LASTEXITCODE -ne 0) { throw "Defender scan failed or detected a threat (exit $LASTEXITCODE)" }
+              if ($output -match 'was skipped') { Write-Warning "Defender skipped the file; antivirus acceptance has not been verified." }
+            } finally { Remove-Item $scanFile -ErrorAction SilentlyContinue }
+          } else {
+            Write-Warning "This runner has no active Defender engine; antivirus acceptance has not been verified."
+          }
+
+      - name: Installer smoke test
+        run: |
+          try { ./Setup/test.ps1 }
+          finally {
+            Get-Content "$env:LOCALAPPDATA/WinMorph/cli-errors.log" -ErrorAction SilentlyContinue
+          }
 
       - name: Self-test
         run: |
@@ -49,7 +82,6 @@ jobs:
           if ($bad) { throw "self-test failed" }
 
       - name: Screenshots
-        continue-on-error: true
         env:
           WINMORPH_DEMO_APPS: "Firefox;Google Chrome;Microsoft Edge;File Explorer;Calculator;Command Prompt;Windows PowerShell;Notepad;Paint;Visual Studio Code;Task Manager;Control Panel;Snipping Tool;Settings;Character Map;Git Bash;Windows Media Player;Remote Desktop Connection;Steam;Spotify;Microsoft Store;Photos;Camera;Clock;Weather;Mail;Calendar;Maps;Terminal;Windows Terminal"
         run: |
@@ -58,22 +90,24 @@ jobs:
           try { Set-DisplayResolution -Width 1920 -Height 1080 -Force } catch { Write-Warning "resolution: $_" }
           function Shot([string[]]$a) {
             $p = Start-Process build\WinMorph.exe -ArgumentList $a -PassThru
-            if (-not $p.WaitForExit(180000)) { $p.Kill(); Write-Warning "timeout: $a" }
+            if (-not $p.WaitForExit(180000)) { $p.Kill(); throw "screenshot timeout: $a" }
+            if ($p.ExitCode -ne 0) { throw "screenshot failed: $a" }
           }
-          # the first start loads the app list cold; warm it once so no picture runs into the time limit
-          Shot "--shell-preview", "win11", "$pwd\shots\warmup.png"; Remove-Item shots\warmup.png -ErrorAction SilentlyContinue
-          $looks = "win11","win10","win7","xp","win95","macos","ubuntu","debian","arch","mint","chromeos","nova","nexus","terminal","zen","gaming"
-          foreach ($l in $looks) {
-            Shot "--shell-preview", $l, "$pwd\shots\$l.png"
-            Shot "--shell-preview", $l, "$pwd\shots\$l-menu.png", "menu"
-            Shot "--lockscreen-preview", $l, "$pwd\shots\lock-$l.png"
+          $looks = "win10","win7","xp","win95","macos","ubuntu","debian","arch","mint","chromeos","nova","nexus","terminal","zen","gaming"
+          foreach ($lang in "de","en") {
+            $dir = "$pwd\shots\$lang"
+            New-Item -ItemType Directory -Force $dir | Out-Null
+            foreach ($l in $looks) {
+              Shot "--shell-preview", $l, "$dir\$l.png", "--lang", $lang
+              Shot "--shell-preview", $l, "$dir\$l-menu.png", "menu", "--lang", $lang
+              Shot "--lockscreen-preview", $l, "$dir\lock-$l.png", "--lang", $lang
+            }
+            foreach ($scene in "matrix","starfield","plexus","radar","bokeh","zen-desk","gaming-desk") {
+              Shot "--live-preview", $scene, "$dir\live-$scene.png", "--lang", $lang
+            }
+            Shot "--screenshot", "$dir\app.png", "terminal", $lang
           }
           Shot "--render-walls", "$pwd\shots\walls"
-          foreach ($s in "matrix","matrix-hud","starfield","plexus","radar","bokeh","zen-desk","gaming-desk","hacker-desk") { Shot "--live-preview", $s, "$pwd\shots\live-$s.png" }
-          foreach ($l in "terminal","macos","xp","zen") { Shot "--screenshot", "$pwd\shots\app-$l-de.png", $l, "de"; Shot "--screenshot", "$pwd\shots\app-$l-en.png", $l, "en" }
-          Shot "--screenshot", "$pwd\shots\app-live-de.png", "live", "de"
-          Shot "--app-preview", "tasks", "$pwd\shots\app-tasks.png"
-          Shot "--app-preview", "files", "$pwd\shots\app-files.png"
           Get-ChildItem shots | Select-Object Name, Length
 
       - uses: actions/upload-artifact@v4
@@ -112,6 +146,10 @@ jobs:
             Windows-Looks per Klick · Windows looks in one click — https://winmorph.benjaminberger.at
 
             **Download:** `WinMorph-Setup-${{ steps.ver.outputs.version }}.exe` (Windows 10/11, no admin rights needed).
-            If SmartScreen warns about an unknown publisher: *More info → Run anyway*.
+            Standard NSIS installer, per user; no look is activated automatically.
+            Standard-Installer pro Benutzer; kein Look wird automatisch aktiviert.
+
+            If antivirus blocks this file, keep protection enabled and report the detection:
+            https://www.microsoft.com/wdsi/filesubmission
 
             Installed copies update themselves in the background.
