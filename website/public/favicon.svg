@@ -1,1 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7C8CFF"/><stop offset="1" stop-color="#9B4DFF"/></linearGradient></defs><rect width="64" height="64" rx="15.4" fill="url(#g)"/><g fill="#fff"><rect x="17.9" y="17.9" width="12.8" height="12.8" rx="3.2" opacity=".94"/><circle cx="40.3" cy="24.3" r="6.4" opacity=".47"/><circle cx="24.3" cy="40.3" r="6.4" opacity=".47"/><rect x="33.9" y="33.9" width="12.8" height="12.8" rx="6.4" opacity=".94"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="tile" x1="8" y1="4" x2="58" y2="64" gradientUnits="userSpaceOnUse"><stop stop-color="#20213f"/><stop offset="1" stop-color="#0c1020"/></linearGradient>
+    <linearGradient id="fold" x1="12" y1="17" x2="53" y2="47" gradientUnits="userSpaceOnUse"><stop stop-color="#c4b5fd"/><stop offset=".48" stop-color="#8b7bff"/><stop offset="1" stop-color="#50ddeb"/></linearGradient>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="17" fill="url(#tile)" stroke="#a59bff" stroke-opacity=".24" stroke-width="2"/>
+  <path d="M12 20L22 44L32 22L42 44L52 20" stroke="url(#fold)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32 22L42 44" stroke="#d4ccff" stroke-opacity=".45" stroke-width="2" stroke-linecap="round"/>
+</svg>
