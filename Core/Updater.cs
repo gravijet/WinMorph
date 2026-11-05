@@ -60,9 +60,11 @@ namespace WinMorph.Core
             return r != null && Newer(r.Version, Version) ? r : null;
         }
 
+#pragma warning disable CS0649 // filled by the JSON reader
         [DataContract] sealed class JRelease { [DataMember(Name = "version")] public string Version; [DataMember(Name = "published")] public string Published; [DataMember(Name = "files")] public JFiles Files; }
         [DataContract] sealed class JFiles { [DataMember(Name = "setup")] public JFile Setup; }
         [DataContract] sealed class JFile { [DataMember(Name = "url")] public string Url; [DataMember(Name = "size")] public long? Size; [DataMember(Name = "sha256")] public string Sha256; }
+#pragma warning restore CS0649
 
         /// <summary>Reads the site's answer; anything unexpected (no setup, bad checksum, odd address) is no release.</summary>
         public static Release Parse(string json)

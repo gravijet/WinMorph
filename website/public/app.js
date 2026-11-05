@@ -54,8 +54,8 @@
   var lang = root.getAttribute("lang") === "en" ? "en" : "de";
   var rel = null;
   var meta = {
-    de: ["WinMorph – Windows-Looks per Klick", "WinMorph legt ein komplett eigenes Design über Windows 10 und 11: Taskleiste, Startmenü, Alt+Tab, Hintergrund und Sperrbildschirm. 16 Looks, kostenlos, mit einem Klick zurück."],
-    en: ["WinMorph – Windows looks in one click", "WinMorph lays a complete design of its own over Windows 10 and 11: taskbar, Start menu, Alt+Tab, wallpaper and lock screen. 16 looks, free, one click back."],
+    de: ["WinMorph – Windows-Looks per Klick", "WinMorph legt ein komplett eigenes Design über Windows 10 und 11: Taskleiste, Startmenü, Alt+Tab, Hintergrund und Sperrbildschirm. 15 Looks, kostenlos, mit einem Klick zurück."],
+    en: ["WinMorph – Windows looks in one click", "WinMorph lays a complete design of its own over Windows 10 and 11: taskbar, Start menu, Alt+Tab, wallpaper and lock screen. 15 looks, free, one click back."],
   };
 
   function applyLang(l) {
@@ -180,12 +180,12 @@
   // ---- hero: the screen keeps changing its look ----------------------------------------------
   (function hero() {
     var screen = $("#hero-screen"), tilt = $("#hero-tilt"), name = $("#hero-name"), count = $("#hero-count");
-    var order = ["terminal", "macos", "xp", "nexus", "win95", "ubuntu", "zen", "win7", "arch", "gaming", "nova", "win11", "chromeos", "mint", "debian", "win10"];
+    var order = ["terminal", "macos", "xp", "nexus", "win95", "ubuntu", "zen", "win7", "arch", "gaming", "nova", "chromeos", "mint", "debian", "win10"];
     var looksById = {}; list.forEach(function (l, i) { looksById[l.id] = { l: l, n: i }; });
     order = order.filter(function (id) { return looksById[id]; });
     var imgs = { terminal: $("img", screen) }, at = 0, timer = 0;
     function get(id) {
-      if (!imgs[id]) { imgs[id] = pic("/shots/look-" + id + "-sm.webp"); screen.appendChild(imgs[id]); }
+      if (!imgs[id]) { imgs[id] = pic("/shots/look-" + id + ".webp", "/shots/look-" + id + "-sm.webp 800w, /shots/look-" + id + ".webp 1600w", "(max-width: 760px) 92vw, 64vw"); screen.appendChild(imgs[id]); }
       return imgs[id];
     }
     function label() {
@@ -206,8 +206,10 @@
       get(order[(n + 1) % order.length]);
     }
     timer = setInterval(next, 2600);
+    var top = $(".top");
     ticks.push(function () {
       var y = scrollY;
+      top.classList.toggle("past", y > view.h * 0.75);
       if (y > view.h * 1.2) return;
       var p = clamp01(y / view.h);
       tilt.style.transform = "translate3d(0," + (-p * 12).toFixed(2) + "svh,0) scale(" + (1 + p * 0.06).toFixed(4) + ") rotateX(" + (-pointer.sy * 5).toFixed(2) + "deg) rotateY(" + (pointer.sx * 7).toFixed(2) + "deg)";
@@ -282,6 +284,8 @@
       pos = pos < 0 ? i : pos + (i - pos) * (still ? 1 : 1 - Math.exp(-dt * 9));
       names.style.transform = "translateY(" + (-pos * 1.12).toFixed(4) + "em)";
       bar.style.transform = "scaleX(" + p.toFixed(4) + ")";
+      screen.style.setProperty("--px", pointer.sx.toFixed(3));
+      screen.style.setProperty("--py", pointer.sy.toFixed(3));
     });
     return { relabel: relabel };
   })();

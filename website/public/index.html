@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>WinMorph – Windows-Looks per Klick</title>
-<meta name="description" content="WinMorph legt ein komplett eigenes Design über Windows 10 und 11: Taskleiste, Startmenü, Alt+Tab, Hintergrund und Sperrbildschirm. 16 Looks, kostenlos, mit einem Klick zurück.">
+<meta name="description" content="WinMorph legt ein komplett eigenes Design über Windows 10 und 11: Taskleiste, Startmenü, Alt+Tab, Hintergrund und Sperrbildschirm. 15 Looks, kostenlos, mit einem Klick zurück.">
 <meta name="theme-color" content="#000000">
 <link rel="canonical" href="https://winmorph.benjaminberger.at/">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="/fonts/InterTight.woff2" as="font" type="font/woff2" crossorigin>
 <meta property="og:type" content="website">
 <meta property="og:title" content="WinMorph – Windows-Looks per Klick">
-<meta property="og:description" content="16 Looks für Windows 10 und 11: von Windows 95 über macOS bis zum Hacker-Terminal.">
+<meta property="og:description" content="15 Looks für Windows 10 und 11: von Windows 95 über macOS bis zum Hacker-Terminal.">
 <meta property="og:url" content="https://winmorph.benjaminberger.at/">
 <meta property="og:image" content="https://winmorph.benjaminberger.at/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -38,16 +38,15 @@
   <div class="hero-stage">
     <div class="hero-tilt" id="hero-tilt">
       <div class="screen hero-screen" id="hero-screen">
-        <img src="/shots/look-terminal-sm.webp" alt="" width="800" height="450" class="on">
+        <img src="/shots/look-terminal.webp" srcset="/shots/look-terminal-sm.webp 800w, /shots/look-terminal.webp 1600w" sizes="(max-width: 760px) 92vw, 64vw" alt="" width="1600" height="900" class="on" fetchpriority="high">
       </div>
     </div>
   </div>
   <div class="hero-meta">
     <p class="hero-sub" data-en="Windows looks in one click.">Windows-Looks per Klick.</p>
-    <p class="hero-now" aria-hidden="true"><span class="hero-count" id="hero-count">01 / 16</span><span class="roll" id="hero-name"></span></p>
+    <p class="hero-now" aria-hidden="true"><span class="hero-count" id="hero-count">01 / 15</span><span class="roll" id="hero-name"></span></p>
   </div>
   <h1 class="display hero-title"><span class="sr-only">WinMorph</span><span class="rise" aria-hidden="true">WinMorph</span></h1>
-  <p class="hint" data-en="Scroll">Scrollen</p>
 </section>
 
 <section class="statement" id="statement">
@@ -62,7 +61,7 @@
   <div class="app-stage" id="app-stage">
     <figure class="window" id="app-window">
       <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i><span>WinMorph</span></div>
-      <img src="/shots/app-de.webp" data-src-en="/shots/app-en.webp" width="1600" height="1018" loading="lazy" decoding="async" alt="Das Fenster von WinMorph mit der Auswahl der Looks und der Vorschau des Hacker-Looks" data-en-alt="The WinMorph window with the looks to choose from and a preview of the Hacker look">
+      <img src="/shots/app-de.webp" data-src-en="/shots/app-en.webp" width="1320" height="840" loading="lazy" decoding="async" alt="Das Fenster von WinMorph mit der Auswahl der Looks und der Vorschau des Hacker-Looks" data-en-alt="The WinMorph window with the looks to choose from and a preview of the Hacker look">
     </figure>
   </div>
 </section>
@@ -70,7 +69,7 @@
 <!-- one screen held while the page scrolls through all looks -->
 <section class="looks" id="looks">
   <div class="block looks-head">
-    <h2 class="display h-xl rise">16 Looks</h2>
+    <h2 class="display h-xl rise">15 Looks</h2>
     <p class="lead blur" data-en="Taskbar, Start menu, Alt+Tab, title bars, wallpaper and lock screen – every detail drawn anew, in the style of the system.">Taskleiste, Startmenü, Alt+Tab, Titelleisten, Hintergrund und Sperrbildschirm – jedes Detail neu gezeichnet, im Stil des Systems.</p>
   </div>
   <div class="looks-track" id="looks-track">
@@ -84,7 +83,6 @@
       <div class="screen looks-screen" id="looks-screen"></div>
       <div class="looks-bar" aria-hidden="true"><span id="looks-bar"></span></div>
       <ol class="looks-list" id="looks-list">
-        <li data-id="win11" data-accent="#0078D4" data-group="windows"><b>Windows 11</b><span data-en="Centred bar, light theme, blue bloom.">Zentrierte Leiste, helles Design, blaue Blüte.</span></li>
         <li data-id="win10" data-accent="#0078D7" data-group="windows"><b>Windows 10</b><span data-en="Flat bar with a search box, Start menu with tiles.">Flache Leiste mit Suchfeld, Startmenü mit Kacheln.</span></li>
         <li data-id="win7" data-accent="#2B6CB3" data-group="windows"><b>Windows 7</b><span data-en="Glass bar with the start orb, Aero wallpaper.">Glas-Leiste mit Startkugel, Aero-Hintergrund.</span></li>
         <li data-id="xp" data-accent="#245EDC" data-group="windows"><b>Windows XP</b><span data-en="Blue Luna bar, green start button, green hill.">Blaue Luna-Leiste, grüner Start-Knopf, grüner Hügel.</span></li>
@@ -118,8 +116,8 @@
   <p class="lead blur" data-en="The Windows key opens a real terminal. Plus its own task manager, file explorer, notifications and a lock screen where you type your Windows password right there. In any colour.">Die Windows-Taste öffnet ein echtes Terminal. Dazu ein eigener Task-Manager, Datei-Explorer, Benachrichtigungen und ein Sperrbildschirm, an dem du dein Windows-Passwort direkt eintippst. In jeder Farbe.</p>
   <div class="fan" id="fan">
     <div class="fan-tilt">
-      <figure data-side="-1"><img src="/shots/hacker-tasks.webp" width="1200" height="760" loading="lazy" decoding="async" alt="Der eigene Task-Manager des Hacker-Looks" data-en-alt="The Hacker look's own task manager"><i></i></figure>
-      <figure data-side="1"><img src="/shots/hacker-files.webp" width="1200" height="760" loading="lazy" decoding="async" alt="Der eigene Datei-Explorer des Hacker-Looks" data-en-alt="The Hacker look's own file explorer"><i></i></figure>
+      <figure data-side="-1"><img src="/shots/hacker-tasks.webp" width="844" height="555" loading="lazy" decoding="async" alt="Der eigene Task-Manager des Hacker-Looks" data-en-alt="The Hacker look's own task manager"><i></i></figure>
+      <figure data-side="1"><img src="/shots/hacker-files.webp" width="964" height="595" loading="lazy" decoding="async" alt="Der eigene Datei-Explorer des Hacker-Looks" data-en-alt="The Hacker look's own file explorer"><i></i></figure>
       <figure data-side="0"><img src="/shots/look-terminal-menu.webp" width="1600" height="900" loading="lazy" decoding="async" alt="Das Terminal, das die Windows-Taste im Hacker-Look öffnet" data-en-alt="The terminal the Windows key opens in the Hacker look"><i></i></figure>
     </div>
   </div>
