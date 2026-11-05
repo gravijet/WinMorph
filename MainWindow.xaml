@@ -23,6 +23,24 @@
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Bottom">
+                    <Border x:Name="UpdateCard" Visibility="Collapsed" CornerRadius="12" Padding="14,13,14,14" Margin="0,0,0,16" BorderThickness="1" BorderBrush="#3B3F72">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#252A4D" Offset="0"/>
+                                <GradientStop Color="#1D1733" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="7" Height="7" Fill="#8FA0FF" VerticalAlignment="Center" Margin="0,1,8,0"/>
+                                <TextBlock x:Name="UpdTitle" FontSize="13" FontWeight="SemiBold"/>
+                            </StackPanel>
+                            <TextBlock x:Name="UpdText" FontSize="11.5" Foreground="{StaticResource Sub}" TextWrapping="Wrap" LineHeight="16" Margin="0,4,0,11"/>
+                            <Button x:Name="UpdBtn" Style="{StaticResource Small}" Click="Update_Click">
+                                <TextBlock x:Name="TUpdBtn" Foreground="White" FontWeight="SemiBold"/>
+                            </Button>
+                        </StackPanel>
+                    </Border>
                     <Button x:Name="UndoBtn" Style="{StaticResource Ghost}" Click="Undo_Click" Margin="0,0,0,8">
                         <TextBlock x:Name="TUndo" Foreground="{StaticResource Text}"/>
                     </Button>
@@ -34,6 +52,12 @@
                         <Button x:Name="LangDe" Style="{StaticResource Ghost}" Content="Deutsch" Click="LangDe_Click" Margin="0,0,6,0"/>
                         <Button x:Name="LangEn" Style="{StaticResource Ghost}" Content="English" Click="LangEn_Click"/>
                     </StackPanel>
+                    <CheckBox x:Name="OptAutoUpdate" Style="{StaticResource Switch}" Tag="{StaticResource Accent}" Margin="4,16,0,0" Click="AutoUpdate_Click">
+                        <TextBlock x:Name="TAutoUpdate" FontSize="12" Foreground="{StaticResource Sub}" TextWrapping="Wrap" Margin="0,1,0,0"/>
+                    </CheckBox>
+                    <TextBlock x:Name="VersionLink" FontSize="11.5" Foreground="{StaticResource Faint}" Margin="4,12,0,0" Cursor="Hand" MouseLeftButtonUp="Website_Click" ToolTip="winmorph.benjaminberger.at">
+                        <Run x:Name="TVersion"/><Run Text="  ·  "/><Run Text="Website ↗" Foreground="{StaticResource Sub}"/>
+                    </TextBlock>
                 </StackPanel>
 
                 <StackPanel x:Name="NavPanel"/>

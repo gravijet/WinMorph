@@ -99,6 +99,18 @@ namespace WinMorph.Core
             ["confirm.restore"] = new[] { "Alles auf den Stand vor WinMorph zurücksetzen – inklusive Hintergrundbild (auch Windows-Blickpunkt oder Diashow) und Sperrbildschirm?", "Reset everything to how it was before WinMorph – including the wallpaper (also Windows Spotlight or slideshow) and the lock screen?" },
             ["footer"] = new[] { "Kostenlos & Open Source · ändert standardmäßig keine Windows-Einstellungen", "Free & open source · changes no Windows settings by default" },
 
+            // updates
+            ["upd.title"] = new[] { "Version {0} ist da", "Version {0} is here" },
+            ["upd.loading"] = new[] { "Wird im Hintergrund geladen …", "Downloading in the background …" },
+            ["upd.ready"] = new[] { "Bereit. Installiert sich in Sekunden – deine Looks bleiben, wie sie sind.", "Ready. Installs in seconds – your looks stay as they are." },
+            ["upd.portable"] = new[] { "Diese Kopie ist nicht installiert. Das neue Setup gibt es auf der Website.", "This copy is not installed. Get the new setup from the website." },
+            ["upd.install"] = new[] { "Jetzt aktualisieren", "Update now" },
+            ["upd.download"] = new[] { "Zur Website", "Open website" },
+            ["upd.progress"] = new[] { "Lade Update … {0} %", "Downloading update … {0} %" },
+            ["upd.installing"] = new[] { "Wird installiert – WinMorph startet gleich neu …", "Installing – WinMorph restarts in a moment …" },
+            ["upd.auto"] = new[] { "Updates automatisch installieren", "Install updates automatically" },
+            ["upd.version"] = new[] { "Version {0}", "Version {0}" },
+
             // change descriptions
             ["c.left"] = new[] { "links", "left" }, ["c.center"] = new[] { "zentriert", "centred" },
             ["c.align"] = new[] { "Ausrichtung {0}", "{0} aligned" },

@@ -29,11 +29,53 @@ namespace WinMorph
         /// <summary>Renders what the WinMorph shell will really look like (no system changes).</summary>
         BitmapSource Preview(Preset p, bool big)
         {
+            // drawn previews are kept on disk for a day: the next start shows them at once instead of drawing all looks again
+            var file = PreviewFile(p, big);
+            var hit = LoadPreview(file);
+            if (hit != null) return hit;
             var th = Shell.ShellThemes.For(p.Id);
-            if (th == null || !catalogReady) return WallpaperArt.Render(p, big ? 768 : 496, big ? 432 : 278, true);
-            var host = new Shell.ShellHost(th, preview: true);
-            try { return big ? host.RenderPreview(p, 1440, 810, !th.MenuFullScreen, 0.56) : host.RenderPreview(p, 1060, 596, false, 0.48); }
-            finally { host.DisposePreview(); }
+            if (th != null && !catalogReady) { provisional.Add(p.Id); return WallpaperArt.Render(p, big ? 768 : 496, big ? 432 : 278, true); }
+            BitmapSource bmp;
+            if (th == null) bmp = WallpaperArt.Render(p, big ? 768 : 496, big ? 432 : 278, true);
+            else
+            {
+                var host = new Shell.ShellHost(th, preview: true);
+                try { bmp = big ? host.RenderPreview(p, 1440, 810, !th.MenuFullScreen, 0.56) : host.RenderPreview(p, 1060, 596, false, 0.48); }
+                finally { host.DisposePreview(); }
+            }
+            if (!bmp.IsFrozen) bmp.Freeze();
+            Task.Run(() => { try { var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(bmp)); using (var fs = File.Create(file + ".tmp")) enc.Save(fs); File.Copy(file + ".tmp", file, true); File.Delete(file + ".tmp"); } catch { } });
+            return bmp;
+        }
+
+        readonly HashSet<string> provisional = new HashSet<string>();
+        static string PreviewDir { get { var d = Path.Combine(Backup.DataDir, "previews"); Directory.CreateDirectory(d); return d; } }
+
+        /// <summary>One file per look, size, language and look option (hacker colour, macOS light/dark) and version.</summary>
+        static string PreviewFile(Preset p, bool big)
+        {
+            var c = Shell.ShellThemes.HackerColor;
+            string variant = p.Id == "terminal" ? c.R.ToString("X2") + c.G.ToString("X2") + c.B.ToString("X2") : p.Id == "macos" ? (Presets.MacDark ? "dark" : "light") : "";
+            return Path.Combine(PreviewDir, p.Id + "-" + (big ? "big" : "small") + "-" + (Loc.De ? "de" : "en") + "-" + variant + "-" + Updater.Version + ".png");
+        }
+
+        static BitmapSource LoadPreview(string file)
+        {
+            try
+            {
+                var fi = new FileInfo(file);
+                if (!fi.Exists || fi.Length < 1000 || DateTime.UtcNow - fi.LastWriteTimeUtc > TimeSpan.FromDays(1)) return null;
+                var bi = new BitmapImage();
+                bi.BeginInit(); bi.CacheOption = BitmapCacheOption.OnLoad; bi.UriSource = new Uri(file); bi.EndInit(); bi.Freeze();
+                return bi;
+            }
+            catch { return null; }
+        }
+
+        static void FadeIn(UIElement el)
+        {
+            el.Opacity = 0;
+            el.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(260)) { EasingFunction = new System.Windows.Media.Animation.CubicEase() });
         }
         Preset selected;
         bool busy;
@@ -48,14 +90,87 @@ namespace WinMorph
             Shell.AppCatalog.Loaded += () =>
             {
                 catalogReady = true;
-                bigThumbs.Clear();
-                thumbs.Clear();
-                RebuildAll();
+                foreach (var id in provisional) { thumbs.Remove(id); bigThumbs.Remove(id); }
+                if (provisional.Count > 0) RebuildAll();
+                provisional.Clear();
             };
             Shell.AppCatalog.LoadAsync(Dispatcher);
             System.Threading.Tasks.Task.Run(() => History.EnsureShortcuts());
             RebuildAll();
             SourceInitialized += (s, e) => DarkTitleBar();
+            Updater.MarkUiOpen();
+            Task.Run(() =>
+            {
+                Updater.Cleanup();
+                // old previews (other versions, colours, languages)
+                try { foreach (var f in Directory.GetFiles(PreviewDir)) if (DateTime.UtcNow - File.GetLastWriteTimeUtc(f) > TimeSpan.FromDays(7)) File.Delete(f); } catch { }
+            });
+            OptAutoUpdate.IsChecked = Updater.Auto;
+            CheckUpdate();
+        }
+
+        // ---------------- updates ----------------
+        Updater.Release update;
+        Task<string> updateFile;
+
+        async void CheckUpdate()
+        {
+            try
+            {
+                update = await Task.Run(() => Updater.Check());
+                if (update == null) return;
+                // the installed copy loads it right away, so "Update now" takes only seconds
+                if (Updater.Installed) updateFile = Updater.Download(update, pct => Dispatcher.BeginInvoke(new Action(() => { if (UpdBtn.IsEnabled) UpdText.Text = Loc.F("upd.progress", pct); })));
+                ShowUpdate();
+                if (updateFile != null) { await updateFile; ShowUpdate(); }
+            }
+            catch { updateFile = null; ShowUpdate(); }
+        }
+
+        void ShowUpdate()
+        {
+            UpdateCard.Visibility = update == null ? Visibility.Collapsed : Visibility.Visible;
+            if (update == null) return;
+            UpdTitle.Text = Loc.F("upd.title", update.Version);
+            bool ready = updateFile != null && updateFile.Status == TaskStatus.RanToCompletion;
+            UpdText.Text = Loc.Get(!Updater.Installed ? "upd.portable" : ready ? "upd.ready" : "upd.loading");
+            TUpdBtn.Text = Loc.Get(Updater.Installed ? "upd.install" : "upd.download");
+        }
+
+        async void Update_Click(object sender, RoutedEventArgs e)
+        {
+            if (busy || update == null) return;
+            if (!Updater.Installed || updateFile == null) { Website_Click(null, null); return; }
+            UpdBtn.IsEnabled = false;
+            try
+            {
+                var file = await updateFile;
+                UpdText.Text = Loc.Get("upd.installing");
+                Updater.Install(file, relaunch: true);
+                await Task.Delay(400);
+                Application.Current.Shutdown();
+            }
+            catch (Exception ex)
+            {
+                UpdText.Text = ex.Message;
+                updateFile = Updater.Download(update, null);   // next click tries again
+                UpdBtn.IsEnabled = true;
+            }
+        }
+
+        // with automatic updates on, a downloaded update is installed when the window closes
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+            if (Updater.Auto && Updater.Installed && UpdBtn.IsEnabled && updateFile != null && updateFile.Status == TaskStatus.RanToCompletion)
+                try { Updater.Install(updateFile.Result, relaunch: false); } catch { }
+        }
+
+        void AutoUpdate_Click(object sender, RoutedEventArgs e) => Updater.Auto = OptAutoUpdate.IsChecked == true;
+
+        void Website_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Updater.Site) { UseShellExecute = true }); } catch { }
         }
 
         // ---------------- building UI ----------------
@@ -69,6 +184,9 @@ namespace WinMorph
             TOptions.Text = Loc.Get("options");
             TOptExplorer.Text = Loc.Get("opt.explorer");
             TOptLock.Text = Loc.Get("opt.lock");
+            TAutoUpdate.Text = Loc.Get("upd.auto");
+            TVersion.Text = Loc.F("upd.version", Updater.Version);
+            ShowUpdate();
             LangDe.Opacity = Loc.De ? 1 : 0.55;
             LangEn.Opacity = Loc.De ? 0.55 : 1;
             BuildNav();
@@ -151,9 +269,17 @@ namespace WinMorph
             cardImages.Add(imgHost);
 
             var dot = new Border { Width = 10, Height = 10, CornerRadius = new CornerRadius(5), Background = new SolidColorBrush(p.Accent), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-            var nameRow = new StackPanel { Orientation = Orientation.Horizontal };
+            var nameRow = new DockPanel();
+            if (p.Id == Shell.ShellControl.CurrentPreset)
+            {
+                var badge = new Border { CornerRadius = new CornerRadius(9), Padding = new Thickness(8, 1, 8, 2), Background = new SolidColorBrush(Color.FromArgb(0x30, 0x22, 0xD3, 0x7A)), VerticalAlignment = VerticalAlignment.Center,
+                    Child = new TextBlock { Text = Loc.Get("live.current"), FontSize = 10.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x5E, 0xE6, 0x8F)) } };
+                DockPanel.SetDock(badge, Dock.Right);
+                nameRow.Children.Add(badge);
+            }
+            DockPanel.SetDock(dot, Dock.Left);
             nameRow.Children.Add(dot);
-            nameRow.Children.Add(new TextBlock { Text = p.Name, FontSize = 15, FontWeight = FontWeights.SemiBold });
+            nameRow.Children.Add(new TextBlock { Text = p.Name, FontSize = 15, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
             var text = new StackPanel { Margin = new Thickness(14, 11, 14, 13) };
             text.Children.Add(nameRow);
             text.Children.Add(new TextBlock { Text = p.Tag(Loc.De), FontSize = 12, Foreground = (Brush)FindResource("Sub"), Margin = new Thickness(18, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
@@ -171,6 +297,7 @@ namespace WinMorph
             {
                 if (!thumbs.ContainsKey(p.Id)) thumbs[p.Id] = Preview(p, false);
                 img.Source = thumbs[p.Id];
+                FadeIn(img);
             }));
             return btn;
         }
@@ -204,8 +331,18 @@ namespace WinMorph
             LiveDetailMode(false);
             selected = p;
             HighlightSelected();
-            if (!bigThumbs.TryGetValue(p.Id, out var big)) bigThumbs[p.Id] = big = Preview(p, true);
-            BigPreview.Source = big;
+            if (bigThumbs.TryGetValue(p.Id, out var big)) BigPreview.Source = big;
+            else
+            {
+                // the click answers at once with the small picture; the big one follows after the next frame
+                BigPreview.Source = thumbs.TryGetValue(p.Id, out var small) ? small : null;
+                Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+                {
+                    if (selected != p || liveSelected != null) return;
+                    if (!bigThumbs.TryGetValue(p.Id, out var b)) bigThumbs[p.Id] = b = Preview(p, true);
+                    BigPreview.Source = b;
+                }));
+            }
 
             DName.Text = p.Name;
             DTag.Text = p.Tag(Loc.De);
@@ -616,6 +753,7 @@ namespace WinMorph
             }
             catch (Exception ex) { SetBusy(false, ex.Message); }
             UpdateBackupInfo();
+            if (filter != "live") BuildGallery();   // moves the "active" badge
             Activate();
         }
 
@@ -635,6 +773,7 @@ namespace WinMorph
             }
             catch (Exception ex) { SetBusy(false, ex.Message); }
             UpdateBackupInfo();
+            if (filter != "live") BuildGallery();   // moves the "active" badge
             Activate();
         }
 
@@ -651,6 +790,7 @@ namespace WinMorph
             }
             catch (Exception ex) { SetBusy(false, ex.Message); }
             UpdateBackupInfo();
+            if (filter != "live") BuildGallery();   // moves the "active" badge
             Activate();
         }
 

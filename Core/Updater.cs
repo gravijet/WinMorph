@@ -7,7 +7,8 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web.Script.Serialization;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
 
 namespace WinMorph.Core
 {
@@ -59,20 +60,19 @@ namespace WinMorph.Core
             return r != null && Newer(r.Version, Version) ? r : null;
         }
 
+        [DataContract] sealed class JRelease { [DataMember(Name = "version")] public string Version; [DataMember(Name = "published")] public string Published; [DataMember(Name = "files")] public JFiles Files; }
+        [DataContract] sealed class JFiles { [DataMember(Name = "setup")] public JFile Setup; }
+        [DataContract] sealed class JFile { [DataMember(Name = "url")] public string Url; [DataMember(Name = "size")] public long? Size; [DataMember(Name = "sha256")] public string Sha256; }
+
         /// <summary>Reads the site's answer; anything unexpected (no setup, bad checksum, odd address) is no release.</summary>
         public static Release Parse(string json)
         {
-            var d = new JavaScriptSerializer().DeserializeObject(json) as Dictionary<string, object>;
-            if (d == null || !(d.TryGetValue("files", out var f) && f is Dictionary<string, object> files)) return null;
-            if (!(files.TryGetValue("setup", out var s) && s is Dictionary<string, object> setup)) return null;
-            var r = new Release
-            {
-                Version = d.TryGetValue("version", out var v) ? v as string : null,
-                Published = d.TryGetValue("published", out var p) ? p as string : null,
-                Url = setup.TryGetValue("url", out var u) ? u as string : null,
-                Sha256 = (setup.TryGetValue("sha256", out var h) ? h as string : null)?.ToLowerInvariant(),
-                Size = setup.TryGetValue("size", out var z) && z != null ? Convert.ToInt64(z) : 0,
-            };
+            JRelease d;
+            try { using (var ms = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json))) d = new DataContractJsonSerializer(typeof(JRelease)).ReadObject(ms) as JRelease; }
+            catch { return null; }
+            var f = d?.Files?.Setup;
+            if (f == null) return null;
+            var r = new Release { Version = d.Version, Published = d.Published, Url = f.Url, Sha256 = f.Sha256?.ToLowerInvariant(), Size = f.Size ?? 0 };
             bool ok = r.Version != null && System.Version.TryParse(r.Version, out _)
                 && r.Url != null && r.Url.StartsWith("/download/") && r.Url.IndexOfAny(new[] { '?', '#', '\\' }) < 0 && !r.Url.Contains("..")
                 && r.Sha256 != null && r.Sha256.Length == 64 && Array.TrueForAll(r.Sha256.ToCharArray(), Uri.IsHexDigit)
