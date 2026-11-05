@@ -5,7 +5,15 @@ namespace WinMorph.Core
 {
     public static class Loc
     {
-        public static bool De = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de";
+        static bool de = (Reg.Get(@"HKCU\Software\WinMorph", "Language") as string ?? CultureInfo.CurrentUICulture.TwoLetterISOLanguageName) == "de";
+        public static bool De { get => de; set => de = value; }
+        public static CultureInfo Culture => CultureInfo.GetCultureInfo(De ? "de-DE" : "en-GB");
+
+        public static void SaveLanguage(bool german)
+        {
+            De = german;
+            using (var k = Reg.Create(@"HKCU\Software\WinMorph")) k.SetValue("Language", german ? "de" : "en");
+        }
 
         static readonly Dictionary<string, string[]> T = new Dictionary<string, string[]>
         {

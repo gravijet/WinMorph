@@ -261,10 +261,10 @@ namespace WinMorph.Live
         }
 
         /// <summary>Renders a still picture of a scene (used as the normal wallpaper and for cards).</summary>
-        public static BitmapSource Snapshot(string sceneId, int w, int h, double seconds = 3)
+        public static BitmapSource Snapshot(string sceneId, int w, int h, double seconds = 3, bool fullResolution = false)
         {
             var sc = Scene.Create(sceneId);
-            double k = Math.Min(1, 1920.0 / w) * sc.Resolution;
+            double k = fullResolution ? 1 : Math.Min(1, 1920.0 / w) * sc.Resolution;
             sc.Setup((int)(w * k), (int)(h * k));
             int frames = (int)(seconds * 30);
             if (sc is MediaScene media)

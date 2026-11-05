@@ -118,7 +118,7 @@ namespace WinMorph.Core
 
         /// <summary>Runs the verified setup silently. With relaunch, the app opens again afterwards.</summary>
         public static void Install(string setup, bool relaunch)
-            => Process.Start(new ProcessStartInfo(setup, "/S /update" + (relaunch ? " /launch" : "")) { UseShellExecute = false });
+            => Process.Start(new ProcessStartInfo(setup, "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /update" + (relaunch ? " /launch" : "")) { UseShellExecute = false });
 
         /// <summary>Removes downloaded setups of versions that are installed by now.</summary>
         public static void Cleanup()

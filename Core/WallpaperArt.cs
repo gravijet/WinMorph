@@ -353,10 +353,10 @@ namespace WinMorph.Core
             using (var ctx = g.Open())
             {
                 ctx.BeginFigure(new Point(0, H + 5), true, true);
-                for (int i = 0; i <= 80; i++)
+                for (int i = 0; i <= 512; i++)
                 {
-                    double x = W * i / 80.0;
-                    double y = baseY + Math.Sin(i / 80.0 * Math.PI * 2 * freq + phase) * amp + Math.Sin(i / 80.0 * Math.PI * 5 + phase * 2) * amp * 0.25;
+                    double x = W * i / 512.0;
+                    double y = baseY + Math.Sin(i / 512.0 * Math.PI * 2 * freq + phase) * amp + Math.Sin(i / 512.0 * Math.PI * 5 + phase * 2) * amp * 0.25;
                     ctx.LineTo(new Point(x, y), false, true);
                 }
                 ctx.LineTo(new Point(W, H + 5), false, false);
@@ -412,7 +412,7 @@ namespace WinMorph.Core
         {
             int w = Math.Max(1920, Native.GetSystemMetrics(0));
             int h = Math.Max(1080, Native.GetSystemMetrics(1));
-            var file = Path.Combine(Backup.DataDir, "Wallpapers", p.Id + "-" + w + "x" + h + "-v1.png");
+            var file = Path.Combine(Backup.DataDir, "Wallpapers", p.Id + "-" + w + "x" + h + "-v2.png");
             return File.Exists(file) ? file : RenderToFile(p, file, w, h);
         }
     }

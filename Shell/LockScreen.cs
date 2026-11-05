@@ -553,7 +553,7 @@ namespace WinMorph.Shell
         {
             var p = Core.Presets.Find(presetId) ?? Core.Presets.All[0];
             var t = ShellThemes.ForLock(p.Id);
-            ImageSource pic = p.Id == "terminal" ? (ImageSource)Live.LiveView.Snapshot("matrix", (int)(w * scale), (int)(h * scale), 3) : Core.WallpaperArt.Render(p, w, h, false);
+            ImageSource pic = p.Id == "terminal" ? (ImageSource)Live.LiveView.Snapshot("matrix", (int)(w * scale), (int)(h * scale), 3, fullResolution: true) : Core.WallpaperArt.Render(p, (int)(w * scale), (int)(h * scale), false);
             var ui = (FrameworkElement)Build(t, p, pic, null, still);
             ui.Width = w; ui.Height = h;
             var host = new Border { Child = ui, Width = w, Height = h, Background = Brushes.Black };

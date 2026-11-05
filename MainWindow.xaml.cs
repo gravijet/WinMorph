@@ -84,7 +84,7 @@ namespace WinMorph
         {
             InitializeComponent();
             Shell.RenderGuard.Watch(this);
-            Logo.Source = RenderLogo(68);
+            Logo.Source = BitmapFrame.Create(new Uri("pack://application:,,,/WinMorph.ico"));
             try { Icon = BitmapFrame.Create(new Uri("pack://application:,,,/WinMorph.ico")); } catch { }
             selected = Presets.All[0];
             Shell.AppCatalog.Loaded += () =>
@@ -813,8 +813,17 @@ namespace WinMorph
             UndoBtn.IsEnabled = !busy && History.CanUndo;
         }
 
-        void LangDe_Click(object sender, RoutedEventArgs e) { Loc.De = true; RebuildAll(); }
-        void LangEn_Click(object sender, RoutedEventArgs e) { Loc.De = false; RebuildAll(); }
+        void LangDe_Click(object sender, RoutedEventArgs e) { SetLanguage(true); }
+        void LangEn_Click(object sender, RoutedEventArgs e) { SetLanguage(false); }
+
+        void SetLanguage(bool de)
+        {
+            Loc.SaveLanguage(de);
+            thumbs.Clear(); bigThumbs.Clear();
+            RebuildAll();
+            if (Shell.ShellControl.IsRunning) Shell.ShellControl.Start();
+            if (!string.IsNullOrEmpty(Live.LiveWall.Spec)) { Live.LiveWall.Stop(); Live.LiveWall.Start(); }
+        }
 
         void PreviewFrame_SizeChanged(object sender, SizeChangedEventArgs e)
             => PreviewFrame.Clip = new RectangleGeometry(new Rect(0, 0, PreviewFrame.ActualWidth, PreviewFrame.ActualHeight), 12, 12);
@@ -835,27 +844,6 @@ namespace WinMorph
                 Native.DwmSetWindowAttribute(hwnd, 35, ref caption, 4);
             }
             catch { }
-        }
-
-        static BitmapSource RenderLogo(int s)
-        {
-            var dv = new DrawingVisual();
-            using (var dc = dv.RenderOpen())
-            {
-                var bg = new LinearGradientBrush(Color.FromRgb(0x7C, 0x8C, 0xFF), Color.FromRgb(0x9B, 0x4D, 0xFF), 45);
-                dc.DrawRoundedRectangle(bg, null, new Rect(0, 0, s, s), s * 0.24, s * 0.24);
-                double q = s * 0.2, g = s * 0.05, x0 = s * 0.28, y0 = s * 0.28;
-                var w = new SolidColorBrush(Color.FromArgb(240, 255, 255, 255));
-                var w2 = new SolidColorBrush(Color.FromArgb(120, 255, 255, 255));
-                dc.DrawRoundedRectangle(w, null, new Rect(x0, y0, q, q), q * 0.25, q * 0.25);
-                dc.DrawEllipse(w2, null, new Point(x0 + q * 1.5 + g, y0 + q / 2), q / 2, q / 2);
-                dc.DrawEllipse(w2, null, new Point(x0 + q / 2, y0 + q * 1.5 + g), q / 2, q / 2);
-                dc.DrawRoundedRectangle(w, null, new Rect(x0 + q + g, y0 + q + g, q, q), q * 0.5, q * 0.5);
-            }
-            var bmp = new RenderTargetBitmap(s, s, 96, 96, PixelFormats.Pbgra32);
-            bmp.Render(dv);
-            bmp.Freeze();
-            return bmp;
         }
 
         // ---------------- screenshot (for docs/testing) ----------------

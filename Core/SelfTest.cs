@@ -69,6 +69,21 @@ namespace WinMorph.Core
                 Check(Presets.Parts("selftest-unknown") == Area.Design && (Area.Design & Area.Settings) == Area.None, "default parts change no Windows settings");
                 Check(Presets.Find("macos-dark")?.Id == "macos" && Presets.Find("synapse")?.Id == "nexus", "removed looks map to their successors");
 
+                // Language changes cover future shell processes and cached previews, too.
+                bool originalLanguage = Loc.De;
+                try
+                {
+                    var translations = (System.Collections.Generic.Dictionary<string, string[]>)typeof(Loc)
+                        .GetField("T", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic).GetValue(null);
+                    foreach (var pair in translations)
+                        Check(pair.Value.Length == 2 && !string.IsNullOrWhiteSpace(pair.Value[0]) && !string.IsNullOrWhiteSpace(pair.Value[1]), "DE/EN translation: " + pair.Key);
+                    Loc.De = true;
+                    Check(Loc.Get("restore") == "Original wiederherstellen" && Loc.Culture.TwoLetterISOLanguageName == "de", "German UI and formatting");
+                    Loc.De = false;
+                    Check(Loc.Get("restore") == "Restore original" && Loc.Culture.TwoLetterISOLanguageName == "en", "English UI and formatting");
+                }
+                finally { Loc.De = originalLanguage; }
+
                 // updates: only a well-formed answer of our own site counts, and only newer versions
                 const string sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
                 string Rel(string v, string url, string h, string size) => "{\"version\":\"" + v + "\",\"files\":{\"setup\":{\"url\":\"" + url + "\",\"size\":" + size + ",\"sha256\":\"" + h + "\"}}}";

@@ -216,7 +216,7 @@ namespace WinMorph.Shell
             switch (e.Key)
             {
                 case Key.Enter: e.Handled = true; RunSelected(); break;
-                case Key.Escape: e.Handled = true; if (answer != null) { answer = null; UpdatePrompt(); Print("abgebrochen", D); } else SafeHide(); break;
+                case Key.Escape: e.Handled = true; if (answer != null) { answer = null; UpdatePrompt(); Print(L("abgebrochen", "cancelled"), D); } else SafeHide(); break;
                 case Key.Up: e.Handled = true; if (input.Text.Trim().Length > 0 && cands.Count > 1 && histPos < 0) MoveSelection(-1); else History(-1); break;
                 case Key.Down: e.Handled = true; if (input.Text.Trim().Length > 0 && cands.Count > 1 && histPos < 0) MoveSelection(1); else History(1); break;
                 case Key.Tab: e.Handled = true; if (input.Text.Contains(" ") || tabList != null || !CompleteSelected()) Complete(); break;
