@@ -68,6 +68,7 @@ jobs:
             Shot "--shell-preview", $l, "$pwd\shots\$l-menu.png", "menu"
             Shot "--lockscreen-preview", $l, "$pwd\shots\lock-$l.png"
           }
+          Shot "--render-walls", "$pwd\shots\walls"
           foreach ($s in "matrix","matrix-hud","starfield","plexus","radar","bokeh","zen-desk","gaming-desk","hacker-desk") { Shot "--live-preview", $s, "$pwd\shots\live-$s.png" }
           foreach ($l in "terminal","macos","xp","zen") { Shot "--screenshot", "$pwd\shots\app-$l-de.png", $l, "de"; Shot "--screenshot", "$pwd\shots\app-$l-en.png", $l, "en" }
           Shot "--screenshot", "$pwd\shots\app-live-de.png", "live", "de"
@@ -78,7 +79,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: screenshots
-          path: shots/*
+          path: shots/**
           if-no-files-found: ignore
 
       - name: Package

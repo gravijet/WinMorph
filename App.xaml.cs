@@ -189,7 +189,7 @@ namespace WinMorph
                 if (a.Length >= 2 && a[0] == "--render-walls")
                 {
                     Directory.CreateDirectory(a[1]);
-                    foreach (var p in Presets.All) WallpaperArt.RenderToFile(p, Path.Combine(a[1], p.Id + ".png"), 960, 540);
+                    foreach (var p in Presets.All) WallpaperArt.RenderToFile(p, Path.Combine(a[1], p.Id + ".png"), 1600, 900);
                     Shutdown(0);
                     return;
                 }
