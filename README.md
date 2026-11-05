@@ -170,7 +170,7 @@ Die Versionsnummer steht an einer Stelle: `Directory.Build.props`. Jeder Push ba
 
 ## Website
 
-`website/` ist die Seite für `winmorph.benjaminberger.at` (statisch plus ein kleiner Cloudflare Worker für `/api/release` und `/download/setup`, siehe `website/README.md`). Sie wird bei Änderungen und nach jedem Release automatisch ausgerollt.
+`website/` ist die Seite für `winmorph.benjaminberger.at`. Sie läuft über nginx auf dem eigenen Server hinter Cloudflare. Ein Timer holt alle fünf Minuten den neuesten Stand von `main` und das neueste Release (`/api/release`, `/download/setup`), siehe `website/README.md`.
 
 ## Bauen
 

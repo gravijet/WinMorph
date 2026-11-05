@@ -1,0 +1,15 @@
+[Unit]
+Description=winmorph.benjaminberger.at: pull the site and mirror the newest release
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+Environment=WINMORPH_HOME=/var/www/winmorph
+ExecStart=/usr/bin/python3 /var/www/winmorph/repo/website/server/sync.py
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/www/winmorph
+PrivateTmp=yes
