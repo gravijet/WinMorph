@@ -92,7 +92,7 @@ namespace WinMorph
                     Shutdown(r.Failed == 0 ? 0 : 1);
                     return;
                 }
-                if (a.Length >= 1 && a[0] == "--restore") { History.RestoreOriginal(); Shutdown(0); return; }
+                if (a.Length >= 1 && a[0] == "--restore") { Shutdown(History.RestoreOriginal().Complete ? 0 : 1); return; }
                 if (a.Length >= 2 && a[0] == "--apply")
                 {
                     var p = Presets.Find(a[1]);

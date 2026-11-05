@@ -8,6 +8,7 @@ namespace WinMorph.Core
     {
         public int Restored, Failed;
         public bool NeedsElevation;
+        public bool Complete => Failed == 0 && !NeedsElevation;
         public List<string> Problems = new List<string>();
     }
 

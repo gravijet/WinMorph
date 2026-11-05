@@ -69,6 +69,9 @@ namespace WinMorph.Core
                 Check(Presets.Parts("selftest-unknown") == Area.Design && (Area.Design & Area.Settings) == Area.None, "default parts change no Windows settings");
                 Check(Presets.Find("macos-dark")?.Id == "macos" && Presets.Find("synapse")?.Id == "nexus", "removed looks map to their successors");
 
+                Check(new RestoreResult().Complete && !new RestoreResult { Failed = 1 }.Complete
+                    && !new RestoreResult { NeedsElevation = true }.Complete, "failed or unelevated restores must keep their backup");
+
                 // Language changes cover future shell processes and cached previews, too.
                 bool originalLanguage = Loc.De;
                 try

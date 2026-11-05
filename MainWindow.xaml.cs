@@ -768,7 +768,7 @@ namespace WinMorph
             {
                 bool restart = OptExplorer.IsChecked == true;
                 var r = await Task.Run(() => History.RestoreOriginal(restart));
-                var msg = Loc.F("restored", r.Restored);
+                var msg = r.Complete ? Loc.F("restored", r.Restored) : Loc.Get("restore.incomplete");
                 if (r.Problems.Count > 0) msg += "\n" + Loc.F("problems", string.Join(", ", r.Problems.Take(3)));
                 SetBusy(false, msg);
             }
@@ -787,7 +787,7 @@ namespace WinMorph
             {
                 bool restart = OptExplorer.IsChecked == true;
                 var r = await Task.Run(() => History.UndoLast(restart));
-                SetBusy(false, Loc.F("undone", r?.Restored ?? 0));
+                SetBusy(false, r != null && !r.Complete ? Loc.Get("restore.incomplete") : Loc.F("undone", r?.Restored ?? 0));
             }
             catch (Exception ex) { SetBusy(false, ex.Message); }
             UpdateBackupInfo();

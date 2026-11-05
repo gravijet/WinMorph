@@ -463,7 +463,7 @@ namespace WinMorph.Shell
 
         void OpenTarget(string a)
         {
-            if (a.Length == 0) { Print("open <app|datei|ordner|url>", D); return; }
+            if (a.Length == 0) { Print(L("open <app|datei|ordner|url>", "open <app|file|folder|url>"), D); return; }
             var path = ResolvePath(a);
             if (File.Exists(path) || Directory.Exists(path)) { ShellActions.Run(path); Print("→ " + path, D); SafeHide(); return; }
             if (a.Contains("://") || a.StartsWith("www.")) { ShellActions.Run(a.StartsWith("www.") ? "https://" + a : a); SafeHide(); return; }

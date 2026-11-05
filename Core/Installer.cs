@@ -32,7 +32,7 @@ namespace WinMorph.Core
         public static void Cleanup()
         {
             var result = History.RestoreOriginal();
-            if (result.Failed != 0 || result.NeedsElevation)
+            if (!result.Complete)
                 throw new InvalidOperationException(Loc.De ? "Windows konnte nicht vollständig wiederhergestellt werden." : "Windows could not be fully restored.");
             Shell.ShellControl.Disable();
             Live.LiveWall.Stop();

@@ -41,6 +41,19 @@ jobs:
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.ver.outputs.version }}" Setup/WinMorph.iss
           if ($LASTEXITCODE) { throw "setup build failed" }
 
+      - name: Defender scan when the runner provides an active engine
+        run: |
+          $status = Get-MpComputerStatus -ErrorAction SilentlyContinue
+          if ($status.AMServiceEnabled -and $status.AntivirusEnabled) {
+            Write-Host "Defender signatures: $($status.AntivirusSignatureVersion) ($($status.AntivirusSignatureLastUpdated))"
+            $scanner = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+            if (-not $scanner) { throw "Active Defender has no scanner" }
+            & $scanner.FullName -Scan -ScanType 3 -File "$pwd/Setup/out/WinMorph-Setup.exe" -DisableRemediation
+            if ($LASTEXITCODE -ne 0) { throw "Defender scan failed or detected a threat (exit $LASTEXITCODE)" }
+          } else {
+            Write-Warning "This runner has no active Defender engine; antivirus acceptance has not been verified."
+          }
+
       - name: Installer smoke test
         run: |
           try { ./Setup/test.ps1 }

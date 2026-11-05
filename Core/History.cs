@@ -18,7 +18,7 @@ namespace WinMorph.Core
             var b = new Backup(file);
             var r = Restorer.Run(b, restartExplorer: restartExplorer);
             if (r.NeedsElevation && Tools.RunElevated("--restore-hklm \"" + file + "\"")) r.NeedsElevation = false;
-            if (r.Failed != 0 || r.NeedsElevation) return r;
+            if (!r.Complete) return r;
             try
             {
                 File.Delete(file);
@@ -39,7 +39,7 @@ namespace WinMorph.Core
             WinMorph.Live.LiveWall.Stop();
             using (var k = Reg.Open(WinMorph.Shell.ShellControl.SettingsKey, true)) k?.DeleteValue("LiveWall", false);
             using (var k = Reg.Open(WinMorph.Shell.ShellControl.RunKey, true)) k?.DeleteValue(WinMorph.Live.LiveWall.RunValue, false);
-            if (r.Failed == 0 && !r.NeedsElevation) { b.Retire(); Backup.ClearSteps(); }
+            if (r.Complete) { b.Retire(); Backup.ClearSteps(); }
             return r;
         }
 
@@ -83,6 +83,7 @@ namespace WinMorph.Core
                          : (de ? "Alles auf das Original-Windows zurücksetzen (Zustand vor WinMorph)?" : "Reset everything to the original Windows (before WinMorph)?");
             if (MessageBox.Show(q, "WinMorph", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             var r = undo ? UndoLast() : RestoreOriginal();
+            if (r != null && !r.Complete) { MessageBox.Show(Loc.Get("restore.incomplete"), "WinMorph"); return; }
             MessageBox.Show(de ? "Fertig – " + (r?.Restored ?? 0) + " Werte wiederhergestellt." : "Done – " + (r?.Restored ?? 0) + " values restored.", "WinMorph");
         }
     }
