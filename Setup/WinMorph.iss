@@ -83,7 +83,8 @@ begin
   Result := True;
   // Older WinMorph versions use /S. Keep their update invocation working.
   if HasArg('/S') and not WizardSilent then begin
-    Exec(ExpandConstant('{srcexe}'), GetCmdTail + ' /VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    if not Exec(ExpandConstant('{srcexe}'), GetCmdTail + ' /VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewNoWait, Code) then
+      RaiseException(CustomMessage('InstallFailed'));
     Result := False;
   end;
 end;

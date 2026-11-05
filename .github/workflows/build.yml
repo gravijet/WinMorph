@@ -42,7 +42,12 @@ jobs:
           if ($LASTEXITCODE) { throw "setup build failed" }
 
       - name: Installer smoke test
-        run: ./Setup/test.ps1
+        run: |
+          try { ./Setup/test.ps1 }
+          finally {
+            Get-Content install.log,legacy-update.log,uninstall.log -ErrorAction SilentlyContinue
+            Get-Content "$env:LOCALAPPDATA/WinMorph/cli-errors.log" -ErrorAction SilentlyContinue
+          }
 
       - name: Self-test
         run: |

@@ -304,7 +304,7 @@ namespace WinMorph.Shell
             if (history.Count == 0 || history[history.Count - 1] != line) history.Add(line);
             histPos = -1;
             try { Run(line); }
-            catch (Exception ex) { Print("error: " + ex.Message, Red); }
+            catch (Exception ex) { Print(L("fehler: ", "error: ") + ex.Message, Red); }
             UpdatePrompt();
         }
 
@@ -515,10 +515,10 @@ namespace WinMorph.Shell
                 (new string('─', User.Length + Host.Length + 1), ""),
                 ("os", SysInfo.Os),
                 ("kernel", Environment.OSVersion.Version.ToString()),
-                ("uptime", SysInfo.UptimeText),
+                (L("laufzeit", "uptime"), SysInfo.UptimeText),
                 ("shell", "winmorph-sh " + Core.Updater.Version),
-                ("theme", t.Name.ToLowerInvariant() + " · " + (Live.LiveWall.Spec ?? "static")),
-                ("resolution", (mi.rcMonitor.Right - mi.rcMonitor.Left) + "x" + (mi.rcMonitor.Bottom - mi.rcMonitor.Top)),
+                (L("design", "theme"), t.Name.ToLowerInvariant() + " · " + (Live.LiveWall.Spec ?? L("statisch", "static"))),
+                (L("auflösung", "resolution"), (mi.rcMonitor.Right - mi.rcMonitor.Left) + "x" + (mi.rcMonitor.Bottom - mi.rcMonitor.Top)),
                 ("cpu", SysInfo.Cpu),
                 ("gpu", SysInfo.Gpu),
                 ("memory", SysInfo.Bytes(total - avail) + " / " + SysInfo.Bytes(total)),

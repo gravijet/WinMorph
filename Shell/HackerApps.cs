@@ -287,7 +287,7 @@ namespace WinMorph.Shell
             try
             {
                 using (var pr = Process.GetProcessById(p.Pid)) pr.Kill();
-                status.Text = "killed " + p.Name + " (" + p.Pid + ")";
+                status.Text = L("beendet: ", "killed ") + p.Name + " (" + p.Pid + ")";
             }
             catch (Exception ex) { status.Text = "! " + p.Name + ": " + ex.Message; }
             Refresh();
@@ -532,14 +532,14 @@ namespace WinMorph.Shell
             }).ContinueWith(tk =>
             {
                 if (!IsLoaded || d != dir) return;
-                if (tk.IsFaulted) { list.ItemsSource = null; status.Text = "! " + (tk.Exception?.InnerException?.Message ?? "error"); return; }
+                if (tk.IsFaulted) { list.ItemsSource = null; status.Text = "! " + (tk.Exception?.InnerException?.Message ?? L("fehler", "error")); return; }
                 var dimC = Core.Applier.Mix(G, Colors.Black, 0.3);
                 var rows = new List<Row>();
                 if (Directory.GetParent(d) != null && f.Length == 0) rows.Add(new Row { Text = "d  " + Fit("..", 48), Fg = B(D), Tag = new Entry { Up = true, Dir = true, Name = ".." } });
                 foreach (var x in tk.Result)
                     rows.Add(new Row
                     {
-                        Text = (x.Dir ? "d  " : "-  ") + Fit(x.Name + (x.Dir ? "/" : ""), 48) + "  " + (x.Dir ? "" : Size(x.Size)).PadLeft(9) + "   " + x.Time.ToString("yyyy-MM-dd HH:mm"),
+                        Text = (x.Dir ? "d  " : "-  ") + Fit(x.Name + (x.Dir ? "/" : ""), 48) + "  " + (x.Dir ? "" : Size(x.Size)).PadLeft(9) + "   " + x.Time.ToString(De ? "dd.MM.yyyy HH:mm" : "yyyy-MM-dd HH:mm", Core.Loc.Culture),
                         Fg = B(x.Dir ? G : dimC),
                         Tag = x,
                     });

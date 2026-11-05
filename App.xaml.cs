@@ -54,7 +54,7 @@ namespace WinMorph
                 if (a.Length >= 1 && a[0] == "--undo") { History.UndoLast(); Shutdown(0); return; }
                 if (a.Length >= 3 && a[0] == "--lockscreen-preview")
                 {
-                    var bmp = Shell.LockScreen.Render(a[1], 1600, 900, 2);
+                    var bmp = Shell.LockScreen.Render(a[1], 1600, 900, 2, still: true);
                     var enc = new PngBitmapEncoder();
                     enc.Frames.Add(BitmapFrame.Create(bmp));
                     using (var fs = File.Create(a[2])) enc.Save(fs);
