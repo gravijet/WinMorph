@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>WinMorph-Setup</AssemblyName>
+    <RootNamespace>WinMorphSetup</RootNamespace>
+    <ApplicationManifest>..\app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\WinMorph.ico</ApplicationIcon>
+    <Version>5.1.0</Version>
+    <Product>WinMorph Setup</Product>
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>none</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- build WinMorph first: dotnet build ..\WinMorph.csproj -c Release -o ..\build -->
+    <EmbeddedResource Include="..\build\WinMorph.exe" LogicalName="WinMorph.exe" />
+    <EmbeddedResource Include="..\build\WinMorph.exe.config" LogicalName="WinMorph.exe.config" />
+    <EmbeddedResource Include="..\LICENSE" LogicalName="LICENSE" />
+    <Resource Include="..\WinMorph.ico" Link="WinMorph.ico" />
+  </ItemGroup>
+</Project>

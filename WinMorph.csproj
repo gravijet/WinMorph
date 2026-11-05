@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>WinMorph</AssemblyName>
+    <RootNamespace>WinMorph</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>5.1.0</Version>
+    <Product>WinMorph</Product>
+    <Description>Windows-Design-Presets: Taskleiste, Startmenü, Farben, Fenster und mehr</Description>
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>none</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <PropertyGroup Condition="Exists('WinMorph.ico')">
+    <ApplicationIcon>WinMorph.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Setup\**" />
+    <None Remove="Setup\**" />
+    <Page Remove="Setup\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.SDK.Contracts" Version="10.0.26100.8249" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+  <ItemGroup Condition="Exists('WinMorph.ico')">
+    <Resource Include="WinMorph.ico" />
+  </ItemGroup>
+</Project>
