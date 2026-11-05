@@ -1,6 +1,8 @@
 # WinMorph
 
-**Windows-Looks per Klick.** WinMorph legt ein komplett eigenes Design über Windows 10/11 – Taskleiste, Startmenü, Titelleisten, Alt+Tab, Hintergrund und Sperrbildschirm. **Deine Windows-Einstellungen bleiben dabei unverändert** (kein Dunkelmodus-, Akzent-, Maus- oder Explorer-Umbau), außer du schaltest das pro Look selbst ein. Alles lässt sich mit einem Klick vollständig zurücksetzen.
+**Windows-Looks per Klick.** · Download: **[winmorph.benjaminberger.at](https://winmorph.benjaminberger.at)**
+
+ WinMorph legt ein komplett eigenes Design über Windows 10/11 – Taskleiste, Startmenü, Titelleisten, Alt+Tab, Hintergrund und Sperrbildschirm. **Deine Windows-Einstellungen bleiben dabei unverändert** (kein Dunkelmodus-, Akzent-, Maus- oder Explorer-Umbau), außer du schaltest das pro Look selbst ein. Alles lässt sich mit einem Klick vollständig zurücksetzen.
 
 ## Presets (16)
 
@@ -153,6 +155,22 @@ Windows 10 oder 11 (nutzt das in Windows eingebaute .NET Framework 4.8).
 
 **Deinstallieren:** Einstellungen → Apps → WinMorph. Windows wird dabei auf den Zustand vor WinMorph zurückgesetzt.
 Hinweis: Windows SmartScreen kann beim ersten Start warnen, weil die Datei nicht signiert ist → „Weitere Informationen“ → „Trotzdem ausführen“.
+
+## Updates
+
+WinMorph aktualisiert sich selbst. Die installierte Version fragt `https://winmorph.benjaminberger.at/api/release` nach der neuesten Version, lädt das Setup herunter und prüft Größe und SHA-256, bevor sie es installiert (`WinMorph-Setup.exe /S /update`). Deine Looks bleiben dabei, wie sie sind.
+
+- **App offen:** In der Seitenleiste erscheint „Version x ist da“ mit „Jetzt aktualisieren“ (WinMorph startet danach neu). Mit „Updates automatisch installieren“ wird ein geladenes Update auch beim Schließen installiert.
+- **Nur der Design-Shell läuft:** Er sucht drei Minuten nach der Anmeldung und dann alle sechs Stunden nach Updates und installiert sie, sobald der PC zwei Minuten nicht benutzt wurde (die Leiste ist dann für ein paar Sekunden weg).
+- Abschalten: Schalter „Updates automatisch installieren“ in der Seitenleiste. Eine nicht installierte (portable) Kopie verweist nur auf die Website.
+
+## Release
+
+Die Versionsnummer steht an einer Stelle: `Directory.Build.props`. Jeder Push baut WinMorph auf Windows (`.github/workflows/build.yml`), führt den Selbsttest aus und erzeugt Screenshots aller Looks (Artefakt „screenshots“). Steht auf `main` eine Version ohne Tag, wird daraus automatisch ein GitHub-Release mit `WinMorph-Setup-<version>.exe` und `SHA256SUMS.txt`. Die Website und das Update in der App holen es von dort.
+
+## Website
+
+`website/` ist die Seite für `winmorph.benjaminberger.at` (statisch plus ein kleiner Cloudflare Worker für `/api/release` und `/download/setup`, siehe `website/README.md`). Sie wird bei Änderungen und nach jedem Release automatisch ausgerollt.
 
 ## Bauen
 

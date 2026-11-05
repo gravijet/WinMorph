@@ -281,6 +281,7 @@ html:not(.js) .pop { opacity: 1; transform: none; }
   .pill { display: none; }
   .hero-stage { padding-bottom: 12svh; }
   .hero-screen { width: 88vw; }
+  .hero-title { font-size: 21vw; bottom: 22px; }
   .hero-meta { left: var(--pad); right: auto; top: 76px; bottom: auto; align-items: flex-start; text-align: left; }
   .hero-sub { max-width: 20ch; }
   .lead { margin-top: 36px; }
