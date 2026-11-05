@@ -7,18 +7,13 @@ function Run([string]$File, [string]$Arguments) {
 }
 $dir = Join-Path $env:LOCALAPPDATA 'Programs\WinMorph'
 $setup = Join-Path $PSScriptRoot 'out\WinMorph-Setup.exe'
-Run $setup '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=install.log'
-if (-not (Test-Path "$dir\WinMorph.exe") -or -not (Test-Path "$dir\unins000.exe")) { throw 'Missing installation' }
+Run $setup '/S'
+if (-not (Test-Path "$dir\WinMorph.exe") -or -not (Test-Path "$dir\Uninstall.exe")) { throw 'Missing installation' }
 if (Get-ItemPropertyValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' 'WinMorph Shell' -ErrorAction SilentlyContinue) { throw 'Installer activated a look' }
-# A previously released app still invokes /S /update.
-$legacy = Start-Process $setup -ArgumentList '/S /update /LOG=legacy-update.log' -PassThru
-if (-not $legacy.WaitForExit(30000)) { $legacy.Kill(); throw 'Legacy handover hung' }
-# The bootstrap exits while the standard silent installer completes the update.
-$deadline = (Get-Date).AddSeconds(90)
-while (Get-Process -Name 'WinMorph-Setup*' -ErrorAction SilentlyContinue) {
-    if ((Get-Date) -gt $deadline) { throw 'Legacy update hung' }
-    Start-Sleep -Milliseconds 250
-}
-if (-not (Select-String -Path legacy-update.log -SimpleMatch 'Installation process succeeded.')) { throw 'Legacy update failed' }
-Run "$dir\unins000.exe" '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=uninstall.log'
+# Previously released apps use precisely this invocation; it must stay silent and finish.
+Set-ItemProperty 'HKCU:\Software\WinMorph' 'Language' 'de'
+Run $setup '/S /update'
+if ((Get-ItemPropertyValue 'HKCU:\Software\WinMorph' 'Language') -ne 'de') { throw 'Update lost the language preference' }
+if ((Get-FileHash "$dir\WinMorph.exe").Hash -ne (Get-FileHash 'build\WinMorph.exe').Hash) { throw 'Installed executable differs from build' }
+Run "$dir\Uninstall.exe" '/S'
 if (Test-Path "$dir\WinMorph.exe") { throw 'Uninstall did not remove WinMorph' }

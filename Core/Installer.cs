@@ -16,7 +16,7 @@ namespace WinMorph.Core
             var exe = Exe;
             if (Reg.Get(Shell.ShellControl.SettingsKey, "Language") == null) Loc.SaveLanguage(Loc.De);
             History.EnsureShortcuts();
-            // Inno Setup owns the uninstall entry and shortcuts; remove the old custom entry after upgrading.
+            // The standard installer owns the uninstall entry and shortcuts; remove the old custom entry after upgrading.
             var root = Reg.Root(UninstallKey, out var sub);
             root.DeleteSubKeyTree(sub, false);
             // a look that is already active (e.g. from a portable copy) now starts from the installed file
@@ -46,7 +46,7 @@ namespace WinMorph.Core
 
         public static void Uninstall()
         {
-            var uninstaller = Path.Combine(Path.GetDirectoryName(Exe), "unins000.exe");
+            var uninstaller = Path.Combine(Path.GetDirectoryName(Exe), "Uninstall.exe");
             if (File.Exists(uninstaller)) Process.Start(new ProcessStartInfo(uninstaller) { UseShellExecute = true });
             else History.Interactive(undo: false);
         }

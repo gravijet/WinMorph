@@ -38,7 +38,9 @@ jobs:
 
       - name: Build setup
         run: |
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.ver.outputs.version }}" Setup/WinMorph.iss
+          choco install nsis --version=3.12 -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "NSIS installation failed" }
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" "/DAppVersion=${{ steps.ver.outputs.version }}" Setup/WinMorph.nsi
           if ($LASTEXITCODE) { throw "setup build failed" }
 
       - name: Defender scan when the runner provides an active engine
@@ -48,8 +50,16 @@ jobs:
             Write-Host "Defender signatures: $($status.AntivirusSignatureVersion) ($($status.AntivirusSignatureLastUpdated))"
             $scanner = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1
             if (-not $scanner) { throw "Active Defender has no scanner" }
-            & $scanner.FullName -Scan -ScanType 3 -File "$pwd/Setup/out/WinMorph-Setup.exe" -DisableRemediation
-            if ($LASTEXITCODE -ne 0) { throw "Defender scan failed or detected a threat (exit $LASTEXITCODE)" }
+            $scanDir = Join-Path $env:LOCALAPPDATA 'WinMorphScan'
+            New-Item -ItemType Directory -Force $scanDir | Out-Null
+            $scanFile = Join-Path $scanDir 'WinMorph-Setup.exe'
+            Copy-Item Setup/out/WinMorph-Setup.exe $scanFile
+            try {
+              $output = & $scanner.FullName -Scan -ScanType 3 -File $scanFile -DisableRemediation 2>&1
+              $output | Write-Host
+              if ($LASTEXITCODE -ne 0) { throw "Defender scan failed or detected a threat (exit $LASTEXITCODE)" }
+              if ($output -match 'was skipped') { Write-Warning "Defender skipped the file; antivirus acceptance has not been verified." }
+            } finally { Remove-Item $scanFile -ErrorAction SilentlyContinue }
           } else {
             Write-Warning "This runner has no active Defender engine; antivirus acceptance has not been verified."
           }
@@ -58,7 +68,6 @@ jobs:
         run: |
           try { ./Setup/test.ps1 }
           finally {
-            Get-Content install.log,legacy-update.log,uninstall.log -ErrorAction SilentlyContinue
             Get-Content "$env:LOCALAPPDATA/WinMorph/cli-errors.log" -ErrorAction SilentlyContinue
           }
 
@@ -136,7 +145,7 @@ jobs:
             Windows-Looks per Klick · Windows looks in one click — https://winmorph.benjaminberger.at
 
             **Download:** `WinMorph-Setup-${{ steps.ver.outputs.version }}.exe` (Windows 10/11, no admin rights needed).
-            Standard Inno Setup installer, per user; no look is activated automatically.
+            Standard NSIS installer, per user; no look is activated automatically.
             Standard-Installer pro Benutzer; kein Look wird automatisch aktiviert.
 
             If antivirus blocks this file, keep protection enabled and report the detection:

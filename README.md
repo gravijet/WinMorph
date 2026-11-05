@@ -153,9 +153,9 @@ Bis auf Desktop und Sperrbildschirm ändern diese Bereiche Windows-Einstellungen
 
 Windows 10 oder 11 (nutzt das in Windows eingebaute .NET Framework 4.8).
 
-**Installieren:** `WinMorph-Setup.exe` starten. Der reguläre Inno-Setup-Installer installiert nach `%LOCALAPPDATA%\Programs\WinMorph` (ohne Administratorrechte), ins Startmenü, auf Wunsch auf den Desktop und unter Einstellungen → Apps. Deinen ersten Look wählst du anschließend selbst in der App. Deutsch und Englisch sind im Installer und in der App verfügbar; die App merkt sich deine Sprachwahl auch für Shell, Live-Hintergründe und Vorschauen.
+**Installieren:** `WinMorph-Setup.exe` starten. Der reguläre NSIS-Installer installiert nach `%LOCALAPPDATA%\Programs\WinMorph` (ohne Administratorrechte), ins Startmenü, auf Wunsch auf den Desktop und unter Einstellungen → Apps. Deinen ersten Look wählst du anschließend selbst in der App. Deutsch und Englisch sind im Installer und in der App verfügbar; die App merkt sich deine Sprachwahl auch für Shell, Live-Hintergründe und Vorschauen.
 
-Ohne Fenster: `WinMorph-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART`. Der alte Aufruf `/S /update` wird für bereits installierte Versionen weiterhin unterstützt.
+Ohne Fenster: `WinMorph-Setup.exe /S`. Der alte Aufruf `/S /update` wird für bereits installierte Versionen weiterhin unterstützt.
 
 **Deinstallieren:** Einstellungen → Apps → WinMorph. Vor dem Entfernen stellt WinMorph Windows wieder her. Wenn dabei etwas fehlschlägt, bleiben Anwendung und Backup für einen erneuten Versuch erhalten.
 
@@ -163,7 +163,7 @@ Ohne Fenster: `WinMorph-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART`. Der
 
 ## Updates
 
-WinMorph aktualisiert sich selbst. Die installierte Version fragt `https://winmorph.benjaminberger.at/api/release` nach der neuesten Version, lädt das Setup herunter und prüft Größe und SHA-256, bevor sie es installiert (`WinMorph-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /update`). Deine Looks bleiben dabei, wie sie sind.
+WinMorph aktualisiert sich selbst. Die installierte Version fragt `https://winmorph.benjaminberger.at/api/release` nach der neuesten Version, lädt das Setup herunter und prüft Größe und SHA-256, bevor sie es installiert (`WinMorph-Setup.exe /S /update`). Deine Looks bleiben dabei, wie sie sind.
 
 - **App offen:** In der Seitenleiste erscheint „Version x ist da“ mit „Jetzt aktualisieren“ (WinMorph startet danach neu). Mit „Updates automatisch installieren“ wird ein geladenes Update auch beim Schließen installiert.
 - **Nur der Design-Shell läuft:** Er sucht drei Minuten nach der Anmeldung und dann alle sechs Stunden nach Updates und installiert sie, sobald der PC zwei Minuten nicht benutzt wurde (die Leiste ist dann für ein paar Sekunden weg).
@@ -181,9 +181,9 @@ Die Versionsnummer steht an einer Stelle: `Directory.Build.props`. Jeder Push ba
 
 ```
 dotnet build WinMorph.csproj -c Release -o build
-ISCC.exe /DAppVersion=5.3.0 Setup/WinMorph.iss
+makensis.exe /DAppVersion=5.3.0 Setup/WinMorph.nsi
 ```
-Zum Bauen des Installers wird [Inno Setup 6](https://jrsoftware.org/isinfo.php) benötigt. Die Versionsnummer für `AppVersion` muss `Directory.Build.props` entsprechen. Der Installer (`Setup/out/WinMorph-Setup.exe`) enthält alle zuvor gebauten Dateien aus `build/`. `Setup/test.ps1` prüft auf einem frischen Windows-Testsystem Neuinstallation, den alten Update-Aufruf und Deinstallation. Er aktiviert keinen Look.
+Zum Bauen des Installers wird [NSIS 3](https://nsis.sourceforge.io/) benötigt. Die Versionsnummer für `AppVersion` muss `Directory.Build.props` entsprechen. Der Installer (`Setup/out/WinMorph-Setup.exe`) enthält die zuvor gebaute App und deren Konfigurationsdatei aus `build/`. `Setup/test.ps1` prüft auf einem frischen Windows-Testsystem Neuinstallation, den alten Update-Aufruf und Deinstallation. Er aktiviert keinen Look.
 
 Das skalierbare Original des Logos liegt in `website/public/favicon.svg`. `WinMorph.ico` enthält neun Größen von 16 bis 256 Pixeln und wird von App, Setup und Verknüpfungen verwendet. Die App lädt ihr Logo direkt aus derselben ICO-Datei.
 
