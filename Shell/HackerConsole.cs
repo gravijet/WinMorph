@@ -521,8 +521,8 @@ namespace WinMorph.Shell
                 (L("auflösung", "resolution"), (mi.rcMonitor.Right - mi.rcMonitor.Left) + "x" + (mi.rcMonitor.Bottom - mi.rcMonitor.Top)),
                 ("cpu", SysInfo.Cpu),
                 ("gpu", SysInfo.Gpu),
-                ("memory", SysInfo.Bytes(total - avail) + " / " + SysInfo.Bytes(total)),
-                ("disk", disk != null ? disk.Name.Substring(0, 2) + " " + SysInfo.Bytes(disk.TotalSize - disk.TotalFreeSpace) + " / " + SysInfo.Bytes(disk.TotalSize) : "-"),
+                (L("speicher", "memory"), SysInfo.Bytes(total - avail) + " / " + SysInfo.Bytes(total)),
+                (L("laufwerk", "disk"), disk != null ? disk.Name.Substring(0, 2) + " " + SysInfo.Bytes(disk.TotalSize - disk.TotalFreeSpace) + " / " + SysInfo.Bytes(disk.TotalSize) : "-"),
                 ("ip", SysInfo.LocalIp),
             };
             for (int i = 0; i < Math.Max(art.Length, info.Count); i++)

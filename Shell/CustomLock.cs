@@ -177,7 +177,7 @@ namespace WinMorph.Shell
                 {
                     fails++;
                     if (fails >= 5) { auth.Message(L("zu viele versuche – windows übernimmt", "too many attempts – windows takes over"), true); RealLock(); return; }
-                    auth.Denied(L("ACCESS DENIED · falsches passwort (" + fails + "/5)", "ACCESS DENIED · wrong password (" + fails + "/5)"));
+                    auth.Denied(L("ZUGRIFF VERWEIGERT · falsches passwort (" + fails + "/5)", "ACCESS DENIED · wrong password (" + fails + "/5)"));
                 }
             }, TaskScheduler.FromCurrentSynchronizationContext());
         }
@@ -272,7 +272,7 @@ namespace WinMorph.Shell
             {
                 step++;
                 if (step == 1) { a.Begin(); foreach (var ch in "geheim12") a.Add(ch); }
-                else if (step == 2) { Shot(file1); a.Take(); a.Denied(De ? "ACCESS DENIED · falsches passwort (1/5)" : "ACCESS DENIED · wrong password (1/5)"); }
+                else if (step == 2) { Shot(file1); a.Take(); a.Denied(De ? "ZUGRIFF VERWEIGERT · falsches passwort (1/5)" : "ACCESS DENIED · wrong password (1/5)"); }
                 else if (step == 3) { Shot(file2); tm.Stop(); LockScreen.StopTimers(); w.Close(); done(); }
             };
             tm.Start();

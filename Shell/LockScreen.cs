@@ -434,7 +434,7 @@ namespace WinMorph.Shell
                     {
                         // Windows puts its own clock at the top – keep the design below it
                         sp.Margin = new Thickness(0, 260, 0, 0);
-                        var tag = new TextBlock { Text = "■  ENCRYPTED SESSION  ·  ACCESS RESTRICTED  ■", FontFamily = new FontFamily(mono), FontSize = 15, Foreground = B(C(0xFF3B5C)), HorizontalAlignment = HorizontalAlignment.Center };
+                        var tag = new TextBlock { Text = L("■  VERSCHLÜSSELTE SITZUNG  ·  ZUGRIFF BESCHRÄNKT  ■", "■  ENCRYPTED SESSION  ·  ACCESS RESTRICTED  ■"), FontFamily = new FontFamily(mono), FontSize = 15, Foreground = B(C(0xFF3B5C)), HorizontalAlignment = HorizontalAlignment.Center };
                         sp.Children.Add(new Border { Child = tag, BorderBrush = B(C(0xFF3B5C, 160)), BorderThickness = new Thickness(1), Background = B(0x000000, 170), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 22, 0, 0), HorizontalAlignment = HorizontalAlignment.Center });
                     }
                     else { sp.Children.Add(clock); sp.Children.Add(date); }
@@ -460,7 +460,7 @@ namespace WinMorph.Shell
                     if (still)
                     {
                         prompt.Text = "> " + L("authentifizieren: beliebige taste drücken", "authenticate: press any key") + " █";
-                        status.Text = "secure session   │   " + host + "   │   " + SysInfo.Os.ToLowerInvariant() + "   │   winmorph hacker";
+                        status.Text = L("geschützte sitzung   │   ", "secure session   │   ") + host + "   │   " + SysInfo.Os.ToLowerInvariant() + "   │   winmorph hacker";
                         break;
                     }
                     Tick(() =>
