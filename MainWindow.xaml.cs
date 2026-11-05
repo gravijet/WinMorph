@@ -819,7 +819,8 @@ namespace WinMorph
         void SetLanguage(bool de)
         {
             Loc.SaveLanguage(de);
-            thumbs.Clear(); bigThumbs.Clear();
+            thumbs.Clear(); bigThumbs.Clear(); liveThumbs.Clear();
+            Task.Run(() => History.EnsureShortcuts());
             RebuildAll();
             if (Shell.ShellControl.IsRunning) Shell.ShellControl.Start();
             if (!string.IsNullOrEmpty(Live.LiveWall.Spec)) { Live.LiveWall.Stop(); Live.LiveWall.Start(); }

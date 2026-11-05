@@ -56,6 +56,8 @@ namespace WinMorph.Core
                 Make(Path.Combine(dir, "WinMorph.lnk"), exe, "", de ? "Looks wechseln" : "Change looks");
                 Make(Path.Combine(dir, de ? "WinMorph – Original wiederherstellen.lnk" : "WinMorph – Restore original.lnk"), exe, "--restore-ui", de ? "Setzt Windows auf den Zustand vor WinMorph zurück" : "Puts Windows back to how it was before WinMorph");
                 Make(Path.Combine(dir, de ? "WinMorph – Letzten Look rückgängig.lnk" : "WinMorph – Undo last look.lnk"), exe, "--undo-ui", de ? "Zurück zum vorherigen Look" : "Back to the previous look");
+                foreach (var old in de ? new[] { "Restore original", "Undo last look" } : new[] { "Original wiederherstellen", "Letzten Look rückgängig" })
+                    File.Delete(Path.Combine(dir, "WinMorph – " + old + ".lnk"));
             }
             catch { }
         }

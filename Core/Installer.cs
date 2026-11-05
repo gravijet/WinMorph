@@ -14,7 +14,8 @@ namespace WinMorph.Core
         public static void PostInstall()
         {
             var exe = Exe;
-            if (Reg.Get(Shell.ShellControl.SettingsKey, "Language") == null) Loc.SaveLanguage(Loc.De);
+            var language = Reg.Get(Shell.ShellControl.SettingsKey, "Language") as string;
+            if (language == null) Loc.SaveLanguage(Loc.De); else Loc.De = language == "de";
             History.EnsureShortcuts();
             // The standard installer owns the uninstall entry and shortcuts; remove the old custom entry after upgrading.
             var root = Reg.Root(UninstallKey, out var sub);
