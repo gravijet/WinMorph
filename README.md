@@ -181,6 +181,7 @@ Die Versionsnummer steht an einer Stelle: `Directory.Build.props`. Jeder Push ba
 
 ```
 dotnet build WinMorph.csproj -c Release -o build
+mkdir Setup/out
 makensis.exe /DAppVersion=5.3.0 Setup/WinMorph.nsi
 ```
 Zum Bauen des Installers wird [NSIS 3](https://nsis.sourceforge.io/) benötigt. Die Versionsnummer für `AppVersion` muss `Directory.Build.props` entsprechen. Der Installer (`Setup/out/WinMorph-Setup.exe`) enthält die zuvor gebaute App und deren Konfigurationsdatei aus `build/`. `Setup/test.ps1` prüft auf einem frischen Windows-Testsystem Neuinstallation, den alten Update-Aufruf und Deinstallation. Er aktiviert keinen Look.
