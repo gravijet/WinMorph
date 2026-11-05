@@ -81,7 +81,7 @@ namespace WinMorph.Live
         {
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             var c = new WebClient();
-            c.Headers[HttpRequestHeader.UserAgent] = "WinMorph/5.1";
+            c.Headers[HttpRequestHeader.UserAgent] = "WinMorph/" + Core.Updater.Version;
             return c;
         }
 

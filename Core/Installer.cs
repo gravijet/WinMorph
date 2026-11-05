@@ -22,8 +22,11 @@ namespace WinMorph.Core
             using (var k = Reg.Create(UninstallKey))
             {
                 k.SetValue("DisplayName", "WinMorph");
-                k.SetValue("DisplayVersion", typeof(Installer).Assembly.GetName().Version.ToString(3));
-                k.SetValue("Publisher", "WinMorph");
+                k.SetValue("DisplayVersion", Updater.Version);
+                k.SetValue("Publisher", "Benjamin Berger");
+                k.SetValue("URLInfoAbout", Updater.Site);
+                k.SetValue("URLUpdateInfo", Updater.Site);
+                k.SetValue("HelpLink", Updater.Site);
                 k.SetValue("DisplayIcon", exe + ",0");
                 k.SetValue("InstallLocation", Path.GetDirectoryName(exe));
                 k.SetValue("UninstallString", "\"" + exe + "\" --uninstall");

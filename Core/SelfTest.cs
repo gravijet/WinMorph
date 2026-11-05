@@ -69,6 +69,16 @@ namespace WinMorph.Core
                 Check(Presets.Parts("selftest-unknown") == Area.Design && (Area.Design & Area.Settings) == Area.None, "default parts change no Windows settings");
                 Check(Presets.Find("macos-dark")?.Id == "macos" && Presets.Find("synapse")?.Id == "nexus", "removed looks map to their successors");
 
+                // updates: only a well-formed answer of our own site counts, and only newer versions
+                const string sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+                string Rel(string v, string url, string h, string size) => "{\"version\":\"" + v + "\",\"files\":{\"setup\":{\"url\":\"" + url + "\",\"size\":" + size + ",\"sha256\":\"" + h + "\"}}}";
+                var ur = Updater.Parse(Rel("9.1.0", "/download/setup", sha, "123456"));
+                Check(ur != null && ur.Version == "9.1.0" && ur.Size == 123456 && ur.Sha256 == sha, "update answer is read");
+                Check(Updater.Parse(Rel("9.1.0", "https://evil.example/x.exe", sha, "1")) == null, "update from another address is refused");
+                Check(Updater.Parse(Rel("9.1.0", "/download/setup", "nope", "1")) == null && Updater.Parse(Rel("9.1.0", "/download/setup", sha, "0")) == null, "update without checksum or size is refused");
+                Check(Updater.Parse("{\"error\":\"unavailable\"}") == null, "error answer is no update");
+                Check(Updater.Newer("5.10.0", "5.9.3") && !Updater.Newer("5.2.0", "5.2.0") && !Updater.Newer("5.1.9", "5.2.0") && !Updater.Newer("latest", "5.2.0"), "version comparison");
+
                 // Zen sounds: valid looping WAV
                 var wav = WinMorph.Shell.Zen.Wav(true);
                 Check(wav.Length == 44 + 12 * 22050 * 2 && wav[0] == 'R' && wav[8] == 'W', "Zen rain sound is a valid WAV (" + wav.Length + " bytes)");

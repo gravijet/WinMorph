@@ -150,6 +150,7 @@ namespace WinMorph.Shell
 
             host = new ShellHost(theme);
             System.Threading.Tasks.Task.Run(() => { try { Core.Applier.InstallLockSaver(); } catch { } });
+            Core.Updater.RunInShell();
         }
 
         static void Log(Exception ex)

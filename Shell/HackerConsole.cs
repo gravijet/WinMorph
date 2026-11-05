@@ -202,7 +202,7 @@ namespace WinMorph.Shell
             };
             foreach (var a in art) Print(" " + a, G);
             Print("");
-            PrintParts((" winmorph-sh 5.1", White), ("  ·  " + SysInfo.Os.ToLowerInvariant(), D));
+            PrintParts((" winmorph-sh " + Core.Updater.Version, White), ("  ·  " + SysInfo.Os.ToLowerInvariant(), D));
             Print(L(" App-Namen tippen + Enter = starten · die Liste zeigt, was Enter macht · ↑↓ wählen · 'help' = alle Befehle",
                     " type an app name + enter to launch · the list shows what enter does · ↑↓ choose · 'help' = all commands"), D);
             Print(L(" !befehl = echter cmd-Befehl · '?' + Frage → ChatGPT · =2+2 rechnet", " !command = real cmd command · '?' + question → ChatGPT · =2+2 calculates"), D);
@@ -516,7 +516,7 @@ namespace WinMorph.Shell
                 ("os", SysInfo.Os),
                 ("kernel", Environment.OSVersion.Version.ToString()),
                 ("uptime", SysInfo.UptimeText),
-                ("shell", "winmorph-sh 5.1"),
+                ("shell", "winmorph-sh " + Core.Updater.Version),
                 ("theme", t.Name.ToLowerInvariant() + " · " + (Live.LiveWall.Spec ?? "static")),
                 ("resolution", (mi.rcMonitor.Right - mi.rcMonitor.Left) + "x" + (mi.rcMonitor.Bottom - mi.rcMonitor.Top)),
                 ("cpu", SysInfo.Cpu),

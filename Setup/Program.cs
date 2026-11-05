@@ -23,7 +23,23 @@ namespace WinMorphSetup
         public static int Main(string[] args)
         {
             // /S = silent install (shortcuts + autostart, no look applied)
-            if (args.Contains("/S", StringComparer.OrdinalIgnoreCase)) { try { Install(true, false, null); return 0; } catch { return 1; } }
+            // /update = from WinMorph's updater: keeps the desktop shortcut as it is; /launch = open WinMorph afterwards
+            bool Has(string a) => args.Contains(a, StringComparer.OrdinalIgnoreCase);
+            if (Has("/S"))
+            {
+                try
+                {
+                    bool desktop = !Has("/update") || File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "WinMorph.lnk"));
+                    Install(desktop, false, null);
+                    if (Has("/launch")) Launch();
+                    return 0;
+                }
+                catch (Exception ex)
+                {
+                    try { File.AppendAllText(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WinMorph", "update-errors.log"), DateTime.Now + " setup: " + ex + Environment.NewLine); } catch { }
+                    return 1;
+                }
+            }
             return new Application().Run(new SetupWindow());
         }
 
@@ -74,6 +90,7 @@ namespace WinMorphSetup
     {
         static readonly bool De = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "de";
         static string L(string de, string en) => De ? de : en;
+        [System.Runtime.InteropServices.DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
         static SolidColorBrush B(uint rgb) => new SolidColorBrush(Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb));
 
         public SetupWindow()
@@ -81,6 +98,10 @@ namespace WinMorphSetup
             Title = L("WinMorph installieren", "Install WinMorph");
             Width = 520; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize; WindowStartupLocation = WindowStartupLocation.CenterScreen;
             Background = B(0x0C0E12); UseLayoutRounding = true;
+            SourceInitialized += (s, e) =>
+            {
+                try { var h = new System.Windows.Interop.WindowInteropHelper(this).Handle; int on = 1, cap = 0x00120E0C; DwmSetWindowAttribute(h, 20, ref on, 4); DwmSetWindowAttribute(h, 35, ref cap, 4); } catch { }
+            };
             TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
             ImageSource icon = null;
             try { icon = BitmapFrame.Create(new Uri("pack://application:,,,/WinMorph.ico")); Icon = icon; } catch { }
@@ -89,7 +110,7 @@ namespace WinMorphSetup
             head.Children.Add(new Image { Source = icon, Width = 48, Height = 48 });
             var ht = new StackPanel { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
             ht.Children.Add(new TextBlock { Text = "WinMorph", FontSize = 26, FontWeight = FontWeights.Bold, Foreground = B(0xF2F4F8), FontFamily = new FontFamily("Segoe UI Variable Display, Segoe UI") });
-            ht.Children.Add(new TextBlock { Text = L("Version 5.1 · Windows-Looks per Klick", "Version 5.1 · Windows looks in one click"), FontSize = 12.5, Foreground = B(0x9AA3B2) });
+            ht.Children.Add(new TextBlock { Text = L("Version ", "Version ") + typeof(Program).Assembly.GetName().Version.ToString(3) + L(" · Windows-Looks per Klick", " · Windows looks in one click"), FontSize = 12.5, Foreground = B(0x9AA3B2) });
             head.Children.Add(ht);
             root.Children.Add(head);
             root.Children.Add(new TextBlock { Text = L("WinMorph wird nur für dich installiert – ohne Administratorrechte. Alles lässt sich jederzeit über „Original wiederherstellen“ oder die Deinstallation zurücksetzen.", "WinMorph is installed just for you – no admin rights needed. Everything can be undone any time with “Restore original” or by uninstalling."), TextWrapping = TextWrapping.Wrap, Foreground = B(0x9AA3B2), FontSize = 13, Margin = new Thickness(0, 20, 0, 14), LineHeight = 19 });

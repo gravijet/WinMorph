@@ -1,0 +1,110 @@
+# Builds WinMorph on Windows, runs the self-test and renders screenshots of every look.
+# On main, a version in Directory.Build.props without a tag yet publishes a GitHub release;
+# the website (winmorph.benjaminberger.at) and the in-app updater pick it up from there.
+name: Build & Release
+
+on:
+  push:
+    paths-ignore: ["**.md", "website/**", ".github/workflows/website.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: ver
+        run: |
+          $v = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version
+          "version=$v" >> $env:GITHUB_OUTPUT
+          $new = "${{ github.ref }}" -eq "refs/heads/main" -and -not (git ls-remote --tags origin "refs/tags/v$v")
+          "release=$($new.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          Write-Host "WinMorph $v (release: $new)"
+
+      - name: Build WinMorph
+        run: dotnet build WinMorph.csproj -c Release -o build -nologo
+
+      - name: Build setup
+        run: dotnet build Setup/WinMorphSetup.csproj -c Release -o Setup/out -nologo
+
+      - name: Self-test
+        run: |
+          $p = Start-Process build\WinMorph.exe -ArgumentList "--selftest", "$pwd\selftest.txt" -PassThru
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "self-test hung" }
+          Get-Content selftest.txt
+          # the update and backup checks must pass; reading the runner's own lock screen picture may not work there
+          $bad = Select-String -Path selftest.txt -Pattern '^FAIL' | Where-Object { $_.Line -notmatch 'lock screen picture' }
+          if ($bad) { throw "self-test failed" }
+
+      - name: Screenshots
+        continue-on-error: true
+        run: |
+          New-Item -ItemType Directory -Force shots | Out-Null
+          function Shot([string[]]$a) {
+            $p = Start-Process build\WinMorph.exe -ArgumentList $a -PassThru
+            if (-not $p.WaitForExit(90000)) { $p.Kill(); Write-Warning "timeout: $a" }
+          }
+          $looks = "win11","win10","win7","xp","win95","macos","ubuntu","debian","arch","mint","chromeos","nova","nexus","terminal","zen","gaming"
+          foreach ($l in $looks) {
+            Shot "--shell-preview", $l, "$pwd\shots\$l.png"
+            Shot "--shell-preview", $l, "$pwd\shots\$l-menu.png", "menu"
+            Shot "--lockscreen-preview", $l, "$pwd\shots\lock-$l.png"
+          }
+          foreach ($s in "matrix","matrix-hud","starfield","plexus","radar","bokeh","zen-desk","gaming-desk","hacker-desk") { Shot "--live-preview", $s, "$pwd\shots\live-$s.png" }
+          foreach ($l in "terminal","macos","xp","zen") { Shot "--screenshot", "$pwd\shots\app-$l-de.png", $l, "de"; Shot "--screenshot", "$pwd\shots\app-$l-en.png", $l, "en" }
+          Shot "--screenshot", "$pwd\shots\app-live-de.png", "live", "de"
+          Shot "--app-preview", "tasks", "$pwd\shots\app-tasks.png"
+          Shot "--app-preview", "files", "$pwd\shots\app-files.png"
+          Get-ChildItem shots | Select-Object Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: shots/*
+          if-no-files-found: ignore
+
+      - name: Package
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $v = "${{ steps.ver.outputs.version }}"
+          Copy-Item Setup/out/WinMorph-Setup.exe "dist/WinMorph-Setup-$v.exe"
+          Get-ChildItem dist -File | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content -Encoding ascii dist/SHA256SUMS.txt
+          Get-Content dist/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WinMorph-Setup
+          path: dist/*
+
+      - name: Publish release
+        if: steps.ver.outputs.release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: WinMorph ${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: |
+            dist/WinMorph-Setup-${{ steps.ver.outputs.version }}.exe
+            dist/SHA256SUMS.txt
+          body: |
+            ## WinMorph ${{ steps.ver.outputs.version }}
+
+            Windows-Looks per Klick · Windows looks in one click — https://winmorph.benjaminberger.at
+
+            **Download:** `WinMorph-Setup-${{ steps.ver.outputs.version }}.exe` (Windows 10/11, no admin rights needed).
+            If SmartScreen warns about an unknown publisher: *More info → Run anyway*.
+
+            Installed copies update themselves in the background.
