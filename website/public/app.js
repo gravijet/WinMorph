@@ -299,7 +299,7 @@
 
   // ---- terminal ----------------------------------------------------------------------------------------
   (function terminal() {
-    var term = $("#term"), outEl = $("#term-out"), input = $("#term-in"), section = $("#hacker");
+    var term = $("#term"), outEl = $("#term-out"), input = $("#term-in"), section = $("#playground");
     var colors = { gruen: "#00ff41", green: "#00ff41", cyan: "#00e5ff", bernstein: "#ffb000", amber: "#ffb000", rot: "#ff3b3b", red: "#ff3b3b", violett: "#b48cff", violet: "#b48cff", weiss: "#e8e8e8", white: "#e8e8e8" };
     var color = "#00ff41", history = [], hi = 0;
     var names = ["help", "neofetch", "looks", "look", "color", "matrix", "date", "whoami", "echo", "clear", "download"];
@@ -328,7 +328,7 @@
           ["  \\ \\/\\/ / | |\\/| |  ", L("system  WinMorph ", "os      WinMorph ") + v],
           ["   \\_/\\_/  |_|  |_|  ", "shell   winmorph-sh"],
           ["                      ", L("designs ", "looks   ") + looks.length],
-          ["                      ", L("design  hacker ", "theme   hacker ") + color],
+          ["                      ", L("farbe   ", "colour  ") + color],
         ].forEach(function (r) {
           var d = document.createElement("div"), a = document.createElement("span"), b = document.createElement("span");
           d.className = "pre";
@@ -394,43 +394,80 @@
     }, { threshold: 0.6 }).observe(term);
   })();
 
-  // ---- lock screens: a deck to flick through ----------------------------------------------------------------
-  (function deck() {
-    var el = $("#deck"), cards = $$("img", el), drag = null, busy = false;
-    function layout() {
-      cards.forEach(function (c, i) {
-        c.style.zIndex = cards.length - i;
-        c.style.opacity = i < 4 ? "1" : "0";
-        c.style.filter = "brightness(" + (1 - i * 0.16).toFixed(2) + ")";
-        c.style.transform = "translate3d(" + (i * 2.4) + "%," + (-i * 3.2) + "%,0) rotate(" + (i * 1.6) + "deg) scale(" + (1 - i * 0.045).toFixed(3) + ")";
+  // ---- selected text becomes a small, movable note -------------------------------------------------------
+  (function textPlay() {
+    var action = document.createElement("button"), selection = null, drag = null;
+    action.type = "button"; action.className = "selection-move"; action.hidden = true;
+    document.body.appendChild(action);
+    function labels() {
+      action.textContent = L("Verschieben", "Move");
+      $$(".play-text").forEach(function (note) {
+        note.setAttribute("aria-label", L("Verschiebbarer Text", "Movable text"));
+        note.title = L("Ziehen oder mit den Pfeiltasten verschieben", "Drag or move with the arrow keys");
+        $("button", note).setAttribute("aria-label", L("Text entfernen", "Remove text"));
       });
     }
-    function fling(dir) {
-      if (busy) return;
-      busy = true;
-      var top = cards[0];
-      top.classList.remove("drag");
-      top.style.transform = "translate3d(" + dir * 115 + "%,-6%,0) rotate(" + dir * 16 + "deg)";
-      top.style.opacity = "0";
-      setTimeout(function () { cards.push(cards.shift()); layout(); busy = false; }, 280);
+    onLang.push(labels);
+    function place(note, x, y) {
+      note.style.left = Math.max(12, Math.min(innerWidth - note.offsetWidth - 12, x)) + "px";
+      note.style.top = Math.max(12, Math.min(root.scrollHeight - note.offsetHeight - 12, y)) + "px";
     }
-    el.addEventListener("pointerdown", function (e) { if (busy) return; drag = { x: e.clientX, dx: 0, id: e.pointerId }; cards[0].classList.add("drag"); el.setPointerCapture(e.pointerId); });
-    el.addEventListener("pointermove", function (e) {
-      if (!drag) return;
-      drag.dx = e.clientX - drag.x;
-      cards[0].style.transform = "translate3d(" + drag.dx + "px,0,0) rotate(" + (drag.dx * 0.04).toFixed(2) + "deg)";
+    function add(text, x, y) {
+      var note = document.createElement("div"), content = document.createElement("span"), close = document.createElement("button");
+      note.className = "play-text"; note.tabIndex = 0; note.setAttribute("role", "group");
+      content.textContent = text; close.type = "button"; close.textContent = "×";
+      close.addEventListener("click", function () { note.remove(); });
+      note.append(content, close); document.body.appendChild(note);
+      labels();
+      place(note, x, Math.max(scrollY + nav.offsetHeight + 12, Math.min(scrollY + innerHeight - note.offsetHeight - 12, y)));
+      note.focus({ preventScroll: true });
+      getSelection().removeAllRanges(); action.hidden = true;
+    }
+    document.addEventListener("selectionchange", function () {
+      var s = getSelection(), text = s.toString();
+      action.hidden = true;
+      if (!text.trim() || !s.rangeCount) return;
+      var r = s.getRangeAt(0).getBoundingClientRect();
+      if (r.bottom < 0 || r.top > innerHeight) return;
+      selection = { text: text, x: scrollX + r.left, y: scrollY + r.bottom + 8 };
+      action.hidden = false;
+      action.style.left = Math.max(12, Math.min(innerWidth - action.offsetWidth - 12, r.left)) + "px";
+      action.style.top = Math.max(12, Math.min(innerHeight - action.offsetHeight - 12, r.bottom + 8)) + "px";
     });
-    function up() {
-      if (!drag) return;
-      var dx = drag.dx; drag = null;
-      if (Math.abs(dx) > 80) fling(Math.sign(dx));
-      else if (Math.abs(dx) < 6) fling(-1);
-      else { cards[0].classList.remove("drag"); layout(); }
-    }
-    el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", function () { drag = null; cards[0].classList.remove("drag"); layout(); });
-    el.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " " || e.key === "ArrowRight") { e.preventDefault(); fling(-1); } });
-    layout();
+    action.addEventListener("pointerdown", function (e) { e.preventDefault(); });
+    action.addEventListener("click", function () { if (selection) add(selection.text, selection.x, selection.y); });
+    function editable(target) { return target instanceof Element && target.closest("input, textarea, [contenteditable]"); }
+    document.addEventListener("dragover", function (e) {
+      if (!editable(e.target) && Array.from(e.dataTransfer.types).indexOf("text/plain") >= 0) {
+        e.preventDefault(); e.dataTransfer.dropEffect = "copy";
+      }
+    });
+    document.addEventListener("drop", function (e) {
+      if (editable(e.target)) return;
+      var text = e.dataTransfer.getData("text/plain");
+      if (text.trim()) { e.preventDefault(); add(text, e.pageX, e.pageY); }
+    });
+    document.addEventListener("pointerdown", function (e) {
+      var note = e.target.closest(".play-text");
+      if (!note || e.target.closest("button") || e.button !== 0) return;
+      e.preventDefault(); note.focus({ preventScroll: true }); note.setPointerCapture(e.pointerId);
+      drag = { note: note, id: e.pointerId, x: e.pageX - note.offsetLeft, y: e.pageY - note.offsetTop };
+      note.classList.add("moving");
+    });
+    document.addEventListener("pointermove", function (e) {
+      if (drag && e.pointerId === drag.id) place(drag.note, e.pageX - drag.x, e.pageY - drag.y);
+    });
+    function release() { if (drag) { drag.note.classList.remove("moving"); drag = null; } }
+    document.addEventListener("pointerup", release);
+    document.addEventListener("pointercancel", release);
+    document.addEventListener("keydown", function (e) {
+      if (!e.target.matches(".play-text")) return;
+      var delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (delta) { e.preventDefault(); place(e.target, e.target.offsetLeft + delta[0] * (e.shiftKey ? 20 : 5), e.target.offsetTop + delta[1] * (e.shiftKey ? 20 : 5)); }
+      else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); e.target.remove(); }
+    });
+    addEventListener("scroll", function () { action.hidden = true; }, { passive: true });
+    addEventListener("resize", function () { action.hidden = true; $$(".play-text").forEach(function (note) { place(note, note.offsetLeft, note.offsetTop); }); });
   })();
 
   // ---- live wallpapers, running right here on the stage ------------------------------------------------------------------

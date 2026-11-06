@@ -165,10 +165,11 @@ h2 {
 .magnet { will-change: transform; }
 
 /* ---- terminal ------------------------------------------------------------------------------------- */
-#hacker h2 { color: var(--tc, #00ff41); font-family: var(--mono); font-weight: 700; letter-spacing: -0.07em; text-shadow: 0 0 60px color-mix(in srgb, var(--tc, #00ff41) 45%, transparent); transition: color 0.6s; }
+#playground h2 { font-size: clamp(2.4rem, 6vw, 6rem); text-align: center; margin-bottom: 16px; }
+.play-hint { max-width: 44ch; margin: 0 auto 28px; text-align: center; color: var(--dim); font-size: 16px; }
 .term {
   --tc: #00ff41;
-  width: min(100%, 940px); margin-left: auto; height: min(460px, 62svh);
+  width: min(100%, 940px); margin-inline: auto; height: min(460px, 62svh);
   display: flex; flex-direction: column; padding: 20px 22px; border-radius: 12px;
   background: rgba(0, 0, 0, 0.78); border: 1px solid color-mix(in srgb, var(--tc) 35%, transparent);
   box-shadow: 0 40px 100px -30px rgba(0, 0, 0, 0.9), 0 0 80px -30px color-mix(in srgb, var(--tc) 40%, transparent);
@@ -181,17 +182,20 @@ h2 {
 .term-line { display: flex; gap: 10px; align-items: baseline; }
 .term-ps { opacity: 0.7; white-space: nowrap; }
 .term-line input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: inherit; font: inherit; caret-color: currentColor; padding: 0; }
-
-/* ---- lock screens: a deck ---------------------------------------------------------------------------- */
-#lock h2 { text-align: right; }
-.deck { position: relative; width: min(820px, 86vw); aspect-ratio: 16 / 9; margin-top: 2vw; cursor: grab; touch-action: pan-y; user-select: none; }
-.deck:active { cursor: grabbing; }
-.deck img {
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 14px; pointer-events: none;
-  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.1);
-  transition: transform 0.7s var(--ease), opacity 0.7s var(--ease), filter 0.7s;
+.selection-move {
+  position: fixed; z-index: 60; border: 1px solid #ffffff30; border-radius: 999px; padding: 8px 14px;
+  background: var(--cream); color: var(--bg); font-size: 13px; font-weight: 600; cursor: pointer; user-select: none;
+  box-shadow: 0 6px 24px #0005;
 }
-.deck img.drag { transition: none; }
+.play-text {
+  position: absolute; top: 0; left: 0; z-index: 45; display: flex; align-items: flex-start; gap: 12px;
+  max-width: min(320px, calc(100vw - 24px)); padding: 12px 14px; border-radius: 12px; background: var(--cream); color: var(--bg);
+  box-shadow: 0 8px 30px #0004; cursor: grab; touch-action: none; user-select: none; font-size: 15px;
+}
+.play-text span { min-width: 0; max-height: min(160px, 36svh); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.play-text button { flex-shrink: 0; min-width: 24px; min-height: 24px; border: 0; padding: 0 3px; background: none; color: inherit; font-size: 20px; line-height: 1; cursor: pointer; }
+.play-text :focus-visible { outline-color: var(--bg); }
+.play-text.moving { cursor: grabbing; box-shadow: 0 12px 36px #0007; }
 
 /* ---- wallpapers: preview and compact picker --------------------------------------------------------- */
 .walls { padding-top: clamp(36px, 6svh, 64px); }
@@ -231,7 +235,7 @@ h2 {
 .stage-cap button { margin-left: auto; }
 .tiles {
   position: absolute; inset: 0; list-style: none; margin: 0; padding: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
-  min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  min-height: 0; overflow-y: auto; overscroll-behavior: auto; scrollbar-width: thin;
   scrollbar-color: var(--faint) transparent; align-content: start;
 }
 .tiles button {

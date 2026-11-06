@@ -34,7 +34,6 @@ const { chromium } = require('playwright');
         }, lang);
         assert.ok(translated, 'Text, alternative text and accessible names follow the language');
         assert.ok(await page.locator('#chips button').evaluateAll((buttons, lang) => buttons.every(button => button.getAttribute('aria-label').startsWith(lang === 'de' ? 'Design ansehen: ' : 'View look: ')), lang), 'Look buttons keep translated names when their visual labels are hidden');
-        assert.ok(await page.locator('#deck img').evaluateAll((images, lang) => images.every(im => im.src.includes(`/shots/${lang}/`)), lang));
         assert.match(await page.locator('#app img').getAttribute('src'), new RegExp(`/shots/${lang}/app.webp`));
         assert.equal(await page.locator('[data-dl]').first().getAttribute('href'), '/download/setup');
       }
@@ -109,21 +108,70 @@ const { chromium } = require('playwright');
       const sharpCanvas = await page.locator('#live-canvas').evaluate(canvas => canvas.width >= canvas.clientWidth * Math.min(devicePixelRatio, 3) - 1);
       assert.ok(sharpCanvas, 'Live canvas matches display density');
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'No horizontal page overflow');
-      await page.locator('#deck').scrollIntoViewIfNeeded();
-      await page.locator('#deck').evaluate(deck => {
-        deck.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-        deck.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-      });
-      await page.waitForTimeout(320);
-      assert.equal(await page.locator('#deck img').nth(1).evaluate(image => image.style.zIndex), '8', 'Rapid key presses advance the deck once');
-      await page.locator('#hacker').scrollIntoViewIfNeeded();
+      assert.equal(await page.locator('#lock, #deck').count(), 0);
+      await page.locator('[data-wall-filter=designs]').click();
+      for (const direction of [1, -1]) {
+        await page.evaluate(top => scrollTo({ top, behavior: 'instant' }), wallpaperLayout.scroll);
+        await page.locator('#tiles').evaluate((tiles, direction) => {
+          tiles.scrollTop = direction > 0 ? tiles.scrollHeight : 0;
+          tiles.scrollLeft = direction > 0 ? tiles.scrollWidth : 0;
+        }, direction);
+        const panel = await page.locator('#tiles').boundingBox();
+        await page.mouse.move(panel.x + panel.width / 2, panel.y + panel.height / 2);
+        const before = await page.evaluate(() => scrollY);
+        await page.mouse.wheel(0, direction * 360);
+        await page.waitForFunction(({ before, direction }) => direction * (scrollY - before) > 20, { before, direction });
+      }
+      await page.locator('#playground').scrollIntoViewIfNeeded();
+      assert.ok(await page.locator('#term').evaluate(el => Math.abs(el.getBoundingClientRect().left + el.clientWidth / 2 - innerWidth / 2) < 2), 'The terminal is centered');
       await page.locator('#term-in').fill('help');
       await page.locator('#term-in').press('Enter');
       assert.match(await page.locator('#term-out').textContent(), /commands:/);
       await page.locator('#term-in').fill('__proto__');
       await page.locator('#term-in').press('Enter');
       assert.match(await page.locator('#term-out').textContent(), /command not found/);
+      const text = await page.locator('.play-hint').textContent();
+      await page.locator('.play-hint').evaluate(el => {
+        document.activeElement.blur();
+        const range = document.createRange(); range.selectNodeContents(el);
+        getSelection().removeAllRanges(); getSelection().addRange(range);
+      });
+      if (options.isMobile) await page.locator('.selection-move').tap();
+      else await page.locator('.selection-move').click();
+      const note = page.locator('.play-text');
+      assert.equal(await note.locator('span').textContent(), text);
+      const start = await note.boundingBox();
+      if (options.isMobile) {
+        const touch = await context.newCDPSession(page);
+        await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: start.x + 20, y: start.y + 20 }] });
+        await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: start.x + 70, y: start.y + 50 }] });
+        await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await touch.detach();
+      } else {
+        await page.mouse.move(start.x + 20, start.y + 20);
+        await page.mouse.down();
+        await page.mouse.move(start.x + 70, start.y + 50, { steps: 8 });
+        await page.mouse.up();
+      }
+      const moved = await note.boundingBox();
+      assert.ok(Math.abs(moved.y - start.y) > 20, 'Text stays where it was dragged');
+      await note.focus();
+      const oldTop = await note.evaluate(el => el.offsetTop);
+      await note.press('ArrowDown');
+      await page.waitForFunction(top => document.querySelector('.play-text').offsetTop === top + 5, oldTop);
       await page.locator('[data-lang=de]').click();
+      assert.equal(await note.locator('button').getAttribute('aria-label'), 'Text entfernen');
+      assert.equal(await note.locator('span').textContent(), text, 'User text is preserved when changing language');
+      await note.locator('button').click();
+      assert.equal(await page.locator('.play-text').count(), 0);
+      await page.locator('.play-hint').evaluate(el => {
+        const data = new DataTransfer(); data.setData('text/plain', '<img src=x onerror=alert(1)>');
+        el.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data, clientX: 80, clientY: 180 }));
+      });
+      assert.equal(await page.locator('.play-text span').textContent(), '<img src=x onerror=alert(1)>');
+      assert.equal(await page.locator('.play-text img').count(), 0, 'Dropped text never becomes executable HTML');
+      await page.locator('.play-text').press('Delete');
+      assert.equal(await page.locator('.play-text').count(), 0);
       await page.locator('#term-in').fill('whoami');
       await page.locator('#term-in').press('Enter');
       assert.match(await page.locator('#term-out').textContent(), /gast/);
@@ -160,7 +208,7 @@ const { chromium } = require('playwright');
           assert.ok(fits, `${width}x${height} ${lang} ${name}: title, description, preview and controls do not overlap`);
         }
       }
-      for (const id of ['walls', 'lock', 'hacker', 'download']) {
+      for (const id of ['walls', 'playground', 'download']) {
         await page.locator('#' + id).scrollIntoViewIfNeeded();
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && [...document.querySelectorAll('h2')].every(h => h.getBoundingClientRect().right <= innerWidth + 1 && h.scrollWidth <= h.clientWidth + 1)), `${width}px: sections and headings stay within the screen`);
       }

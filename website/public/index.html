@@ -17,7 +17,7 @@
 <meta property="og:image" content="https://winmorph.benjaminberger.at/og.png?v=5.3.0-brand">
 <meta name="twitter:card" content="summary_large_image">
 <script src="/boot.js?v=5.3.0-brand"></script>
-<link rel="stylesheet" href="/style.css?v=5.3.0-walls3">
+<link rel="stylesheet" href="/style.css?v=5.3.0-play4">
 </head>
 <body>
 
@@ -120,24 +120,10 @@
   </div>
 </section>
 
-<!-- a deck of lock screens to flick through -->
-<section class="part" id="lock" data-look="pick">
-  <h2 class="rv" data-en="Lock screen">Sperrbildschirm</h2>
-  <div class="deck rv" id="deck" role="button" tabindex="0" aria-label="Nächster Sperrbildschirm" data-en-aria="Next lock screen">
-    <img src="/shots/de/lock-terminal.webp" srcset="/shots/de/lock-terminal.webp 1600w, /shots/de/lock-terminal-2x.webp 3200w" sizes="(max-width: 760px) 86vw, 820px" width="1600" height="900" alt="Hacker: Sperrbildschirm" data-en-alt="Hacker: lock screen">
-    <img src="/shots/de/lock-macos.webp" srcset="/shots/de/lock-macos.webp 1600w, /shots/de/lock-macos-2x.webp 3200w" sizes="(max-width: 760px) 86vw, 820px" width="1600" height="900" loading="lazy" alt="macOS: Sperrbildschirm" data-en-alt="macOS: lock screen">
-    <img src="/shots/de/lock-xp.webp" srcset="/shots/de/lock-xp.webp 1600w, /shots/de/lock-xp-2x.webp 3200w" sizes="(max-width: 760px) 86vw, 820px" width="1600" height="900" loading="lazy" alt="Windows XP: Sperrbildschirm" data-en-alt="Windows XP: lock screen">
-    <img src="/shots/de/lock-zen.webp" srcset="/shots/de/lock-zen.webp 1600w, /shots/de/lock-zen-2x.webp 3200w" sizes="(max-width: 760px) 86vw, 820px" width="1600" height="900" loading="lazy" alt="Zen: Sperrbildschirm" data-en-alt="Zen: lock screen">
-    <img src="/shots/de/lock-nexus.webp" srcset="/shots/de/lock-nexus.webp 1600w, /shots/de/lock-nexus-2x.webp 3200w" sizes="(max-width: 760px) 86vw, 820px" width="1600" height="900" loading="lazy" alt="Nexus AI: Sperrbildschirm" data-en-alt="Nexus AI: lock screen">
-    <img src="/shots/de/lock-gaming.webp" srcset="/shots/de/lock-gaming.webp 1600w, /shots/de/lock-gaming-2x.webp 3200w" sizes="(max-width: 760px) 86vw, 820px" width="1600" height="900" loading="lazy" alt="Gaming: Sperrbildschirm" data-en-alt="Gaming: lock screen">
-    <img src="/shots/de/lock-win95.webp" srcset="/shots/de/lock-win95.webp 1600w, /shots/de/lock-win95-2x.webp 3200w" sizes="(max-width: 760px) 86vw, 820px" width="1600" height="900" loading="lazy" alt="Windows 95: Sperrbildschirm" data-en-alt="Windows 95: lock screen">
-    <img src="/shots/de/lock-ubuntu.webp" srcset="/shots/de/lock-ubuntu.webp 1600w, /shots/de/lock-ubuntu-2x.webp 3200w" sizes="(max-width: 760px) 86vw, 820px" width="1600" height="900" loading="lazy" alt="Ubuntu: Sperrbildschirm" data-en-alt="Ubuntu: lock screen">
-  </div>
-</section>
-
 <!-- a terminal to type into -->
-<section class="part" id="hacker" data-look="terminal">
-  <h2 class="rv">Hacker</h2>
+<section class="part" id="playground" data-look="terminal">
+  <h2 class="rv" data-en="Playground">Spielwiese</h2>
+  <p class="play-hint" data-en="Try commands. Select text and move it around.">Befehle testen. Text markieren und frei verschieben.</p>
   <div class="term rv" id="term">
     <div class="term-out" id="term-out" aria-live="polite"></div>
     <label class="term-line"><span class="term-ps" data-en="guest@winmorph:~$">gast@winmorph:~$</span><input id="term-in" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Befehl" data-en-aria="Command"></label>
@@ -163,6 +149,6 @@
 
 </main>
 
-<script src="/app.js?v=5.3.0-walls3"></script>
+<script src="/app.js?v=5.3.0-play4"></script>
 </body>
 </html>
