@@ -120,6 +120,8 @@ const { chromium } = require('playwright');
         await page.mouse.move(panel.x + panel.width / 2, panel.y + panel.height / 2);
         const before = await page.evaluate(() => scrollY);
         await page.mouse.wheel(0, direction * 360);
+        await page.waitForTimeout(100);
+        await page.mouse.wheel(0, direction * 360);
         await page.waitForFunction(({ before, direction }) => direction * (scrollY - before) > 20, { before, direction });
       }
       await page.locator('#playground').scrollIntoViewIfNeeded();
