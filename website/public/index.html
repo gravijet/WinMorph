@@ -17,7 +17,7 @@
 <meta property="og:image" content="https://winmorph.benjaminberger.at/og.png?v=5.3.0-brand">
 <meta name="twitter:card" content="summary_large_image">
 <script src="/boot.js?v=5.3.0-brand"></script>
-<link rel="stylesheet" href="/style.css?v=5.3.0-brand">
+<link rel="stylesheet" href="/style.css?v=5.3.0-gallery">
 </head>
 <body>
 
@@ -73,13 +73,14 @@
 <!-- wallpapers: live ones running right here, the generated one of every look, or your own -->
 <section class="part walls" id="walls" data-look="wall">
   <h2 class="rv" data-en="Wallpapers">Hintergründe</h2>
-  <div class="stage rv" id="stage">
+  <div class="wall-picker rv">
+  <div class="stage" id="stage">
     <canvas id="live-canvas" aria-hidden="true"></canvas>
     <div class="stage-pics" id="stage-pics"></div>
     <p class="stage-cap" id="stage-cap" aria-live="polite"><b id="cap-name">Matrix</b><span id="cap-hint"></span></p>
     <input type="file" id="own-file" accept="image/*,video/mp4,video/webm,video/quicktime" hidden>
   </div>
-  <ul class="tiles rv" id="tiles">
+  <ul class="tiles" id="tiles" aria-label="Hintergrund auswählen" data-en-aria="Choose a wallpaper">
       <li><button type="button" class="own" data-own aria-pressed="false"><span class="own-plus" aria-hidden="true">+</span><b data-en="Your own">Dein eigenes</b></button></li>
       <li><button type="button" data-scene="matrix" data-hint="Maus beschleunigt, Klick = Ausbruch" data-hint-en="Mouse speeds up, click = burst" data-look="terminal" aria-pressed="true"><img src="/shots/de/live-matrix-sm.webp" srcset="/shots/de/live-matrix-sm.webp 480w, /shots/de/live-matrix.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b>Matrix</b><i>Live</i></button></li>
       <li><button type="button" data-scene="stars" data-hint="Maus lenkt, Klick = Warp" data-hint-en="Mouse steers, click = warp" data-look="nexus" aria-pressed="false"><img src="/shots/de/live-starfield-sm.webp" srcset="/shots/de/live-starfield-sm.webp 480w, /shots/de/live-starfield.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b data-en="Star flight">Sternenflug</b><i>Live</i></button></li>
@@ -105,6 +106,7 @@
       <li><button type="button" data-pic="/shots/wall-zen" data-look="zen" aria-pressed="false"><img src="/shots/wall-zen-sm.webp" srcset="/shots/wall-zen-sm.webp 480w, /shots/wall-zen.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b>Zen</b></button></li>
       <li><button type="button" data-pic="/shots/wall-gaming" data-look="gaming" aria-pressed="false"><img src="/shots/wall-gaming-sm.webp" srcset="/shots/wall-gaming-sm.webp 480w, /shots/wall-gaming.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b>Gaming</b></button></li>
   </ul>
+  </div>
 </section>
 
 <!-- a deck of lock screens to flick through -->
@@ -131,15 +133,6 @@
   </div>
 </section>
 
-<!-- the way back, on keys you can press -->
-<section class="part undo" id="undo" data-look="win11">
-  <h2 class="rv" data-en="One click back.">Ein Klick zurück.</h2>
-  <div class="keys rv" id="keys">
-    <kbd data-en="Ctrl">Strg</kbd><kbd>Alt</kbd><kbd data-en="Shift">Umschalt</kbd><kbd>F12</kbd>
-  </div>
-  <p data-en="Undo, restore the original, or the emergency key – Windows is back to how it was.">Rückgängig, Original wiederherstellen oder die Notfall-Taste – Windows ist sofort wie vorher.</p>
-</section>
-
 <section class="part get" id="download" data-look="pick">
   <figure class="app rv" id="app">
     <img src="/shots/de/app.webp" data-src-en="/shots/en/app.webp" width="1304" height="801" loading="lazy" decoding="async" alt="Das Fenster von WinMorph" data-en-alt="The WinMorph window">
@@ -147,8 +140,7 @@
   <a class="cta big magnet" href="/download/setup" data-dl data-en="Download">Herunterladen</a>
   <p class="get-meta" id="dl-info"></p>
   <p class="get-meta" data-en="Free · Windows 10 and 11 · no admin rights · updates itself">Kostenlos · Windows 10 und 11 · ohne Admin-Rechte · aktualisiert sich selbst</p>
-  <p class="get-hint" data-en="Installs only for you. You choose your first look after installation.">Installiert nur für dich. Deinen ersten Look wählst du nach der Installation.</p>
-  <p class="get-hint"><a href="https://github.com/gravijet/WinMorph/issues/1" data-en="Antivirus blocks the download? Report the detection.">Virenschutz blockiert den Download? Erkennung melden.</a></p>
+  <p class="get-meta" data-en="Restore the original at any time · Emergency: Ctrl+Alt+Shift+F12">Original jederzeit wiederherstellen · Notfall: Strg+Alt+Umschalt+F12</p>
 </section>
 
 <footer class="foot">
@@ -156,11 +148,11 @@
   <a href="https://benjaminberger.at">Benjamin Berger</a>
   <a href="https://benjaminberger.at/impressum" data-en="Imprint">Impressum</a>
   <a href="https://benjaminberger.at/datenschutz" data-en="Privacy">Datenschutz</a>
-  <p data-en="Windows, macOS, Ubuntu and the other names are trademarks of their owners. WinMorph is an independent project.">Windows, macOS, Ubuntu und die anderen Namen sind Marken ihrer Inhaber. WinMorph ist ein unabhängiges Projekt.</p>
+  <p data-en="WinMorph is an independent project. Brand names belong to their respective owners.">WinMorph ist ein unabhängiges Projekt. Markennamen gehören ihren jeweiligen Inhabern.</p>
 </footer>
 
 </main>
 
-<script src="/app.js?v=5.3.0-brand"></script>
+<script src="/app.js?v=5.3.0-gallery"></script>
 </body>
 </html>

@@ -137,7 +137,7 @@
     return imgs[key];
   }
   var base = function (key) { return key.replace("-menu", ""); };
-  // a new look spreads out from the start corner with a soft edge; the Start menu of the same look fades in
+  // looks reveal with a soft edge; the Start menu of the same look fades in
   function showKey(key) {
     wantKey = key;
     if (key === shownKey) return;
@@ -540,7 +540,7 @@
       var h = cur.dataset.own != null
         ? (ownUrl ? ownName + " · " : "") + L("Bild oder Video – bleibt auf deinem Gerät.", "Picture or video – stays on your device.")
         : cur.dataset.hint ? (lang === "en" ? cur.dataset.hintEn : cur.dataset.hint)
-        : L("In deiner Bildschirmauflösung erzeugt", "Generated at your screen resolution");
+        : "";
       capHint.textContent = h;
       pickBtn.textContent = ownUrl ? L("Andere Datei", "Another file") : L("Datei wählen", "Choose file");
       if (cur.dataset.own != null) cap.appendChild(pickBtn); else if (pickBtn.parentNode) pickBtn.remove();
@@ -568,7 +568,7 @@
     function picture(src) {
       var im = new Image();
       im.decoding = "async"; im.alt = "";
-      im.sizes = "(max-width: 760px) 100vw, min(92vw, 132svh)";
+      im.sizes = "(max-width: 760px) 100vw, 64vw";
       im.srcset = src + "-sm.webp 480w, " + src + ".webp 1600w, " + src + "-2x.webp " + (src.indexOf("wall-") >= 0 ? "3840w" : "3200w");
       im.src = src + ".webp";
       return im;
@@ -631,18 +631,6 @@
     });
     caption(false);
     return { select: function (id) { var b = tiles.filter(function (t) { return t.dataset.scene === id; })[0]; if (b) select(b, true); } };
-  })();
-
-  // ---- the emergency keys press themselves once, and by hand --------------------------------------------------
-  (function keys() {
-    var ks = $$("#keys kbd");
-    function press(k, ms) { k.classList.add("down"); setTimeout(function () { k.classList.remove("down"); }, ms); }
-    ks.forEach(function (k) { k.addEventListener("pointerdown", function () { press(k, 160); }); });
-    new IntersectionObserver(function (es, io) {
-      if (!es[0].isIntersecting) return;
-      io.disconnect();
-      ks.forEach(function (k, i) { setTimeout(function () { press(k, 900 - i * 140); }, 300 + i * 140); });
-    }, { threshold: 0.8 }).observe($("#keys"));
   })();
 
   // ---- buttons that lean towards the pointer, and the app window ------------------------------------------------

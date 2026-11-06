@@ -194,14 +194,19 @@ h2 {
 }
 .deck img.drag { transition: none; }
 
-/* ---- wallpapers: a stage and the tiles below it ------------------------------------------------------- */
-.walls h2 { margin-bottom: clamp(24px, 3.5vw, 56px); }
+/* ---- wallpapers: preview and compact picker --------------------------------------------------------- */
+.walls { padding-top: clamp(64px, 8svh, 96px); }
+.walls h2 { font-size: clamp(2.5rem, 5vw, 4.5rem); margin-bottom: 24px; }
+.wall-picker {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 28%); gap: 24px;
+  height: clamp(240px, 56svh, 580px);
+}
 .stage {
-  position: relative; aspect-ratio: 16 / 9; max-height: 74svh; margin: 0 auto; overflow: hidden; border-radius: 16px; background: #000;
+  position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; border-radius: 16px; background: #000;
   box-shadow: 0 50px 120px -40px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.09); isolation: isolate;
 }
 .stage canvas, .stage-pics, .stage-pics > * { position: absolute; inset: 0; width: 100%; height: 100%; }
-.stage-pics > * { object-fit: cover; opacity: 0; transition: opacity 0.8s ease; will-change: transform, opacity; }
+.stage-pics > * { object-fit: contain; opacity: 0; transition: opacity 0.8s ease; will-change: transform, opacity; }
 .stage-pics > .on { opacity: 1; }
 .stage-cap {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px;
@@ -212,7 +217,11 @@ h2 {
 .stage-cap span { color: var(--dim); font-size: 15px; }
 .stage-cap.swap { animation: name 0.7s var(--ease); }
 .stage-cap button { pointer-events: auto; margin-left: auto; }
-.tiles { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px; }
+.tiles {
+  list-style: none; margin: 0; padding: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
+  min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  scrollbar-color: var(--faint) transparent; align-content: start;
+}
 .tiles button {
   position: relative; display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; text-align: left;
   color: var(--dim); transition: color 0.4s;
@@ -242,19 +251,6 @@ h2 {
   border: 0; cursor: pointer; padding: 9px 16px; border-radius: 999px; background: var(--cream); color: #0b0b0c; font-size: 14px; font-weight: 650;
 }
 
-/* ---- keys you can press ----------------------------------------------------------------------------- */
-.keys { display: flex; flex-wrap: wrap; gap: 0.5em 1.6em; font-size: clamp(1.1rem, 2.4vw, 2.1rem); margin: 0 0 clamp(26px, 4vw, 60px); }
-.keys kbd {
-  position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 3em; height: 2.5em; padding: 0 0.8em;
-  font: 650 1em/1 "Inter Tight", sans-serif; letter-spacing: -0.02em; color: var(--cream); cursor: pointer;
-  border-radius: 0.32em; background: linear-gradient(#30333c, #1c1e24);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0.28em 0 #0b0c0f, 0 1.2em 2em -0.6em rgba(0, 0, 0, 0.7);
-  transition: transform 0.12s, box-shadow 0.12s;
-}
-.keys kbd + kbd::before { content: "+"; position: absolute; left: -1.15em; color: var(--faint); font-weight: 400; }
-.keys kbd.down { transform: translateY(0.22em); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0.06em 0 #0b0c0f, 0 0.5em 1em -0.5em rgba(0, 0, 0, 0.7); }
-.undo p { font-size: clamp(1.1rem, 1.7vw, 1.7rem); line-height: 1.3; letter-spacing: -0.015em; max-width: 30ch; color: var(--dim); }
-
 /* ---- download ------------------------------------------------------------------------------------- */
 .get { display: flex; flex-direction: column; align-items: center; text-align: center; padding-bottom: 12svh; }
 .app { width: min(1000px, 90vw); perspective: 1600px; }
@@ -262,7 +258,6 @@ h2 {
 .cta.big { position: relative; z-index: 2; margin-top: -1.3em; font-size: clamp(1.25rem, 2.3vw, 2rem); padding: 0.85em 1.9em; }
 .get-meta { margin-top: 18px; font-size: 15px; color: var(--dim); font-variant-numeric: tabular-nums; }
 .get-meta + .get-meta { margin-top: 6px; }
-.get-hint { margin-top: 6px; font-size: 13px; color: var(--faint); }
 
 .foot { display: flex; flex-wrap: wrap; gap: 10px 28px; padding: 6svh var(--pad) 40px; font-size: 15px; font-weight: 500; }
 .foot a { text-decoration: none; color: var(--dim); transition: color 0.3s; }
@@ -299,7 +294,6 @@ h2 {
     font-size: 14px; font-weight: 650; opacity: calc(1 - var(--after, 0));
   }
   .prog button { padding-top: 14px; }
-  .tiles { grid-template-columns: repeat(6, 1fr); }
 }
 @media (max-width: 900px) {
   .nav { grid-template-columns: auto 1fr; }
@@ -312,18 +306,16 @@ h2 {
   .look-desc { top: auto; bottom: calc(max(4.5svh, 30px) + 40px); left: var(--pad); right: var(--pad); max-width: none; text-align: left; }
   .prog { gap: 4px; }
   .n-dl { padding: 9px 15px; }
+  .wall-picker { grid-template-columns: minmax(0, 1fr); height: auto; gap: 14px; }
   .tiles {
-    grid-template-columns: none; grid-template-rows: auto auto; grid-auto-flow: column; grid-auto-columns: 40%; gap: 10px;
-    overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin: 14px calc(-1 * var(--pad)) 0; padding: 4px var(--pad);
+    grid-template-columns: none; grid-template-rows: auto; grid-auto-flow: column; grid-auto-columns: 36%; gap: 10px;
+    overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin: 0 calc(-1 * var(--pad)); padding: 4px var(--pad);
     scroll-padding: 0 var(--pad);
   }
   .tiles li { scroll-snap-align: start; }
-  .stage { aspect-ratio: 4 / 3; }
+  .stage { height: auto; aspect-ratio: 16 / 9; max-height: 32svh; }
   .stage-cap span { font-size: 13px; }
   .term { height: 58svh; font-size: 13px; padding: 16px; }
-  .keys { font-size: 4.2vw; gap: 0.5em 1.3em; flex-wrap: nowrap; }
-  .keys kbd { min-width: 2.4em; padding: 0 0.6em; }
-  .keys kbd + kbd::before { left: -0.95em; }
   .term-out { overflow-x: auto; }
 }
 
@@ -349,8 +341,14 @@ h2 {
     -webkit-mask-image: linear-gradient(transparent, #000 var(--edge, 0px), #000 calc(100% - var(--edge, 0px)), transparent);
     mask-image: linear-gradient(transparent, #000 var(--edge, 0px), #000 calc(100% - var(--edge, 0px)), transparent);
   }
-  .screen img { -webkit-mask-image: none; mask-image: none; opacity: 0; transition: opacity 1.1s cubic-bezier(0.3, 0, 0.2, 1); }
-  .screen img.on { opacity: 1; }
+  .screen img {
+    -webkit-mask-image: linear-gradient(110deg, #000 var(--m), transparent calc(var(--m) + 24%));
+    mask-image: linear-gradient(110deg, #000 var(--m), transparent calc(var(--m) + 24%));
+    transform: translateX(3%) scale(1.06); filter: blur(4px);
+    transition: --m 1.15s cubic-bezier(0.3, 0, 0.2, 1), transform 1.2s var(--ease), filter 1s ease;
+  }
+  .screen img.on { transform: none; filter: none; }
+  .screen img.fade { -webkit-mask-image: none; mask-image: none; transform: none; filter: none; }
   .look-name { font-size: clamp(3rem, 7vw, 8rem); max-width: 65vw; }
   .look-desc { max-width: 27ch; top: calc(var(--navh) + 2svh); }
 }

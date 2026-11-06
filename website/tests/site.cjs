@@ -6,9 +6,9 @@ const { chromium } = require('playwright');
   const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
   try {
     for (const options of [
-      { viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 2 },
+      { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 },
       { viewport: { width: 320, height: 780 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
-      { viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' },
+      { viewport: { width: 1280, height: 720 }, reducedMotion: 'reduce' },
     ]) {
       const context = await browser.newContext(options);
       const page = await context.newPage();
@@ -19,6 +19,9 @@ const { chromium } = require('playwright');
       await page.goto((process.env.WINMORPH_TEST_URL || 'http://127.0.0.1:18765') + '/?lang=de');
       await page.waitForFunction(() => document.querySelector('#screen img').naturalWidth > 0);
       assert.equal(await page.locator('.n-links').count(), 0);
+      assert.equal(await page.getByText('Antivirus blocks the download?', { exact: false }).count(), 0);
+      assert.equal(await page.getByText('Virenschutz blockiert den Download?', { exact: false }).count(), 0);
+      assert.equal(await page.locator('#keys').count(), 0);
       for (const lang of ['en', 'de', 'en']) {
         await page.locator(`[data-lang=${lang}]`).click();
         await page.waitForTimeout(220);
@@ -37,14 +40,41 @@ const { chromium } = require('playwright');
       await page.evaluate(() => scrollTo({ top: 950, behavior: 'instant' }));
       await page.waitForTimeout(600);
       assert.ok(await page.locator('#look-name').textContent());
+      await page.locator('#chips [data-id=xp] button').click();
+      await page.waitForFunction(() => document.querySelector('#screen img.on[src$="/look-xp.webp"]'));
+      if (options.viewport.width > 760 && !options.reducedMotion) {
+        const transition = await page.waitForFunction(() => {
+          const image = document.querySelector('#screen img.on[src$="/look-xp.webp"]');
+          if (!image) return false;
+          const style = getComputedStyle(image), progress = parseFloat(style.getPropertyValue('--m'));
+          return progress > -37 && progress < 149 ? { mask: style.maskImage, transform: style.transform } : false;
+        });
+        const effect = await transition.jsonValue();
+        assert.match(effect.mask, /linear-gradient/, 'Desktop look changes visibly sweep across the previous image');
+        assert.notEqual(effect.transform, 'none');
+      } else if (options.viewport.width <= 760) {
+        assert.match(await page.locator('#screen img.on[src$="/look-xp.webp"]').evaluate(image => getComputedStyle(image).maskImage), /radial-gradient/, 'Mobile look transitions stay intact');
+      }
       await page.locator('#walls').scrollIntoViewIfNeeded();
+      await page.locator('.wall-picker.in').waitFor();
+      await page.locator('.wall-picker').evaluate(picker => Promise.all(picker.getAnimations().map(animation => animation.finished)));
+      const wallpaperLayout = await page.evaluate(() => {
+        const stage = document.querySelector('#stage').getBoundingClientRect();
+        const tiles = document.querySelector('#tiles').getBoundingClientRect();
+        return { stage: { top: stage.top, bottom: stage.bottom, right: stage.right }, tiles: { top: tiles.top, bottom: tiles.bottom, left: tiles.left }, scroll: scrollY };
+      });
+      assert.ok(wallpaperLayout.stage.top >= 0 && wallpaperLayout.stage.bottom <= options.viewport.height, 'The wallpaper preview fits on screen');
+      assert.ok(wallpaperLayout.tiles.top >= 0 && wallpaperLayout.tiles.bottom <= options.viewport.height, 'Wallpaper controls fit beside or below the preview');
+      if (options.viewport.width > 760) assert.ok(wallpaperLayout.tiles.left >= wallpaperLayout.stage.right, 'Desktop preview and choices are side by side');
       for (const tile of await page.locator('#tiles button[data-pic]').all()) {
+        await tile.evaluate(button => button.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' }));
         await tile.click();
         await page.waitForFunction(() => {
           const selected = document.querySelector('#tiles button[aria-pressed=true]');
           const expected = selected.dataset.pic.replace(/\/shots\/(de|en)\//, `/shots/${document.documentElement.lang}/`);
           return [...document.querySelectorAll('#stage-pics img.on')].some(im => im.src.includes(expected) && im.complete && im.naturalWidth > 0);
         });
+        assert.ok(Math.abs(await page.evaluate(() => scrollY) - wallpaperLayout.scroll) < 2, `Choosing ${await tile.textContent()} does not move the page away from the preview (start ${wallpaperLayout.scroll}, now ${await page.evaluate(() => scrollY)})`);
       }
       await page.locator('[data-pic="/shots/de/live-zen-desk"]').click();
       for (const lang of ['de', 'en']) {
@@ -73,6 +103,8 @@ const { chromium } = require('playwright');
       await page.locator('#term-in').fill('whoami');
       await page.locator('#term-in').press('Enter');
       assert.match(await page.locator('#term-out').textContent(), /gast/);
+      await page.locator('#download').scrollIntoViewIfNeeded();
+      assert.match(await page.locator('#download').textContent(), /Strg\+Alt\+Umschalt\+F12/);
       await page.reload();
       assert.equal(await page.locator('html').getAttribute('lang'), 'de');
       await page.goto((process.env.WINMORPH_TEST_URL || 'http://127.0.0.1:18765') + '/404.html?lang=en');
