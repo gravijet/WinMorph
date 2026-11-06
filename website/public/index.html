@@ -17,7 +17,7 @@
 <meta property="og:image" content="https://winmorph.benjaminberger.at/og.png?v=5.3.0-brand">
 <meta name="twitter:card" content="summary_large_image">
 <script src="/boot.js?v=5.3.0-brand"></script>
-<link rel="stylesheet" href="/style.css?v=5.3.0-gallery">
+<link rel="stylesheet" href="/style.css?v=5.3.0-motion2">
 </head>
 <body>
 
@@ -49,7 +49,6 @@
       <p class="tagline" data-en="Windows looks in one click.">Windows-Looks per Klick.</p>
       <a class="cta magnet" href="/download/setup" data-dl data-en="Download">Herunterladen</a>
     </div>
-    <p class="prog-now" id="prog-now" aria-hidden="true"></p>
     <ol class="prog" id="chips" aria-label="Design auswählen" data-en-aria="Choose a look">
       <li data-id="terminal" data-c="#00ff41,#00320f"><button type="button"><b>Hacker</b></button><span data-en="Status line and a real terminal with 50+ commands, in your colour.">Statuszeile und ein echtes Terminal mit über 50 Befehlen, in deiner Farbe.</span></li>
       <li data-id="macos" data-c="#ff6fae,#5b3cff"><button type="button"><b>macOS</b></button><span data-en="Menu bar on top, magnifying dock, Launchpad. Light or dark.">Menüleiste oben, Dock mit Vergrößerung, Launchpad. Hell oder dunkel.</span></li>
@@ -74,13 +73,15 @@
 <section class="part walls" id="walls" data-look="wall">
   <h2 class="rv" data-en="Wallpapers">Hintergründe</h2>
   <div class="wall-picker rv">
-  <div class="stage" id="stage">
-    <canvas id="live-canvas" aria-hidden="true"></canvas>
-    <div class="stage-pics" id="stage-pics"></div>
-    <p class="stage-cap" id="stage-cap" aria-live="polite"><b id="cap-name">Matrix</b><span id="cap-hint"></span></p>
-    <input type="file" id="own-file" accept="image/*,video/mp4,video/webm,video/quicktime" hidden>
-  </div>
-  <ul class="tiles" id="tiles" aria-label="Hintergrund auswählen" data-en-aria="Choose a wallpaper">
+    <div class="wall-preview">
+      <div class="stage" id="stage">
+        <canvas id="live-canvas" aria-hidden="true"></canvas>
+        <div class="stage-pics" id="stage-pics"></div>
+        <input type="file" id="own-file" accept="image/*,video/mp4,video/webm,video/quicktime" hidden>
+      </div>
+      <p class="stage-cap" id="stage-cap" aria-live="polite"><b id="cap-name">Matrix</b><span id="cap-hint"></span></p>
+    </div>
+    <ul class="tiles" id="tiles" aria-label="Hintergrund auswählen" data-en-aria="Choose a wallpaper">
       <li><button type="button" class="own" data-own aria-pressed="false"><span class="own-plus" aria-hidden="true">+</span><b data-en="Your own">Dein eigenes</b></button></li>
       <li><button type="button" data-scene="matrix" data-hint="Maus beschleunigt, Klick = Ausbruch" data-hint-en="Mouse speeds up, click = burst" data-look="terminal" aria-pressed="true"><img src="/shots/de/live-matrix-sm.webp" srcset="/shots/de/live-matrix-sm.webp 480w, /shots/de/live-matrix.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b>Matrix</b><i>Live</i></button></li>
       <li><button type="button" data-scene="stars" data-hint="Maus lenkt, Klick = Warp" data-hint-en="Mouse steers, click = warp" data-look="nexus" aria-pressed="false"><img src="/shots/de/live-starfield-sm.webp" srcset="/shots/de/live-starfield-sm.webp 480w, /shots/de/live-starfield.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b data-en="Star flight">Sternenflug</b><i>Live</i></button></li>
@@ -105,7 +106,7 @@
       <li><button type="button" data-pic="/shots/wall-terminal" data-look="terminal" aria-pressed="false"><img src="/shots/wall-terminal-sm.webp" srcset="/shots/wall-terminal-sm.webp 480w, /shots/wall-terminal.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b>Hacker</b></button></li>
       <li><button type="button" data-pic="/shots/wall-zen" data-look="zen" aria-pressed="false"><img src="/shots/wall-zen-sm.webp" srcset="/shots/wall-zen-sm.webp 480w, /shots/wall-zen.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b>Zen</b></button></li>
       <li><button type="button" data-pic="/shots/wall-gaming" data-look="gaming" aria-pressed="false"><img src="/shots/wall-gaming-sm.webp" srcset="/shots/wall-gaming-sm.webp 480w, /shots/wall-gaming.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b>Gaming</b></button></li>
-  </ul>
+    </ul>
   </div>
 </section>
 
@@ -153,6 +154,6 @@
 
 </main>
 
-<script src="/app.js?v=5.3.0-gallery"></script>
+<script src="/app.js?v=5.3.0-motion2"></script>
 </body>
 </html>

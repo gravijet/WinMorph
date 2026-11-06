@@ -43,28 +43,41 @@ const { chromium } = require('playwright');
       await page.locator('#chips [data-id=xp] button').click();
       await page.waitForFunction(() => document.querySelector('#screen img.on[src$="/look-xp.webp"]'));
       if (options.viewport.width > 760 && !options.reducedMotion) {
-        const transition = await page.waitForFunction(() => {
-          const image = document.querySelector('#screen img.on[src$="/look-xp.webp"]');
-          if (!image) return false;
-          const style = getComputedStyle(image), progress = parseFloat(style.getPropertyValue('--m'));
-          return progress > -37 && progress < 149 ? { mask: style.maskImage, transform: style.transform } : false;
+        await page.waitForFunction(() => document.querySelector('#screen img.on[src$="/look-xp.webp"]').getAnimations().some(a => a.playState === 'running'));
+        const effect = await page.locator('#screen img.on[src$="/look-xp.webp"]').evaluate(image => {
+          const animation = image.getAnimations()[0];
+          animation.pause(); animation.currentTime = 625;
+          const style = getComputedStyle(image);
+          return { clip: style.clipPath, transform: style.transform };
         });
-        const effect = await transition.jsonValue();
-        assert.match(effect.mask, /linear-gradient/, 'Desktop look changes visibly sweep across the previous image');
+        assert.match(effect.clip, /polygon/, 'Desktop reveals part of the new image over the previous design');
         assert.notEqual(effect.transform, 'none');
+        await page.evaluate(() => {
+          const morph = document.querySelector('#top'), hold = innerHeight * 0.6;
+          scrollTo({ top: morph.offsetTop + hold + ((2 + 0.8) / 15) * (morph.offsetHeight - innerHeight - hold), behavior: 'instant' });
+        });
+        await page.waitForTimeout(200);
+        assert.equal(await page.locator('#screen img.on[src$="/look-xp-menu.webp"]').count(), 0, 'The Start menu does not cover an unfinished design transition');
+        await page.locator('#screen img.on[src$="/look-xp.webp"]').evaluate(image => image.getAnimations()[0].play());
+        await page.waitForFunction(() => document.querySelector('#screen img.on[src$="/look-xp-menu.webp"]'));
       } else if (options.viewport.width <= 760) {
         assert.match(await page.locator('#screen img.on[src$="/look-xp.webp"]').evaluate(image => getComputedStyle(image).maskImage), /radial-gradient/, 'Mobile look transitions stay intact');
       }
+      for (const id of ['win95', 'ubuntu', 'win10']) await page.locator(`#chips [data-id=${id}] button`).click();
+      await page.waitForFunction(() => document.querySelector('#screen img.on[src$="/look-win10.webp"]'));
+      assert.equal(await page.locator('#chips [data-id=win10] button').getAttribute('aria-pressed'), 'true', 'Rapid choices keep the last requested look');
       await page.locator('#walls').scrollIntoViewIfNeeded();
       await page.locator('.wall-picker.in').waitFor();
       await page.locator('.wall-picker').evaluate(picker => Promise.all(picker.getAnimations().map(animation => animation.finished)));
       const wallpaperLayout = await page.evaluate(() => {
         const stage = document.querySelector('#stage').getBoundingClientRect();
         const tiles = document.querySelector('#tiles').getBoundingClientRect();
-        return { stage: { top: stage.top, bottom: stage.bottom, right: stage.right }, tiles: { top: tiles.top, bottom: tiles.bottom, left: tiles.left }, scroll: scrollY };
+        const caption = document.querySelector('#stage-cap').getBoundingClientRect();
+        return { stage: { top: stage.top, bottom: stage.bottom, right: stage.right }, tiles: { top: tiles.top, bottom: tiles.bottom, left: tiles.left }, caption: { top: caption.top, bottom: caption.bottom }, scroll: scrollY };
       });
       assert.ok(wallpaperLayout.stage.top >= 0 && wallpaperLayout.stage.bottom <= options.viewport.height, 'The wallpaper preview fits on screen');
       assert.ok(wallpaperLayout.tiles.top >= 0 && wallpaperLayout.tiles.bottom <= options.viewport.height, 'Wallpaper controls fit beside or below the preview');
+      assert.ok(wallpaperLayout.caption.top >= wallpaperLayout.stage.bottom && wallpaperLayout.caption.bottom <= options.viewport.height, 'The wallpaper caption stays visible without covering the picture');
       if (options.viewport.width > 760) assert.ok(wallpaperLayout.tiles.left >= wallpaperLayout.stage.right, 'Desktop preview and choices are side by side');
       for (const tile of await page.locator('#tiles button[data-pic]').all()) {
         await tile.evaluate(button => button.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' }));
@@ -111,6 +124,36 @@ const { chromium } = require('playwright');
       assert.match(await page.locator('main').textContent(), /This page does not exist/);
       assert.deepEqual(errors, []);
       console.log(`PASS ${options.viewport.width}px${options.reducedMotion ? ' reduced motion' : ''}: locales, images, controls, download and layout`);
+      await context.close();
+    }
+    for (const [width, height] of [[1440, 900], [1280, 720], [1024, 768], [768, 1024], [390, 844], [844, 390], [568, 320], [320, 480], [320, 568]]) {
+      const context = await browser.newContext({ viewport: { width, height }, reducedMotion: 'reduce' });
+      const page = await context.newPage();
+      await page.route('**/api/release', route => route.fulfill({ json: { version: '5.3.0' } }));
+      await page.goto((process.env.WINMORPH_TEST_URL || 'http://127.0.0.1:18765') + '/?lang=de');
+      await page.evaluate(() => scrollTo({ top: innerHeight, behavior: 'instant' }));
+      for (const lang of ['de', 'en']) {
+        await page.locator(`[data-lang=${lang}]`).click();
+        for (const button of await page.locator('#chips button').all()) {
+          await button.click();
+          const name = await button.textContent();
+          await page.waitForFunction(name => document.querySelector('#look-name').textContent === name, name);
+          const fits = await page.evaluate(() => {
+            const rect = selector => document.querySelector(selector).getBoundingClientRect();
+            const image = rect('#screen'), title = rect('#look-name'), desc = rect('#look-desc'), rail = rect('#chips');
+            return title.bottom <= image.top + 1 &&
+              (title.right <= desc.left || title.bottom <= desc.top || title.top >= desc.bottom) &&
+              (desc.bottom <= image.top || desc.top >= image.bottom) &&
+              image.bottom < rail.top && rail.bottom <= innerHeight;
+          });
+          assert.ok(fits, `${width}x${height} ${lang} ${name}: title, description, preview and controls do not overlap`);
+        }
+      }
+      for (const id of ['walls', 'lock', 'hacker', 'download']) {
+        await page.locator('#' + id).scrollIntoViewIfNeeded();
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && [...document.querySelectorAll('h2')].every(h => h.getBoundingClientRect().right <= innerWidth + 1 && h.scrollWidth <= h.clientWidth + 1)), `${width}px: sections and headings stay within the screen`);
+      }
+      console.log(`PASS ${width}x${height}: all 15 looks in DE/EN, no overlapping or overflowing sections`);
       await context.close();
     }
   } finally { await browser.close(); }

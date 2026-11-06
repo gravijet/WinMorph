@@ -120,8 +120,8 @@
 
   // ---- the desktop that becomes a screen ----------------------------------------------------------------
   var morph = $("#top"), pin = $(".morph-pin"), screen = $("#screen"), hero = $("#hero"), wordmark = $("#wordmark");
-  var nameEl = $("#look-name"), descEl = $("#look-desc"), nowEl = $("#prog-now");
-  var imgs = { terminal: $("img", screen) }, z = 1, shownKey = "terminal", wantKey = "terminal", shownLook = -1;
+  var nameEl = $("#look-name"), descEl = $("#look-desc");
+  var imgs = { terminal: $("img", screen) }, z = 1, shownKey = "terminal", wantKey = "terminal", shownLook = -1, lookAnimation = null;
   var pictureSizes = "max(100vw, 178svh)";
   imgs.terminal.style.zIndex = 1;
   function img(key) {
@@ -140,6 +140,8 @@
   // looks reveal with a soft edge; the Start menu of the same look fades in
   function showKey(key) {
     wantKey = key;
+    // The menu must not cover a design before its reveal has finished.
+    if (base(key) === base(shownKey) && lookAnimation && (lookAnimation.playState === "running" || lookAnimation.playState === "paused")) return;
     if (key === shownKey) return;
     var im = img(key);
     var go = function () {
@@ -150,8 +152,18 @@
       void im.offsetWidth;
       im.classList.remove("off"); im.classList.add("on");
       shownKey = key;
+      if (lookAnimation) lookAnimation.cancel();
+      screen.classList.remove("changing");
+      if (!fade && !still && view.w > 760) {
+        lookAnimation = im.animate([
+          { clipPath: "polygon(0 0, 0 0, -20% 100%, 0 100%)", transform: "scale(1.05)" },
+          { clipPath: "polygon(0 0, 120% 0, 100% 100%, 0 100%)", transform: "none" },
+        ], { duration: 1250, easing: "cubic-bezier(0.65, 0, 0.25, 1)" });
+        void screen.offsetWidth;
+        screen.classList.add("changing");
+      }
       // once it covers everything, the pictures below are put away
-      setTimeout(function () {
+      function tidy() {
         if (+im.style.zIndex !== myZ || shownKey !== key) return;
         Object.keys(imgs).forEach(function (k) {
           var x = imgs[k];
@@ -161,7 +173,10 @@
         Object.keys(imgs).forEach(function (k) {
           if (k !== wantKey && Math.abs(byId[base(k)] - at) > 1) { imgs[k].remove(); delete imgs[k]; }
         });
-      }, fade ? 650 : 1400);
+      }
+      if (!fade && !still && view.w > 760) {
+        lookAnimation.onfinish = function () { screen.classList.remove("changing"); tidy(); };
+      } else setTimeout(tidy, still ? 0 : fade ? 650 : 1400);
     };
     if (im.complete && im.naturalWidth) go(); else im.addEventListener("load", go, { once: true });
   }
@@ -175,7 +190,8 @@
     });
     swap(nameEl, l.name);
     swap(descEl, l.desc.textContent);
-    swap(nowEl, (i + 1) + " / " + n + "  ·  " + l.name);
+    var rail = l.li.parentNode;
+    rail.scrollTo({ left: l.li.offsetLeft - (rail.clientWidth - l.li.clientWidth) / 2, behavior: still ? "instant" : "smooth" });
   }
   onLang.push(function () {
     if (shownLook >= 0) swap(descEl, looks[shownLook].desc.textContent);
@@ -216,7 +232,8 @@
     $("button", l.li).addEventListener("click", function () {
       if (inHero) { heroGo(i); return; }
       var top = morph.offsetTop + hold() + ((i + 0.3) / n) * (range() - hold());
-      scrollTo({ top: top, behavior: still ? "auto" : "smooth" });
+      // The selected design animates directly, without flashing every design on the way.
+      scrollTo({ top: top, behavior: "instant" });
     });
   });
 
@@ -233,11 +250,10 @@
       pictureSizes = sizes;
       Object.keys(imgs).forEach(function (key) { imgs[key].sizes = sizes; });
     }
-    var dy = (0.5 - 0.52) * view.h * (1 - e) + (view.w < 760 ? (0.5 - 0.47) * view.h * (1 - e) : 0);
+    var dy = (view.h * 0.5 - screen.offsetTop) * (1 - e);
     var tilt = e * (still ? 0 : 1);
     screen.style.transform = "translate(-50%,-50%) translate3d(0," + dy.toFixed(1) + "px,0) perspective(1600px) rotateX(" + (-pointer.sy * 5 * tilt).toFixed(2) + "deg) rotateY(" + (pointer.sx * 7 * tilt).toFixed(2) + "deg) scale(" + s.toFixed(4) + ")";
     screen.style.setProperty("--r", (14 * e / s).toFixed(2) + "px");
-    screen.style.setProperty("--edge", (12 * e).toFixed(2) + "px");
     screen.style.setProperty("--veil", (1 - e).toFixed(3));
     hero.style.opacity = (1 - clamp01(k * 1.7)).toFixed(3);
     hero.style.transform = "translateY(" + (-k * 70).toFixed(1) + "px)";
@@ -523,13 +539,13 @@
       if (seen && active && !w) { size(); if (still) draw[scene](); }
     }
     new IntersectionObserver(function (es) { seen = es[0].isIntersecting; update(); }).observe(section);
-    addEventListener("resize", function () { if (w) size(); });
+    new ResizeObserver(function () { if (w) size(); }).observe(section);
     return { scene: setScene, run: function (v) { active = v; update(); } };
   })();
 
   // ---- wallpapers: a stage, and the tiles that put a wallpaper on it -------------------------------------------
   var walls = (function () {
-    var stage = $("#stage"), pics = $("#stage-pics"), cap = $("#stage-cap"), capName = $("#cap-name"), capHint = $("#cap-hint");
+    var pics = $("#stage-pics"), cap = $("#stage-cap"), capName = $("#cap-name"), capHint = $("#cap-hint");
     var file = $("#own-file"), tiles = $$("#tiles button"), cur = tiles[1], layer = null, own = null, ownUrl = null, ownName = "";
     var pickBtn = document.createElement("button");
     pickBtn.type = "button"; pickBtn.className = "pick-btn";
@@ -615,20 +631,6 @@
       file.value = "";
     });
 
-    // pictures move a little with the mouse
-    var px = 0, py = 0;
-    ticks.push(function (dt) {
-      if (!layer || layer.tagName !== "IMG" || still) return;
-      var r = stage.getBoundingClientRect();
-      if (r.bottom < 0 || r.top > view.h) return;
-      var tx = 0, ty = 0;
-      if (pointer.cx >= r.left && pointer.cx <= r.right && pointer.cy >= r.top && pointer.cy <= r.bottom) {
-        tx = (pointer.cx - r.left) / r.width - 0.5; ty = (pointer.cy - r.top) / r.height - 0.5;
-      }
-      var k = 1 - Math.exp(-dt * 2.5);
-      px += (tx - px) * k; py += (ty - py) * k;
-      layer.style.transform = "scale(1.06) translate3d(" + (-px * 3).toFixed(2) + "%," + (-py * 3).toFixed(2) + "%,0)";
-    });
     caption(false);
     return { select: function (id) { var b = tiles.filter(function (t) { return t.dataset.scene === id; })[0]; if (b) select(b, true); } };
   })();
