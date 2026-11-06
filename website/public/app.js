@@ -209,7 +209,7 @@
   }
 
   // on the first screen the desktop changes its look every few seconds, the wordmark with it
-  var HERO = 3.4, heroAt = 0, heroT = 0, inHero = true;
+  var HERO = 3.4, heroAt = 0, heroT = 0, inHero = true, fromHero = false;
   function heroGo(i) {
     var id = looks[i].id, im = img(id);
     var go = function () {
@@ -231,6 +231,7 @@
   looks.forEach(function (l, i) {
     $("button", l.li).addEventListener("click", function () {
       if (inHero) { heroGo(i); return; }
+      fromHero = false;
       var top = morph.offsetTop + hold() + ((i + 0.3) / n) * (range() - hold());
       // The selected design animates directly, without flashing every design on the way.
       scrollTo({ top: top, behavior: "instant" });
@@ -239,7 +240,7 @@
 
   ticks.push(function (dt) {
     var r = morph.getBoundingClientRect();
-    if (r.bottom < 0) return;
+    if (r.bottom < 0) { fromHero = false; return; }
     var y = -r.top, k = clamp01(y / hold()), e = inout(k);
     var W = screen.offsetWidth, H = W * 9 / 16;
     // full screen it is zoomed in a little, so the bars of the picture stay out from under the navigation
@@ -262,13 +263,25 @@
 
     inHero = y < view.h * 0.04;
     if (inHero) {
+      fromHero = true;
       if (!still && !document.hidden) {
         heroT = Math.min(HERO, heroT + dt);
         if (heroT >= HERO) heroGo((heroAt + 1) % n);
       }
+    }
+    if (inHero || (fromHero && y < hold())) {
       showLook(heroAt);
       progress(heroAt, still ? 0 : heroT / HERO);
       return;
+    }
+    if (fromHero) {
+      fromHero = false;
+      // Once the preview has shrunk, align scrolling with its current look and progress.
+      var offset = (heroAt + heroT / HERO) * (range() - hold()) / n;
+      if (offset > 0 && y < range()) {
+        scrollTo({ top: morph.offsetTop + Math.min(range(), y + offset), behavior: "instant" });
+        return;
+      }
     }
     // the looks, one after another, each with its Start menu opening in the second half
     var p = clamp01((y - hold()) / (range() - hold()));

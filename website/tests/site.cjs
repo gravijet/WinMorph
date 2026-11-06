@@ -37,6 +37,18 @@ const { chromium } = require('playwright');
         assert.match(await page.locator('#app img').getAttribute('src'), new RegExp(`/shots/${lang}/app.webp`));
         assert.equal(await page.locator('[data-dl]').first().getAttribute('href'), '/download/setup');
       }
+      if (!options.reducedMotion) {
+        await page.waitForFunction(() => document.querySelector('#chips li.on')?.dataset.id === 'macos');
+        const step = await page.evaluate(() => (document.querySelector('#top').offsetHeight - innerHeight * 1.6) / 15);
+        await page.mouse.wheel(0, Math.round(options.viewport.height * 0.2));
+        await page.waitForFunction(() => scrollY > innerHeight * 0.1);
+        assert.equal(await page.locator('#chips li.on').getAttribute('data-id'), 'macos', 'Scrolling keeps the autoplay look while the preview shrinks');
+        await page.mouse.wheel(0, Math.round(options.viewport.height * 0.5));
+        await page.waitForFunction(step => scrollY > innerHeight * 0.6 + step * 0.9, step);
+        assert.equal(await page.locator('#chips li.on').getAttribute('data-id'), 'macos', 'The scroll gallery starts at the current autoplay look');
+        await page.mouse.wheel(0, Math.round(step));
+        await page.waitForFunction(() => document.querySelector('#chips li.on')?.dataset.id === 'xp');
+      }
       await page.evaluate(() => scrollTo({ top: 950, behavior: 'instant' }));
       await page.waitForTimeout(600);
       assert.ok(await page.locator('#look-name').textContent());
