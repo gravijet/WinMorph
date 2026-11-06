@@ -546,7 +546,21 @@
   // ---- wallpapers: a stage, and the tiles that put a wallpaper on it -------------------------------------------
   var walls = (function () {
     var pics = $("#stage-pics"), cap = $("#stage-cap"), capName = $("#cap-name"), capHint = $("#cap-hint");
-    var file = $("#own-file"), tiles = $$("#tiles button"), cur = tiles[1], layer = null, own = null, ownUrl = null, ownName = "";
+    var file = $("#own-file"), tiles = $$("#wall-own, #tiles button"), cur = tiles.find(function (b) { return b.dataset.scene === "matrix"; }), layer = null, own = null, ownUrl = null, ownName = "";
+    var filters = $$("[data-wall-filter]");
+    function kind(b) { return b.dataset.scene || b.dataset.hint ? "live" : "designs"; }
+    function filter(value) {
+      filters.forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.wallFilter === value)); });
+      tiles.forEach(function (b) { if (b.dataset.own == null) b.parentNode.hidden = kind(b) !== value; });
+    }
+    filters.forEach(function (b) {
+      b.addEventListener("click", function () {
+        filter(b.dataset.wallFilter);
+        if (cur.dataset.own != null || kind(cur) !== b.dataset.wallFilter) {
+          select(tiles.find(function (t) { return t.dataset.own == null && kind(t) === b.dataset.wallFilter; }), true);
+        }
+      });
+    });
     var pickBtn = document.createElement("button");
     pickBtn.type = "button"; pickBtn.className = "pick-btn";
     pickBtn.addEventListener("click", function () { file.click(); });
@@ -597,6 +611,7 @@
 
     function select(b, anim) {
       cur = b;
+      if (b.dataset.own == null) filter(kind(b));
       tiles.forEach(function (t) { t.setAttribute("aria-pressed", String(t === b)); });
       if (b.dataset.look) wallLook = b.dataset.look;
       if (b.dataset.scene) { live.scene(b.dataset.scene); live.run(true); show(null); }
@@ -612,7 +627,7 @@
     }
     tiles.forEach(function (b) { b.addEventListener("click", function () { if (b !== cur || b.dataset.own != null) select(b, true); }); });
 
-    // your own picture or video, the way the app shows it: muted in a loop, or a picture that follows the mouse
+    // Your own files stay on this device; videos play muted in a loop.
     file.addEventListener("change", function () {
       var f = file.files && file.files[0];
       if (!f) return;
@@ -631,6 +646,7 @@
       file.value = "";
     });
 
+    filter("live");
     caption(false);
     return { select: function (id) { var b = tiles.filter(function (t) { return t.dataset.scene === id; })[0]; if (b) select(b, true); } };
   })();

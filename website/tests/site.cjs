@@ -22,6 +22,7 @@ const { chromium } = require('playwright');
       assert.equal(await page.getByText('Antivirus blocks the download?', { exact: false }).count(), 0);
       assert.equal(await page.getByText('Virenschutz blockiert den Download?', { exact: false }).count(), 0);
       assert.equal(await page.locator('#keys').count(), 0);
+      assert.doesNotMatch(await page.locator('.foot').textContent(), /Benjamin Berger/);
       for (const lang of ['en', 'de', 'en']) {
         await page.locator(`[data-lang=${lang}]`).click();
         await page.waitForTimeout(220);
@@ -79,21 +80,31 @@ const { chromium } = require('playwright');
       assert.ok(wallpaperLayout.tiles.top >= 0 && wallpaperLayout.tiles.bottom <= options.viewport.height, 'Wallpaper controls fit beside or below the preview');
       assert.ok(wallpaperLayout.caption.top >= wallpaperLayout.stage.bottom && wallpaperLayout.caption.bottom <= options.viewport.height, 'The wallpaper caption stays visible without covering the picture');
       if (options.viewport.width > 760) assert.ok(wallpaperLayout.tiles.left >= wallpaperLayout.stage.right, 'Desktop preview and choices are side by side');
-      for (const tile of await page.locator('#tiles button[data-pic]').all()) {
-        await tile.evaluate(button => button.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' }));
-        await tile.click();
-        await page.waitForFunction(() => {
-          const selected = document.querySelector('#tiles button[aria-pressed=true]');
-          const expected = selected.dataset.pic.replace(/\/shots\/(de|en)\//, `/shots/${document.documentElement.lang}/`);
-          return [...document.querySelectorAll('#stage-pics img.on')].some(im => im.src.includes(expected) && im.complete && im.naturalWidth > 0);
-        });
-        assert.ok(Math.abs(await page.evaluate(() => scrollY) - wallpaperLayout.scroll) < 2, `Choosing ${await tile.textContent()} does not move the page away from the preview (start ${wallpaperLayout.scroll}, now ${await page.evaluate(() => scrollY)})`);
+      for (const [filter, count] of [['live', 7], ['designs', 16]]) {
+        await page.locator(`[data-wall-filter=${filter}]`).click();
+        assert.equal(await page.locator('#tiles button:visible').count(), count, 'Wallpaper categories show only their own choices');
+        for (const tile of await page.locator('#tiles button[data-pic]:visible').all()) {
+          await tile.evaluate(button => button.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' }));
+          await tile.click();
+          await page.waitForFunction(() => {
+            const selected = document.querySelector('#tiles button[aria-pressed=true]');
+            const expected = selected.dataset.pic.replace(/\/shots\/(de|en)\//, `/shots/${document.documentElement.lang}/`);
+            return [...document.querySelectorAll('#stage-pics img.on')].some(im => im.src.includes(expected) && im.complete && im.naturalWidth > 0);
+          });
+          assert.ok(Math.abs(await page.evaluate(() => scrollY) - wallpaperLayout.scroll) < 2, `Choosing ${await tile.textContent()} does not move the page away from the preview (start ${wallpaperLayout.scroll}, now ${await page.evaluate(() => scrollY)})`);
+        }
       }
+      await page.locator('[data-wall-filter=live]').click();
       await page.locator('[data-pic="/shots/de/live-zen-desk"]').click();
       for (const lang of ['de', 'en']) {
         await page.locator(`[data-lang=${lang}]`).click();
         await page.waitForFunction(lang => [...document.querySelectorAll('#stage-pics img.on')].some(image => image.src.includes(`/shots/${lang}/live-zen-desk`) && image.complete && image.naturalWidth > 0), lang);
       }
+      const chooserPromise = page.waitForEvent('filechooser');
+      await page.locator('#wall-own').click();
+      const chooser = await chooserPromise;
+      await chooser.setFiles([]);
+      assert.match(await page.locator('#stage-cap').textContent(), /stays on your device/);
       await page.locator('[data-scene=matrix]').click();
       const sharpCanvas = await page.locator('#live-canvas').evaluate(canvas => canvas.width >= canvas.clientWidth * Math.min(devicePixelRatio, 3) - 1);
       assert.ok(sharpCanvas, 'Live canvas matches display density');

@@ -17,7 +17,7 @@
 <meta property="og:image" content="https://winmorph.benjaminberger.at/og.png?v=5.3.0-brand">
 <meta name="twitter:card" content="summary_large_image">
 <script src="/boot.js?v=5.3.0-brand"></script>
-<link rel="stylesheet" href="/style.css?v=5.3.0-motion2">
+<link rel="stylesheet" href="/style.css?v=5.3.0-walls3">
 </head>
 <body>
 
@@ -71,7 +71,16 @@
 
 <!-- wallpapers: live ones running right here, the generated one of every look, or your own -->
 <section class="part walls" id="walls" data-look="wall">
-  <h2 class="rv" data-en="Wallpapers">Hintergründe</h2>
+  <div class="wall-head rv">
+    <h2 data-en="Wallpapers">Hintergründe</h2>
+    <div class="wall-controls">
+      <div class="wall-filters" role="group" aria-label="Hintergrundtyp" data-en-aria="Wallpaper type">
+        <button type="button" data-wall-filter="live" aria-pressed="true">Live</button>
+        <button type="button" data-wall-filter="designs" aria-pressed="false" data-en="Looks">Designs</button>
+      </div>
+      <button type="button" class="wall-own" id="wall-own" data-own aria-pressed="false"><span aria-hidden="true">＋</span><b data-en="Your own">Eigenes</b></button>
+    </div>
+  </div>
   <div class="wall-picker rv">
     <div class="wall-preview">
       <div class="stage" id="stage">
@@ -81,8 +90,8 @@
       </div>
       <p class="stage-cap" id="stage-cap" aria-live="polite"><b id="cap-name">Matrix</b><span id="cap-hint"></span></p>
     </div>
+    <div class="wall-library">
     <ul class="tiles" id="tiles" aria-label="Hintergrund auswählen" data-en-aria="Choose a wallpaper">
-      <li><button type="button" class="own" data-own aria-pressed="false"><span class="own-plus" aria-hidden="true">+</span><b data-en="Your own">Dein eigenes</b></button></li>
       <li><button type="button" data-scene="matrix" data-hint="Maus beschleunigt, Klick = Ausbruch" data-hint-en="Mouse speeds up, click = burst" data-look="terminal" aria-pressed="true"><img src="/shots/de/live-matrix-sm.webp" srcset="/shots/de/live-matrix-sm.webp 480w, /shots/de/live-matrix.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b>Matrix</b><i>Live</i></button></li>
       <li><button type="button" data-scene="stars" data-hint="Maus lenkt, Klick = Warp" data-hint-en="Mouse steers, click = warp" data-look="nexus" aria-pressed="false"><img src="/shots/de/live-starfield-sm.webp" srcset="/shots/de/live-starfield-sm.webp 480w, /shots/de/live-starfield.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b data-en="Star flight">Sternenflug</b><i>Live</i></button></li>
       <li><button type="button" data-scene="net" data-hint="Maus zieht Linien, Klick = Schockwelle" data-hint-en="Mouse pulls lines, click = shock wave" data-look="nova" aria-pressed="false"><img src="/shots/de/live-plexus-sm.webp" srcset="/shots/de/live-plexus-sm.webp 480w, /shots/de/live-plexus.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b data-en="Network">Netzwerk</b><i>Live</i></button></li>
@@ -107,6 +116,7 @@
       <li><button type="button" data-pic="/shots/wall-zen" data-look="zen" aria-pressed="false"><img src="/shots/wall-zen-sm.webp" srcset="/shots/wall-zen-sm.webp 480w, /shots/wall-zen.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b>Zen</b></button></li>
       <li><button type="button" data-pic="/shots/wall-gaming" data-look="gaming" aria-pressed="false"><img src="/shots/wall-gaming-sm.webp" srcset="/shots/wall-gaming-sm.webp 480w, /shots/wall-gaming.webp 1600w" sizes="(max-width: 760px) 40vw, (max-width: 1180px) 16vw, 12vw" width="480" height="270" loading="lazy" alt=""><b>Gaming</b></button></li>
     </ul>
+    </div>
   </div>
 </section>
 
@@ -146,7 +156,6 @@
 
 <footer class="foot">
   <a class="n-logo" href="#top"><img src="/favicon.svg?v=5.3.0-brand" width="24" height="24" alt="">WinMorph</a>
-  <a href="https://benjaminberger.at">Benjamin Berger</a>
   <a href="https://benjaminberger.at/impressum" data-en="Imprint">Impressum</a>
   <a href="https://benjaminberger.at/datenschutz" data-en="Privacy">Datenschutz</a>
   <p data-en="WinMorph is an independent project. Brand names belong to their respective owners.">WinMorph ist ein unabhängiges Projekt. Markennamen gehören ihren jeweiligen Inhabern.</p>
@@ -154,6 +163,6 @@
 
 </main>
 
-<script src="/app.js?v=5.3.0-motion2"></script>
+<script src="/app.js?v=5.3.0-walls3"></script>
 </body>
 </html>
