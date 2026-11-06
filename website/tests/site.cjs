@@ -133,47 +133,53 @@ const { chromium } = require('playwright');
       await page.locator('#term-in').press('Enter');
       assert.match(await page.locator('#term-out').textContent(), /command not found/);
       const text = await page.locator('.play-hint').textContent();
-      await page.locator('.play-hint').evaluate(el => {
+      const source = await page.locator('.play-hint').evaluate(el => {
         document.activeElement.blur();
         const range = document.createRange(); range.selectNodeContents(el);
         getSelection().removeAllRanges(); getSelection().addRange(range);
+        const r = range.getClientRects()[0];
+        return { x: r.left + 12, y: r.top + r.height / 2 };
       });
-      if (options.isMobile) await page.locator('.selection-move').tap();
-      else await page.locator('.selection-move').click();
-      const note = page.locator('.play-text');
-      assert.equal(await note.locator('span').textContent(), text);
-      const start = await note.boundingBox();
-      if (options.isMobile) {
-        const touch = await context.newCDPSession(page);
-        await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: start.x + 20, y: start.y + 20 }] });
-        await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: start.x + 70, y: start.y + 50 }] });
-        await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-        await touch.detach();
+      assert.equal(await page.locator('.selection-move, .play-text').count(), 0, 'Selecting text adds no buttons or notes');
+      if (options.isMobile || options.reducedMotion) {
+        assert.equal(await page.locator('.elastic-text').count(), 0);
+        assert.equal(await page.evaluate(() => getSelection().toString()), text, 'Native selection remains available');
       } else {
-        await page.mouse.move(start.x + 20, start.y + 20);
+        await page.mouse.move(source.x, source.y);
         await page.mouse.down();
-        await page.mouse.move(start.x + 70, start.y + 50, { steps: 8 });
+        await page.mouse.move(source.x + 40, source.y + 20, { steps: 5 });
+        const near = await page.locator('.elastic-text').first().evaluate(el => Math.hypot(parseFloat(el.style.left), parseFloat(el.style.top)));
+        await page.mouse.move(source.x + 240, source.y + 120, { steps: 8 });
+        const far = await page.locator('.elastic-text').first().evaluate(el => Math.hypot(parseFloat(el.style.left), parseFloat(el.style.top)));
+        assert.ok(near > 5 && far > near && far < 36 && far - near < 16, 'Selected text moves with increasing resistance');
+        assert.equal(await page.locator('.play-hint').textContent(), text);
         await page.mouse.up();
+        await page.waitForFunction(() => document.querySelectorAll('.elastic-text').length === 0);
+        assert.equal(await page.evaluate(() => getSelection().toString()), text, 'Text and selection survive the spring return');
+        assert.equal(await page.locator('.play-hint').textContent(), text, 'The original content returns without leftover wrappers');
+        await page.locator('#term-in').fill('neofetch');
+        await page.locator('#term-in').press('Enter');
+        const row = page.locator('#term-out .pre').first();
+        await row.scrollIntoViewIfNeeded();
+        const formatted = await row.innerHTML();
+        const part = await row.evaluate(el => {
+          document.activeElement.blur();
+          const range = document.createRange(); range.selectNodeContents(el);
+          getSelection().removeAllRanges(); getSelection().addRange(range);
+          const r = range.getClientRects()[0];
+          return { x: r.left + 12, y: r.top + r.height / 2, text: getSelection().toString() };
+        });
+        await page.mouse.move(part.x, part.y);
+        await page.mouse.down();
+        await page.mouse.move(part.x + 100, part.y + 35, { steps: 8 });
+        assert.ok(await page.locator('.elastic-text').count() > 1);
+        await page.mouse.up();
+        await page.waitForFunction(() => !document.querySelector('.elastic-text'));
+        assert.equal(await row.innerHTML(), formatted, 'Formatted text keeps its original markup');
+        assert.equal(await page.evaluate(() => getSelection().toString()), part.text, 'The complete selection survives across formatted fragments');
       }
-      const moved = await note.boundingBox();
-      assert.ok(Math.abs(moved.y - start.y) > 20, 'Text stays where it was dragged');
-      await note.focus();
-      const oldTop = await note.evaluate(el => el.offsetTop);
-      await note.press('ArrowDown');
-      await page.waitForFunction(top => document.querySelector('.play-text').offsetTop === top + 5, oldTop);
+      await page.evaluate(() => getSelection().removeAllRanges());
       await page.locator('[data-lang=de]').click();
-      assert.equal(await note.locator('button').getAttribute('aria-label'), 'Text entfernen');
-      assert.equal(await note.locator('span').textContent(), text, 'User text is preserved when changing language');
-      await note.locator('button').click();
-      assert.equal(await page.locator('.play-text').count(), 0);
-      await page.locator('.play-hint').evaluate(el => {
-        const data = new DataTransfer(); data.setData('text/plain', '<img src=x onerror=alert(1)>');
-        el.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data, clientX: 80, clientY: 180 }));
-      });
-      assert.equal(await page.locator('.play-text span').textContent(), '<img src=x onerror=alert(1)>');
-      assert.equal(await page.locator('.play-text img').count(), 0, 'Dropped text never becomes executable HTML');
-      await page.locator('.play-text').press('Delete');
-      assert.equal(await page.locator('.play-text').count(), 0);
       await page.locator('#term-in').fill('whoami');
       await page.locator('#term-in').press('Enter');
       assert.match(await page.locator('#term-out').textContent(), /gast/);

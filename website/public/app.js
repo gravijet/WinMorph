@@ -394,80 +394,106 @@
     }, { threshold: 0.6 }).observe(term);
   })();
 
-  // ---- selected text becomes a small, movable note -------------------------------------------------------
-  (function textPlay() {
-    var action = document.createElement("button"), selection = null, drag = null;
-    action.type = "button"; action.className = "selection-move"; action.hidden = true;
-    document.body.appendChild(action);
-    function labels() {
-      action.textContent = L("Verschieben", "Move");
-      $$(".play-text").forEach(function (note) {
-        note.setAttribute("aria-label", L("Verschiebbarer Text", "Movable text"));
-        note.title = L("Ziehen oder mit den Pfeiltasten verschieben", "Drag or move with the arrow keys");
-        $("button", note).setAttribute("aria-label", L("Text entfernen", "Remove text"));
+  // ---- selected text stretches a little, then springs back -----------------------------------------------
+  (function elasticText() {
+    var pointer = null, drag = null, spans = [], animations = [];
+    var controls = "a, button, input, textarea, select, [contenteditable]";
+    // Text-node offsets survive temporary wrappers and normalization across formatted text.
+    function rememberSelection() {
+      var selection = getSelection();
+      if (!selection.rangeCount || selection.isCollapsed) return null;
+      var range = selection.getRangeAt(0), container = range.commonAncestorContainer;
+      if (container.nodeType === Node.TEXT_NODE) container = container.parentNode;
+      while (container.nodeType === Node.ELEMENT_NODE && container.classList.contains("elastic-text")) container = container.parentNode;
+      var prefix = range.cloneRange(); prefix.selectNodeContents(container); prefix.setEnd(range.startContainer, range.startOffset);
+      var start = prefix.toString().length;
+      return { container: container, start: start, end: start + range.toString().length, backwards: selection.anchorNode === range.endContainer && selection.anchorOffset === range.endOffset };
+    }
+    function restoreSelection(saved) {
+      if (!saved || !saved.container.isConnected) return;
+      var walker = document.createTreeWalker(saved.container, NodeFilter.SHOW_TEXT), node, offset = 0, start = null, end = null;
+      while ((node = walker.nextNode())) {
+        if (!start && offset + node.length >= saved.start) start = { node: node, offset: saved.start - offset };
+        if (offset + node.length >= saved.end) { end = { node: node, offset: saved.end - offset }; break; }
+        offset += node.length;
+      }
+      if (!start || !end) return;
+      var anchor = saved.backwards ? end : start, focus = saved.backwards ? start : end;
+      getSelection().setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
+    }
+    function reset() {
+      var selected = spans.length ? rememberSelection() : null;
+      if (drag && document.body.hasPointerCapture(drag.id)) document.body.releasePointerCapture(drag.id);
+      animations.forEach(function (animation) { animation.cancel(); });
+      animations = [];
+      spans.forEach(function (span) {
+        var parent = span.parentNode;
+        if (!parent) return;
+        while (span.firstChild) parent.insertBefore(span.firstChild, span);
+        span.remove(); parent.normalize();
+      });
+      spans = []; drag = null; document.body.classList.remove("text-pulling");
+      restoreSelection(selected);
+    }
+    document.addEventListener("pointerdown", function (e) { pointer = e.pointerType === "mouse" ? e.pointerId : null; });
+    document.addEventListener("mousedown", function (e) {
+      reset();
+      if (still || pointer == null || e.button !== 0 || e.detail > 1 || e.target.closest(controls)) return;
+      if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+      var selection = getSelection();
+      if (!selection.rangeCount || selection.isCollapsed || !selection.toString().trim()) return;
+      var range = selection.getRangeAt(0).cloneRange();
+      if (!Array.from(range.getClientRects()).some(function (r) { return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; })) return;
+      var ancestor = range.commonAncestorContainer, nodes = [], parts = [];
+      if (ancestor.nodeType === Node.TEXT_NODE) nodes.push(ancestor);
+      else {
+        var walker = document.createTreeWalker(ancestor, NodeFilter.SHOW_TEXT), node;
+        while ((node = walker.nextNode())) nodes.push(node);
+      }
+      nodes.forEach(function (node) {
+        if (!range.intersectsNode(node) || node.parentElement.closest(controls + ", script, style")) return;
+        var start = node === range.startContainer ? range.startOffset : 0;
+        var end = node === range.endContainer ? range.endOffset : node.length;
+        if (end > start) parts.push({ node: node, start: start, end: end });
+      });
+      if (!parts.length) return;
+      var selected = rememberSelection();
+      e.preventDefault();
+      parts.forEach(function (part) {
+        var piece = document.createRange(), span = document.createElement("span");
+        piece.setStart(part.node, part.start); piece.setEnd(part.node, part.end);
+        span.className = "elastic-text"; piece.surroundContents(span); spans.push(span);
+      });
+      restoreSelection(selected);
+      drag = { id: pointer, x: e.clientX, y: e.clientY };
+      document.body.setPointerCapture(pointer); document.body.classList.add("text-pulling");
+    });
+    document.addEventListener("dragstart", function (e) { if (drag) e.preventDefault(); });
+    document.addEventListener("pointermove", function (e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      var x = e.clientX - drag.x, y = e.clientY - drag.y;
+      var resistance = 36 / (36 + Math.hypot(x, y));
+      spans.forEach(function (span) { span.style.left = x * resistance + "px"; span.style.top = y * resistance + "px"; });
+    });
+    function release() {
+      pointer = null;
+      if (!drag) return;
+      drag = null; document.body.classList.remove("text-pulling");
+      var batch = spans, pending = spans.length;
+      animations = spans.map(function (span) {
+        var from = { left: span.style.left || "0px", top: span.style.top || "0px" };
+        span.style.left = span.style.top = "0px";
+        var animation = span.animate([from, { left: "0px", top: "0px" }], { duration: 500, easing: "cubic-bezier(0.2, 1.5, 0.4, 1)" });
+        animation.onfinish = function () { if (spans === batch && --pending === 0) reset(); };
+        return animation;
       });
     }
-    onLang.push(labels);
-    function place(note, x, y) {
-      note.style.left = Math.max(12, Math.min(innerWidth - note.offsetWidth - 12, x)) + "px";
-      note.style.top = Math.max(12, Math.min(root.scrollHeight - note.offsetHeight - 12, y)) + "px";
-    }
-    function add(text, x, y) {
-      var note = document.createElement("div"), content = document.createElement("span"), close = document.createElement("button");
-      note.className = "play-text"; note.tabIndex = 0; note.setAttribute("role", "group");
-      content.textContent = text; close.type = "button"; close.textContent = "×";
-      close.addEventListener("click", function () { note.remove(); });
-      note.append(content, close); document.body.appendChild(note);
-      labels();
-      place(note, x, Math.max(scrollY + nav.offsetHeight + 12, Math.min(scrollY + innerHeight - note.offsetHeight - 12, y)));
-      note.focus({ preventScroll: true });
-      getSelection().removeAllRanges(); action.hidden = true;
-    }
-    document.addEventListener("selectionchange", function () {
-      var s = getSelection(), text = s.toString();
-      action.hidden = true;
-      if (!text.trim() || !s.rangeCount) return;
-      var r = s.getRangeAt(0).getBoundingClientRect();
-      if (r.bottom < 0 || r.top > innerHeight) return;
-      selection = { text: text, x: scrollX + r.left, y: scrollY + r.bottom + 8 };
-      action.hidden = false;
-      action.style.left = Math.max(12, Math.min(innerWidth - action.offsetWidth - 12, r.left)) + "px";
-      action.style.top = Math.max(12, Math.min(innerHeight - action.offsetHeight - 12, r.bottom + 8)) + "px";
-    });
-    action.addEventListener("pointerdown", function (e) { e.preventDefault(); });
-    action.addEventListener("click", function () { if (selection) add(selection.text, selection.x, selection.y); });
-    function editable(target) { return target instanceof Element && target.closest("input, textarea, [contenteditable]"); }
-    document.addEventListener("dragover", function (e) {
-      if (!editable(e.target) && Array.from(e.dataTransfer.types).indexOf("text/plain") >= 0) {
-        e.preventDefault(); e.dataTransfer.dropEffect = "copy";
-      }
-    });
-    document.addEventListener("drop", function (e) {
-      if (editable(e.target)) return;
-      var text = e.dataTransfer.getData("text/plain");
-      if (text.trim()) { e.preventDefault(); add(text, e.pageX, e.pageY); }
-    });
-    document.addEventListener("pointerdown", function (e) {
-      var note = e.target.closest(".play-text");
-      if (!note || e.target.closest("button") || e.button !== 0) return;
-      e.preventDefault(); note.focus({ preventScroll: true }); note.setPointerCapture(e.pointerId);
-      drag = { note: note, id: e.pointerId, x: e.pageX - note.offsetLeft, y: e.pageY - note.offsetTop };
-      note.classList.add("moving");
-    });
-    document.addEventListener("pointermove", function (e) {
-      if (drag && e.pointerId === drag.id) place(drag.note, e.pageX - drag.x, e.pageY - drag.y);
-    });
-    function release() { if (drag) { drag.note.classList.remove("moving"); drag = null; } }
     document.addEventListener("pointerup", release);
     document.addEventListener("pointercancel", release);
-    document.addEventListener("keydown", function (e) {
-      if (!e.target.matches(".play-text")) return;
-      var delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
-      if (delta) { e.preventDefault(); place(e.target, e.target.offsetLeft + delta[0] * (e.shiftKey ? 20 : 5), e.target.offsetTop + delta[1] * (e.shiftKey ? 20 : 5)); }
-      else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); e.target.remove(); }
-    });
-    addEventListener("scroll", function () { action.hidden = true; }, { passive: true });
-    addEventListener("resize", function () { action.hidden = true; $$(".play-text").forEach(function (note) { place(note, note.offsetLeft, note.offsetTop); }); });
+    addEventListener("blur", reset);
+    addEventListener("resize", reset);
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") reset(); });
+    onLang.push(reset);
   })();
 
   // ---- live wallpapers, running right here on the stage ------------------------------------------------------------------
