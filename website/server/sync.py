@@ -10,6 +10,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import urllib.request
 
 REPO = "gravijet/WinMorph"
@@ -66,4 +67,6 @@ def sync_release():
 if __name__ == "__main__":
     os.makedirs(DATA, exist_ok=True)
     subprocess.run(["git", "-C", os.path.join(BASE, "repo"), "pull", "-q", "--ff-only"], timeout=120, check=False)
+    # the English page at /en/ is built from index.html, so it can never lag behind the German one
+    subprocess.run([sys.executable, os.path.join(BASE, "repo", "website", "scripts", "en.py")], timeout=60, check=False)
     sync_release()

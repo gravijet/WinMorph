@@ -27,7 +27,7 @@ const { chromium } = require('playwright');
         await page.locator(`[data-lang=${lang}]`).click();
         await page.waitForTimeout(220);
         assert.equal(await page.locator('html').getAttribute('lang'), lang);
-        assert.match(await page.title(), lang === 'de' ? /per Klick/ : /in one click/);
+        assert.match(await page.title(), lang === 'de' ? /Design ändern/ : /themes/);
         const translated = await page.evaluate(lang => {
           const matches = (selector, attr, data) => [...document.querySelectorAll(selector)].every(el => lang === 'de' || (attr ? el.getAttribute(attr) : el.textContent) === el.dataset[data]);
           return matches('[data-en]', null, 'en') && matches('[data-en-alt]', 'alt', 'enAlt') && matches('[data-en-aria]', 'aria-label', 'enAria');

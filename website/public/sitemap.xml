@@ -1,2 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://winmorph.benjaminberger.at/</loc></url></urlset>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://winmorph.benjaminberger.at/</loc>
+    <xhtml:link rel="alternate" hreflang="de" href="https://winmorph.benjaminberger.at/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://winmorph.benjaminberger.at/en/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://winmorph.benjaminberger.at/en/"/>
+    <image:image><image:loc>https://winmorph.benjaminberger.at/shots/de/look-macos.webp</image:loc></image:image>
+    <image:image><image:loc>https://winmorph.benjaminberger.at/shots/de/look-xp.webp</image:loc></image:image>
+    <image:image><image:loc>https://winmorph.benjaminberger.at/shots/de/look-ubuntu.webp</image:loc></image:image>
+  </url>
+  <url>
+    <loc>https://winmorph.benjaminberger.at/en/</loc>
+    <xhtml:link rel="alternate" hreflang="de" href="https://winmorph.benjaminberger.at/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://winmorph.benjaminberger.at/en/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://winmorph.benjaminberger.at/en/"/>
+    <image:image><image:loc>https://winmorph.benjaminberger.at/shots/en/look-macos.webp</image:loc></image:image>
+    <image:image><image:loc>https://winmorph.benjaminberger.at/shots/en/look-xp.webp</image:loc></image:image>
+    <image:image><image:loc>https://winmorph.benjaminberger.at/shots/en/look-ubuntu.webp</image:loc></image:image>
+  </url>
+</urlset>

@@ -24,12 +24,14 @@
 
   // ---- language ------------------------------------------------------------------------------
   var texts = new Map(), alts = new Map(), arias = new Map();
-  $$("[data-en]").forEach(function (el) { texts.set(el, el.textContent); });
-  $$("[data-en-alt]").forEach(function (el) { alts.set(el, el.getAttribute("alt")); });
-  $$("[data-en-aria]").forEach(function (el) { arias.set(el, el.getAttribute("aria-label")); });
+  // on /en/ the page arrives in English with the German original in data-de* (scripts/en.py)
+  var german = function (el, de, attr) { return el.hasAttribute(de) ? el.getAttribute(de) : attr ? el.getAttribute(attr) : el.textContent; };
+  $$("[data-en]").forEach(function (el) { texts.set(el, german(el, "data-de")); });
+  $$("[data-en-alt]").forEach(function (el) { alts.set(el, german(el, "data-de-alt", "alt")); });
+  $$("[data-en-aria]").forEach(function (el) { arias.set(el, german(el, "data-de-aria", "aria-label")); });
   var meta = {
-    de: ["WinMorph – Windows-Looks per Klick", "WinMorph legt ein eigenes Design über Windows 10 und 11: Taskleiste, Startmenü, Alt+Tab, Hintergrund und Sperrbildschirm. 15 Looks, kostenlos, mit einem Klick zurück."],
-    en: ["WinMorph – Windows looks in one click", "WinMorph lays a design of its own over Windows 10 and 11: taskbar, Start menu, Alt+Tab, wallpaper and lock screen. 15 looks, free, one click back."],
+    de: [texts.get($("title")), german($('meta[name="description"]'), "data-de-content", "content")],
+    en: [$("title").dataset.en, $('meta[name="description"]').dataset.enContent],
   };
   var onLang = [];
   function localized(src) { return src.replace(/\/shots\/(?:de|en)\//g, "/shots/" + lang + "/"); }
@@ -54,16 +56,16 @@
     $$(".n-lang [data-lang]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lang === l)); });
     document.title = meta[l][0];
     $('meta[name="description"]').content = meta[l][1];
-    $('meta[property="og:title"]').content = meta[l][0];
-    $('meta[property="og:description"]').content = meta[l][1];
     localizePictures();
     onLang.forEach(function (f) { f(); });
   }
   $$(".n-lang [data-lang]").forEach(function (b) {
     b.addEventListener("click", function () {
       try { localStorage.setItem("wm-lang", b.dataset.lang); } catch (e) {}
+      // each language has its own address (/ and /en/), so links and search engines find it
       var url = new URL(location.href);
-      url.searchParams.set("lang", b.dataset.lang);
+      url.searchParams.delete("lang");
+      if (/^\/(en\/?)?$/.test(url.pathname)) url.pathname = b.dataset.lang === "en" ? "/en/" : "/";
       history.replaceState(null, "", url);
       applyLang(b.dataset.lang);
     });

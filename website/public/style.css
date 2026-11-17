@@ -259,6 +259,13 @@ h2 {
 .get-meta { margin-top: 18px; font-size: 15px; color: var(--dim); font-variant-numeric: tabular-nums; }
 .get-meta + .get-meta { margin-top: 6px; }
 
+/* ---- questions: two columns of short answers, a hairline above each ------------------------- */
+.faq dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 clamp(32px, 6vw, 96px); margin: 0; }
+.faq dl > div { padding: 22px 0 28px; border-top: 1px solid rgba(244, 241, 234, 0.16); }
+.faq dt { font-size: clamp(1.15rem, 1.7vw, 1.5rem); font-weight: 680; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 8px; }
+.faq dd { margin: 0; max-width: 52ch; line-height: 1.5; color: var(--dim); text-wrap: pretty; }
+@media (max-width: 760px) { .faq dl { grid-template-columns: 1fr; } }
+
 .foot { display: flex; flex-wrap: wrap; gap: 10px 28px; padding: 6svh var(--pad) 40px; font-size: 15px; font-weight: 500; }
 .foot a { text-decoration: none; color: var(--dim); transition: color 0.3s; }
 .foot a:hover { color: var(--cream); }
