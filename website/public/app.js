@@ -23,12 +23,13 @@
   };
 
   // ---- language ------------------------------------------------------------------------------
-  var texts = new Map(), alts = new Map(), arias = new Map();
+  var texts = new Map(), alts = new Map(), arias = new Map(), links = new Map();
   // on /en/ the page arrives in English with the German original in data-de* (scripts/en.py)
   var german = function (el, de, attr) { return el.hasAttribute(de) ? el.getAttribute(de) : attr ? el.getAttribute(attr) : el.textContent; };
   $$("[data-en]").forEach(function (el) { texts.set(el, german(el, "data-de")); });
   $$("[data-en-alt]").forEach(function (el) { alts.set(el, german(el, "data-de-alt", "alt")); });
   $$("[data-en-aria]").forEach(function (el) { arias.set(el, german(el, "data-de-aria", "aria-label")); });
+  $$("a[data-en-href]").forEach(function (el) { links.set(el, german(el, "data-de-href", "href")); });
   var meta = {
     de: [texts.get($("title")), german($('meta[name="description"]'), "data-de-content", "content")],
     en: [$("title").dataset.en, $('meta[name="description"]').dataset.enContent],
@@ -56,6 +57,7 @@
     $$(".n-lang [data-lang]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lang === l)); });
     document.title = meta[l][0];
     $('meta[name="description"]').content = meta[l][1];
+    links.forEach(function (de, el) { el.setAttribute("href", l === "en" ? el.dataset.enHref : de); });
     localizePictures();
     onLang.forEach(function (f) { f(); });
   }
