@@ -82,10 +82,9 @@
     if (s && s.url === "/download/setup") $$("[data-dl]").forEach(function (a) { a.setAttribute("href", s.url); });
   }
   onLang.push(render);
-  try { rel = JSON.parse(localStorage.getItem("wm-rel") || "null"); } catch (e) {}
   fetch("/api/release", { headers: { accept: "application/json" } })
     .then(function (r) { if (!r.ok) throw 0; return r.json(); })
-    .then(function (r) { if (!r.version) return; rel = r; render(); try { localStorage.setItem("wm-rel", JSON.stringify(r)); } catch (e) {} })
+    .then(function (r) { if (!r.version) return; rel = r; render(); })
     .catch(function () {});
 
   // ---- one frame loop -----------------------------------------------------------------------------
