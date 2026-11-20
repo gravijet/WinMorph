@@ -9,7 +9,9 @@ $dir = Join-Path $env:LOCALAPPDATA 'Programs\WinMorph'
 $setup = Join-Path $PSScriptRoot 'out\WinMorph-Setup.exe'
 Run $setup '/S'
 if (-not (Test-Path "$dir\WinMorph.exe") -or -not (Test-Path "$dir\Uninstall.exe")) { throw 'Missing installation' }
-if (Get-ItemPropertyValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' 'WinMorph Shell' -ErrorAction SilentlyContinue) { throw 'Installer activated a look' }
+# (Get-ItemPropertyValue throws even with SilentlyContinue when the key exists without the value)
+$run = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue
+if ($run -and $run.PSObject.Properties['WinMorph Shell']) { throw 'Installer activated a look' }
 # Previously released apps use precisely this invocation; it must stay silent and finish.
 Set-ItemProperty 'HKCU:\Software\WinMorph' 'Language' 'de'
 Run $setup '/S /update'
