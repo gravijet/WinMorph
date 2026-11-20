@@ -1,62 +1,324 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 using WinMorph.Core;
 
 namespace WinMorph
 {
+    /// <summary>
+    /// The WinMorph app: a stage. The chosen look stands behind a velvet curtain that gathers and opens
+    /// when you pick another; applying lights the cue list step by step; the changes page is the cue sheet
+    /// of everything WinMorph changed and the proof after a rollback.
+    /// </summary>
     public partial class MainWindow : Window
     {
-        // WinMorph's own design first, then the parts that change real Windows settings (off by default)
-        static readonly Area[] AreaOrder = { Area.Shell, Area.Desktop, Area.Lock, Area.Colors, Area.Taskbar, Area.Start, Area.Windows, Area.Fonts, Area.Cursor, Area.Sounds };
-        static readonly string[] NavKeys = { "all", "live", "windows", "apple", "linux", "future", "special" };
+        static bool De => Loc.De;
+        static string L(string de, string en) => De ? de : en;
+        static Color C(uint rgb, byte a = 255) => Color.FromArgb(a, (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
+        static SolidColorBrush B(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+        static SolidColorBrush B(uint rgb, byte a = 255) => B(C(rgb, a));
+        static Color A(Color c, byte a) => Color.FromArgb(a, c.R, c.G, c.B);
+        Brush R(string key) => (Brush)FindResource(key);
 
-        readonly Dictionary<string, BitmapSource> thumbs = new Dictionary<string, BitmapSource>();
-        readonly Dictionary<string, BitmapSource> bigThumbs = new Dictionary<string, BitmapSource>();
-        readonly Dictionary<string, Button> cardButtons = new Dictionary<string, Button>();
-        readonly List<Border> cardImages = new List<Border>();
-        string filter = "all";
-        bool catalogReady;
+        static readonly bool Calm = !SystemParameters.ClientAreaAnimation;   // Windows "show animations" off
+        static Duration Ms(double ms) => TimeSpan.FromMilliseconds(Calm ? Math.Min(ms, 120) : ms);
+        static readonly IEasingFunction Out = new QuinticEase { EasingMode = EasingMode.EaseOut };
+        static readonly IEasingFunction OutSoft = new CubicEase { EasingMode = EasingMode.EaseOut };
+        static readonly IEasingFunction In = new CubicEase { EasingMode = EasingMode.EaseIn };
 
-        /// <summary>Renders what the WinMorph shell will really look like (no system changes).</summary>
-        BitmapSource Preview(Preset p, bool big)
+        static void Anim(IAnimatable el, DependencyProperty p, double to, double ms, IEasingFunction ease = null, double? from = null, double delay = 0, Action done = null)
         {
-            // drawn previews are kept on disk for a day: the next start shows them at once instead of drawing all looks again
-            var file = PreviewFile(p, big);
-            var hit = LoadPreview(file);
-            if (hit != null) return hit;
-            var th = Shell.ShellThemes.For(p.Id);
-            if (th != null && !catalogReady) { provisional.Add(p.Id); return WallpaperArt.Render(p, big ? 768 : 496, big ? 432 : 278, true); }
-            BitmapSource bmp;
-            if (th == null) bmp = WallpaperArt.Render(p, big ? 768 : 496, big ? 432 : 278, true);
-            else
-            {
-                var host = new Shell.ShellHost(th, preview: true);
-                try { bmp = big ? host.RenderPreview(p, 1440, 810, !th.MenuFullScreen, 0.56) : host.RenderPreview(p, 1060, 596, false, 0.48); }
-                finally { host.DisposePreview(); }
-            }
-            if (!bmp.IsFrozen) bmp.Freeze();
-            Task.Run(() => { try { var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(bmp)); using (var fs = File.Create(file + ".tmp")) enc.Save(fs); File.Copy(file + ".tmp", file, true); File.Delete(file + ".tmp"); } catch { } });
-            return bmp;
+            var a = new DoubleAnimation(to, Ms(ms)) { EasingFunction = ease ?? Out, BeginTime = TimeSpan.FromMilliseconds(Calm ? 0 : delay) };
+            if (from.HasValue) a.From = from;
+            if (done != null) a.Completed += (s, e) => done();
+            el.BeginAnimation(p, a);
         }
 
-        readonly HashSet<string> provisional = new HashSet<string>();
-        static string PreviewDir { get { var d = Path.Combine(Backup.DataDir, "previews"); Directory.CreateDirectory(d); return d; } }
+        Preset selected;
+        bool busy;
 
-        /// <summary>One file per look, size, language and look option (hacker colour, macOS light/dark) and version.</summary>
-        static string PreviewFile(Preset p, bool big)
+        public MainWindow()
         {
-            var c = Shell.ShellThemes.HackerColor;
-            string variant = p.Id == "terminal" ? c.R.ToString("X2") + c.G.ToString("X2") + c.B.ToString("X2") : p.Id == "macos" ? (Presets.MacDark ? "dark" : "light") : "";
-            return Path.Combine(PreviewDir, p.Id + "-" + (big ? "big" : "small") + "-" + (Loc.De ? "de" : "en") + "-" + variant + "-" + Updater.Version + ".png");
+            InitializeComponent();
+            Shell.RenderGuard.Watch(this);
+            try
+            {
+                Logo.Source = new IconBitmapDecoder(new Uri("pack://application:,,,/WinMorph.ico"), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames.OrderByDescending(f => f.PixelWidth).First();
+                Icon = BitmapFrame.Create(new Uri("pack://application:,,,/WinMorph.ico"));
+            }
+            catch { }
+            selected = Presets.Find(Shell.ShellControl.CurrentPreset ?? "") ?? Presets.All[0];
+            BuildStage();
+            Shell.AppCatalog.Loaded += () => Dispatcher.BeginInvoke(new Action(() =>
+            {
+                catalogReady = true;
+                foreach (var id in provisional) previews.Remove(id);
+                if (provisional.Contains(selected.Id)) ShowPreview(selected, curtain: false);
+                provisional.Clear();
+            }));
+            Shell.AppCatalog.LoadAsync(Dispatcher);
+            Task.Run(() => History.EnsureShortcuts());
+            BuildAll(entrance: true);
+            SourceInitialized += (s, e) => LightTitleBar();
+            SizeChanged += (s, e) => DetailCol.Width = new GridLength(ActualWidth < 1140 ? 350 : 400);
+            PreviewKeyDown += OnKey;
+            Updater.MarkUiOpen();
+            Task.Run(() =>
+            {
+                Updater.Cleanup();
+                try { foreach (var f in Directory.GetFiles(PreviewDir)) if (DateTime.UtcNow - File.GetLastWriteTimeUtc(f) > TimeSpan.FromDays(7)) File.Delete(f); } catch { }
+            });
+            CheckUpdate();
+        }
+
+        // =====================================================================
+        // look colours: every look floods its own colour field
+        // =====================================================================
+        static Brush Field(Preset p)
+        {
+            Brush b;
+            switch (p.Id)
+            {
+                case "win7": b = new LinearGradientBrush(new GradientStopCollection { new GradientStop(C(0x1452B0), 0), new GradientStop(C(0x1F6FD1), 0.55), new GradientStop(C(0x4FB8EC), 1) }, new Point(0, 0), new Point(1, 1)); break;
+                case "zen": b = new LinearGradientBrush(new GradientStopCollection { new GradientStop(C(0x47711F), 0), new GradientStop(C(0x5E8A2E), 0.6), new GradientStop(C(0x86AD4C), 1) }, new Point(0, 0), new Point(1, 1)); break;
+                default: b = new LinearGradientBrush(C(0x070A08), C(0x16201A), 45); break;
+            }
+            b.Freeze();
+            return b;
+        }
+        static Color Hacker => Shell.ShellThemes.HackerColor;
+        /// <summary>Text on the look's colour field.</summary>
+        static Color OnField(Preset p) => p.Id == "terminal" ? Hacker : C(0xFFFFFF);
+        /// <summary>The look's strongest colour for buttons (white text on it, 4.5:1 or better).</summary>
+        static Color Act(Preset p) => p.Id == "win7" ? C(0x1A5FC0) : p.Id == "zen" ? C(0x4A7322) : C(0x0B0F0C);
+        static Color ActText(Preset p) => p.Id == "terminal" ? Hacker : C(0xFFFFFF);
+
+        // =====================================================================
+        // building
+        // =====================================================================
+        void BuildAll(bool entrance = false)
+        {
+            TLooks.Text = L("Looks", "Looks");
+            TChanges.Text = L("Änderungen", "Changes");
+            LangDe.Opacity = De ? 1 : 0.55; LangEn.Opacity = De ? 0.55 : 1;
+            LangDe.Background = De ? R("Paper") : Brushes.Transparent; LangEn.Background = De ? Brushes.Transparent : R("Paper");
+            ShowUpdate();
+            BuildTiles(entrance);
+            BuildDetail(entrance);
+            ShowPreview(selected, curtain: !entrance, entrance: entrance);
+            RefreshCount();
+            if (ChangesPage.Visibility == Visibility.Visible) BuildChanges();
+            Dispatcher.BeginInvoke(new Action(() => MoveTabLine(false)), DispatcherPriority.Loaded);
+        }
+
+        readonly Dictionary<string, RadioButton> tiles = new Dictionary<string, RadioButton>();
+
+        void BuildTiles(bool entrance)
+        {
+            TileRow.Children.Clear(); tiles.Clear();
+            var active = Shell.ShellControl.CurrentPreset;
+            int n = 0;
+            foreach (var p in Presets.All)
+            {
+                var fg = OnField(p);
+                var g = new Grid { Margin = new Thickness(20, 14, 18, 14) };
+                var name = new Viewbox { StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -4, 64, 0),
+                    Child = new TextBlock { Text = p.Name.ToUpperInvariant(), FontFamily = (FontFamily)FindResource("Display"), FontWeight = FontWeights.ExtraBold, FontSize = 36, Foreground = B(fg) } };
+                var tag = new TextBlock { Text = p.Tag(De), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = B(A(fg, 220)), VerticalAlignment = VerticalAlignment.Bottom, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 26, 0) };
+                var key = new TextBlock { Text = (n + 1).ToString(), FontFamily = (FontFamily)FindResource("Mono"), FontSize = 12, Foreground = B(A(fg, 150)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
+                g.Children.Add(name); g.Children.Add(tag); g.Children.Add(key);
+                if (p.Id == active) g.Children.Add(ActivePill());
+                var lift = new TranslateTransform();
+                var rb = new RadioButton
+                {
+                    Style = (Style)FindResource("Tile"), GroupName = "look", Background = Field(p), BorderBrush = p.Id == "terminal" ? B(Hacker) : R("Ink"), Content = g, IsChecked = p == selected,
+                    Margin = new Thickness(n == 0 ? 0 : 7, 0, n == Presets.All.Count - 1 ? 0 : 7, 0), RenderTransform = lift,
+                    Opacity = p == selected ? 1 : 0.86, ToolTip = L("Taste ", "Key ") + (n + 1),
+                };
+                rb.Effect = new DropShadowEffect { Color = Act(p), BlurRadius = 24, ShadowDepth = 8, Direction = 270, Opacity = p == selected ? 0.35 : 0 };
+                if (p == selected) lift.Y = -6;
+                var look = p;
+                rb.Checked += (s, e) => Select(look);
+                rb.MouseEnter += (s, e) => { if (look != selected) Anim(rb, OpacityProperty, 1, 160, OutSoft); };
+                rb.MouseLeave += (s, e) => { if (look != selected) Anim(rb, OpacityProperty, 0.86, 220, OutSoft); };
+                tiles[p.Id] = rb;
+                TileRow.Children.Add(rb);
+                if (entrance)
+                {
+                    var rise = new TranslateTransform(0, 22);
+                    g.RenderTransform = rise; g.Opacity = 0;
+                    Anim(rise, TranslateTransform.YProperty, 0, 620, Out, delay: 120 + n * 70);
+                    Anim(g, OpacityProperty, 1, 380, OutSoft, delay: 120 + n * 70);
+                }
+                n++;
+            }
+        }
+
+        FrameworkElement ActivePill()
+        {
+            var dot = new Ellipse { Width = 7, Height = 7, Fill = R("Go"), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+            if (!Calm) dot.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.35, TimeSpan.FromMilliseconds(900)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
+            var sp = new StackPanel { Orientation = Orientation.Horizontal };
+            sp.Children.Add(dot);
+            sp.Children.Add(new TextBlock { Text = L("AKTIV", "ACTIVE"), FontSize = 11, FontWeight = FontWeights.Bold, Foreground = R("Ink") });
+            return new Border { Background = R("Paper"), CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 3, 9, 3), Child = sp, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top };
+        }
+
+        void Select(Preset p)
+        {
+            if (p == selected) return;
+            if (busy) { tiles[selected.Id].IsChecked = true; return; }
+            selected = p;
+            foreach (var kv in tiles)
+            {
+                bool on = kv.Key == p.Id;
+                var rb = kv.Value;
+                Anim((TranslateTransform)rb.RenderTransform, TranslateTransform.YProperty, on ? -6 : 0, on ? 520 : 300, on ? (IEasingFunction)new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.5 } : OutSoft);
+                Anim(rb, OpacityProperty, on ? 1 : 0.86, 220, OutSoft);
+                if (rb.Effect is DropShadowEffect sh) Anim(sh, DropShadowEffect.OpacityProperty, on ? 0.35 : 0, 300, OutSoft);
+                if (on && rb.IsChecked != true) rb.IsChecked = true;
+            }
+            BuildDetail(false);
+            ShowPreview(p, curtain: true);
+        }
+
+        void OnKey(object sender, KeyEventArgs e)
+        {
+            if (Overlay.Visibility == Visibility.Visible) { if (e.Key == Key.Escape && !working) { CloseDialog(); e.Handled = true; } return; }
+            if (LooksPage.Visibility != Visibility.Visible || busy || e.OriginalSource is TextBox) return;
+            int i = e.Key >= Key.D1 && e.Key <= Key.D3 ? e.Key - Key.D1 : e.Key >= Key.NumPad1 && e.Key <= Key.NumPad3 ? e.Key - Key.NumPad1 : -1;
+            if (i >= 0 && i < Presets.All.Count) { Select(Presets.All[i]); e.Handled = true; }
+            else if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control) { Apply_Click(null, null); e.Handled = true; }
+        }
+
+        // =====================================================================
+        // the stage and its curtain
+        // =====================================================================
+        Image stageImg;
+        ScaleTransform curtainL, curtainR;
+        Grid stageLoading;
+
+        void BuildStage()
+        {
+            var inner = StageInner;
+            inner.Children.Clear();
+            var clip = new Grid { ClipToBounds = true };
+            inner.SizeChanged += (s, e) => clip.Clip = new RectangleGeometry(new Rect(0, 0, inner.ActualWidth, inner.ActualHeight), 10, 10);
+            stageImg = new Image { Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            RenderOptions.SetBitmapScalingMode(stageImg, BitmapScalingMode.HighQuality);
+            clip.Children.Add(new Border { Background = B(0x1C1D22) });
+            clip.Children.Add(stageImg);
+            stageLoading = new Grid { Visibility = Visibility.Collapsed };
+            stageLoading.Children.Add(new TextBlock { Text = L("Bühne wird gebaut …", "Setting the stage …"), Foreground = B(0xFFFFFF, 170), FontSize = 14, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+            clip.Children.Add(stageLoading);
+
+            // the curtain: two velvet halves that gather to the sides, a valance with a gold edge
+            var curtain = new Grid { IsHitTestVisible = false };
+            curtain.ColumnDefinitions.Add(new ColumnDefinition()); curtain.ColumnDefinitions.Add(new ColumnDefinition());
+            curtainL = new ScaleTransform(1, 1); curtainR = new ScaleTransform(1, 1);
+            curtain.Children.Add(new Rectangle { Fill = Velvet(), RenderTransformOrigin = new Point(0, 0), RenderTransform = curtainL, Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 0, Opacity = 0.5 } });
+            var right = new Rectangle { Fill = Velvet(), RenderTransformOrigin = new Point(1, 0), RenderTransform = curtainR, Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 0, Opacity = 0.5 } };
+            Grid.SetColumn(right, 1);
+            curtain.Children.Add(right);
+            clip.Children.Add(curtain);
+            var valance = new Grid { Height = 26, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
+            valance.Children.Add(new Border { Background = Velvet(dark: true) });
+            valance.Children.Add(new Border { Height = 2.5, VerticalAlignment = VerticalAlignment.Bottom, Background = new LinearGradientBrush(C(0xC99A3A), C(0xF2D27A), 0) { SpreadMethod = GradientSpreadMethod.Reflect, EndPoint = new Point(0.05, 0) } });
+            clip.Children.Add(valance);
+            inner.Children.Add(clip);
+        }
+
+        /// <summary>Velvet with vertical folds: a repeating light-dark gradient.</summary>
+        static Brush Velvet(bool dark = false)
+        {
+            var folds = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0.09, 0), SpreadMethod = GradientSpreadMethod.Repeat };
+            uint a = dark ? 0x5A0820u : 0x7A0C2Fu, b = dark ? 0x86112Fu : 0xB01A47u, c = dark ? 0x4A061Au : 0x630925u;
+            folds.GradientStops.Add(new GradientStop(C(a), 0)); folds.GradientStops.Add(new GradientStop(C(b), 0.35));
+            folds.GradientStops.Add(new GradientStop(C(a), 0.7)); folds.GradientStops.Add(new GradientStop(C(c), 1));
+            folds.Freeze();
+            return folds;
+        }
+
+        int stageVersion;
+
+        /// <summary>Shows the look on the stage. With curtain: it gathers in, the scenery changes, it opens again.</summary>
+        void ShowPreview(Preset p, bool curtain, bool entrance = false)
+        {
+            int v = ++stageVersion;
+            void Swap()
+            {
+                if (v != stageVersion) return;
+                var img = PreviewOf(p);
+                if (img != null) stageImg.Source = img;
+                stageLoading.Visibility = img == null ? Visibility.Visible : Visibility.Collapsed;
+                Open(entrance ? 280 : 60);
+            }
+            if (!curtain && !entrance) { stageImg.Source = PreviewOf(p) ?? stageImg.Source; return; }
+            if (entrance) { curtainL.ScaleX = curtainR.ScaleX = 1; Dispatcher.BeginInvoke(new Action(Swap), DispatcherPriority.Background); return; }
+            // close (quick, accelerating), then the change happens behind the curtain
+            Anim(curtainL, ScaleTransform.ScaleXProperty, 1, 260, In);
+            Anim(curtainR, ScaleTransform.ScaleXProperty, 1, 260, In, done: () => Dispatcher.BeginInvoke(new Action(Swap), DispatcherPriority.Background));
+        }
+
+        void Open(double delay)
+        {
+            // opening is heavy and decisive: velvet gathers to the sides and settles
+            var ease = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 6 };
+            Anim(curtainL, ScaleTransform.ScaleXProperty, 0.07, 900, ease, delay: delay);
+            Anim(curtainR, ScaleTransform.ScaleXProperty, 0.07, 900, ease, delay: delay + 40);
+        }
+
+        // ---- preview pictures: drawn once, kept on disk for a day ----
+        readonly Dictionary<string, BitmapSource> previews = new Dictionary<string, BitmapSource>();
+        readonly HashSet<string> provisional = new HashSet<string>();
+        bool catalogReady;
+
+        BitmapSource PreviewOf(Preset p)
+        {
+            if (previews.TryGetValue(p.Id, out var cached)) return cached;
+            var file = PreviewFile(p);
+            var hit = LoadPreview(file);
+            if (hit != null) return previews[p.Id] = hit;
+            var th = Shell.ShellThemes.For(p.Id);
+            BitmapSource bmp;
+            try
+            {
+                if (th == null || !catalogReady) { provisional.Add(p.Id); bmp = WallpaperArt.Render(p, 1280, 720, false); }
+                else
+                {
+                    var host = new Shell.ShellHost(th, preview: true);
+                    try { bmp = host.RenderPreview(p, 1440, 810, true, 0.85); }
+                    finally { host.DisposePreview(); }
+                    var frozen = bmp;
+                    if (!frozen.IsFrozen) frozen.Freeze();
+                    Task.Run(() => { try { var enc = new PngBitmapEncoder(); enc.Frames.Add(BitmapFrame.Create(frozen)); using (var fs = File.Create(file + ".tmp")) enc.Save(fs); File.Copy(file + ".tmp", file, true); File.Delete(file + ".tmp"); } catch { } });
+                }
+            }
+            catch { return null; }
+            if (!bmp.IsFrozen) bmp.Freeze();
+            return previews[p.Id] = bmp;
+        }
+
+        static string PreviewDir { get { var d = System.IO.Path.Combine(Backup.DataDir, "previews"); Directory.CreateDirectory(d); return d; } }
+
+        static string PreviewFile(Preset p)
+        {
+            var c = Hacker;
+            string variant = p.Id == "terminal" ? c.R.ToString("X2") + c.G.ToString("X2") + c.B.ToString("X2") : "";
+            return System.IO.Path.Combine(PreviewDir, p.Id + "-stage-" + (De ? "de" : "en") + "-" + variant + "-" + Updater.Version + ".png");
         }
 
         static BitmapSource LoadPreview(string file)
@@ -72,44 +334,588 @@ namespace WinMorph
             catch { return null; }
         }
 
-        static void FadeIn(UIElement el)
-        {
-            el.Opacity = 0;
-            el.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(260)) { EasingFunction = new System.Windows.Media.Animation.CubicEase() });
-        }
-        Preset selected;
-        bool busy;
+        // =====================================================================
+        // detail card: name, what is applied (the cue list), the action
+        // =====================================================================
+        readonly List<(Ellipse dot, ScaleTransform pop, string step)> cues = new List<(Ellipse, ScaleTransform, string)>();
+        Button applyBtn;
+        TextBlock applyText, status;
 
-        public MainWindow()
+        static (string step, string de, string en, string subDe, string subEn)[] Parts(Preset p)
         {
-            InitializeComponent();
-            Shell.RenderGuard.Watch(this);
-            Logo.Source = new IconBitmapDecoder(new Uri("pack://application:,,,/WinMorph.ico"), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames.OrderByDescending(frame => frame.PixelWidth).First();
-            try { Icon = BitmapFrame.Create(new Uri("pack://application:,,,/WinMorph.ico")); } catch { }
-            selected = Presets.All[0];
-            Shell.AppCatalog.Loaded += () =>
+            switch (p.Id)
             {
-                catalogReady = true;
-                foreach (var id in provisional) { thumbs.Remove(id); bigThumbs.Remove(id); }
-                if (provisional.Count > 0) RebuildAll();
-                provisional.Clear();
+                case "win7": return new[]
+                {
+                    ("shell", "Taskleiste & Startmenü", "Taskbar & Start menu", "Glasleiste mit Startkugel, zweispaltiges Startmenü mit Suche", "Glass bar with start orb, two-column Start menu with search"),
+                    ("shell", "Alt+Tab", "Alt+Tab", "Aero-Glas mit Live-Vorschau aller Fenster", "Aero glass with live previews of every window"),
+                    ("shell", "Fensterrahmen", "Window frames", "Blaue Glas-Titelleisten", "Blue glass title bars"),
+                    ("desktop", "Desktop", "Desktop", "Aero-Hintergrund mit Lichtbändern", "Aero wallpaper with light ribbons"),
+                    ("lock", "Sperrbildschirm", "Lock screen", "Aero-Anmeldung, auch bei Win+L", "Aero sign-in, also on Win+L"),
+                };
+                case "zen": return new[]
+                {
+                    ("shell", "Taskleiste & Startmenü", "Taskbar & Start menu", "Schwebende helle Leiste mit Fokus-Timer, Atemübung und Regen", "Floating light bar with focus timer, breathing and rain"),
+                    ("shell", "Alt+Tab", "Alt+Tab", "Shōji-Schiebetüren und Ema-Täfelchen", "Shoji sliding doors and ema plaques"),
+                    ("shell", "Fensterrahmen", "Window frames", "Warme Papier-Titelleisten", "Warm paper title bars"),
+                    ("desktop", "Desktop", "Desktop", "Berglandschaft, Licht folgt der Tageszeit", "Mountain landscape lit by the time of day"),
+                    ("lock", "Sperrbildschirm", "Lock screen", "Stiller Sperrbildschirm mit Uhr", "Quiet lock screen with a clock"),
+                };
+                default: return new[]
+                {
+                    ("shell", "Statuszeile & Terminal", "Status line & terminal", "Netz, CPU, RAM, Akku, Uhr; Windows-Taste öffnet das Terminal", "Network, CPU, RAM, battery, clock; the Windows key opens the terminal"),
+                    ("shell", "Alt+Tab", "Alt+Tab", "Prozess-Tabelle mit PID, RAM und Live-Vorschau", "Process table with PID, memory and live preview"),
+                    ("shell", "Fensterrahmen", "Window frames", "Dunkle Rahmen in deiner Farbe", "Dark frames in your colour"),
+                    ("desktop", "Desktop", "Desktop", "Live-Systeminfos neben deinen Symbolen", "Live system info next to your icons"),
+                    ("lock", "Sperrbildschirm", "Lock screen", "Terminal-Sperrbildschirm, auch bei Win+L", "Terminal lock screen, also on Win+L"),
+                };
+            }
+        }
+
+        void BuildDetail(bool entrance)
+        {
+            var p = selected;
+            DetailHost.Children.Clear();
+            cues.Clear();
+            var dock = new DockPanel { LastChildFill = true };
+
+            // colour field header
+            var head = new Border { Background = Field(p), CornerRadius = new CornerRadius(19, 19, 0, 0), Padding = new Thickness(28, 22, 28, 20) };
+            var hs = new StackPanel();
+            hs.Children.Add(new TextBlock { Text = p.Name.ToUpperInvariant(), FontFamily = (FontFamily)FindResource("Display"), FontWeight = FontWeights.ExtraBold, FontSize = 50, Foreground = B(OnField(p)), Margin = new Thickness(0, -6, 0, 0) });
+            hs.Children.Add(new TextBlock { Text = p.Tag(De), FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = B(OnField(p)), Opacity = 0.85 });
+            head.Child = hs;
+            DockPanel.SetDock(head, Dock.Top);
+            dock.Children.Add(head);
+
+            // action area at the bottom
+            var foot = new StackPanel { Margin = new Thickness(28, 6, 28, 24) };
+            applyText = new TextBlock { FontSize = 15.5, FontWeight = FontWeights.SemiBold, Foreground = B(ActText(p)) };
+            applyBtn = new Button { Style = (Style)FindResource("Btn"), Background = B(Act(p)), Content = applyText, HorizontalAlignment = HorizontalAlignment.Stretch };
+            if (p.Id == "terminal") applyBtn.BorderBrush = B(Hacker);
+            applyBtn.Click += Apply_Click;
+            bool active = Shell.ShellControl.CurrentPreset == p.Id;
+            applyText.Text = active ? L(p.Name + " neu anwenden", "Apply " + p.Name + " again") : L(p.Name + " anwenden", "Apply " + p.Name);
+            foot.Children.Add(applyBtn);
+            status = new TextBlock { FontSize = 13, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 12, 0, 0), LineHeight = 19 };
+            status.Text = L("Ändert keine Windows-Einstellungen. Unter „Änderungen“ lässt sich alles vollständig zurücksetzen.", "Changes no Windows settings. Everything can be fully reset under “Changes”.");
+            foot.Children.Add(status);
+            DockPanel.SetDock(foot, Dock.Bottom);
+            dock.Children.Add(foot);
+
+            // body: description, cue list, colour
+            var body = new StackPanel { Margin = new Thickness(28, 20, 28, 8) };
+            body.Children.Add(new TextBlock { Text = p.Desc(De), FontSize = 14, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, LineHeight = 21 });
+            body.Children.Add(new TextBlock { Text = L("WIRD ANGEWENDET", "WHAT IS APPLIED"), FontSize = 11.5, FontWeight = FontWeights.Bold, Foreground = R("Faint"), Margin = new Thickness(0, 20, 0, 10) });
+            foreach (var part in Parts(p))
+            {
+                var row = new Grid { Margin = new Thickness(0, 0, 0, 11) };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
+                row.ColumnDefinitions.Add(new ColumnDefinition());
+                var pop = new ScaleTransform(1, 1);
+                var dot = new Ellipse { Width = 10, Height = 10, Fill = B(0xD5D7DD), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 5, 0, 0), RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = pop };
+                row.Children.Add(dot);
+                var t = new StackPanel();
+                t.Children.Add(new TextBlock { Text = De ? part.de : part.en, FontSize = 14, FontWeight = FontWeights.SemiBold });
+                t.Children.Add(new TextBlock { Text = De ? part.subDe : part.subEn, FontSize = 12.5, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 0) });
+                Grid.SetColumn(t, 1);
+                row.Children.Add(t);
+                body.Children.Add(row);
+                cues.Add((dot, pop, part.step));
+            }
+            if (p.Id == "terminal") body.Children.Add(ColorPicker());
+            var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = body, Focusable = false };
+            dock.Children.Add(scroll);
+            DetailHost.Children.Add(dock);
+
+            // the card re-composes: header colour first, then the text rises
+            var rise = new TranslateTransform(0, entrance ? 26 : 10);
+            body.RenderTransform = rise; body.Opacity = 0;
+            Anim(rise, TranslateTransform.YProperty, 0, 520, Out, delay: entrance ? 240 : 40);
+            Anim(body, OpacityProperty, 1, 340, OutSoft, delay: entrance ? 240 : 40);
+            if (entrance) { var slide = new TranslateTransform(30, 0); DetailCard.RenderTransform = slide; DetailCard.Opacity = 0; Anim(slide, TranslateTransform.XProperty, 0, 700, Out, delay: 60); Anim(DetailCard, OpacityProperty, 1, 420, OutSoft, delay: 60); }
+            SetBusyUi(busy);
+        }
+
+        FrameworkElement ColorPicker()
+        {
+            var sp = new StackPanel();
+            sp.Children.Add(new TextBlock { Text = L("FARBE", "COLOUR"), FontSize = 11.5, FontWeight = FontWeights.Bold, Foreground = R("Faint"), Margin = new Thickness(0, 10, 0, 10) });
+            var row = new WrapPanel();
+            var cur = Hacker; bool known = false;
+            foreach (var (de, en, rgb) in Shell.ShellThemes.HackerColors)
+            {
+                var c = C(rgb); bool on = c == cur; known |= on;
+                row.Children.Add(Swatch(c, De ? de : en, on));
+            }
+            var own = new Button { Style = (Style)FindResource("Outline"), Height = 34, FontSize = 12.5, Padding = new Thickness(12, 0, 12, 0), Margin = new Thickness(0, 0, 8, 8), Content = (known ? "" : "● ") + L("Eigene …", "Custom …"), ToolTip = L("Eigene Farbe wählen", "Pick your own colour") };
+            if (!known) own.Foreground = B(Applier.Mix(cur, Colors.Black, 0.35));
+            own.Click += (s, e) =>
+            {
+                using (var dlg = new System.Windows.Forms.ColorDialog { FullOpen = true, Color = System.Drawing.Color.FromArgb(cur.R, cur.G, cur.B) })
+                    if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK) SetHackerColor(Color.FromRgb(dlg.Color.R, dlg.Color.G, dlg.Color.B));
             };
-            Shell.AppCatalog.LoadAsync(Dispatcher);
-            System.Threading.Tasks.Task.Run(() => History.EnsureShortcuts());
-            RebuildAll();
-            SourceInitialized += (s, e) => DarkTitleBar();
-            Updater.MarkUiOpen();
-            Task.Run(() =>
-            {
-                Updater.Cleanup();
-                // old previews (other versions, colours, languages)
-                try { foreach (var f in Directory.GetFiles(PreviewDir)) if (DateTime.UtcNow - File.GetLastWriteTimeUtc(f) > TimeSpan.FromDays(7)) File.Delete(f); } catch { }
-            });
-            OptAutoUpdate.IsChecked = Updater.Auto;
-            CheckUpdate();
+            row.Children.Add(own);
+            sp.Children.Add(row);
+            return sp;
         }
 
-        // ---------------- updates ----------------
+        Button Swatch(Color c, string name, bool on)
+        {
+            var b = new Button { Width = 34, Height = 34, Margin = new Thickness(0, 0, 8, 8), Cursor = Cursors.Hand, ToolTip = name, FocusVisualStyle = (Style)FindResource("Focus") };
+            var ring = new Border { CornerRadius = new CornerRadius(17), BorderThickness = new Thickness(2.5), BorderBrush = on ? R("Ink") : Brushes.Transparent, Padding = new Thickness(3) };
+            ring.Child = new Border { CornerRadius = new CornerRadius(12), Background = new LinearGradientBrush(C(0x0B0F0C), c, 45) };
+            b.Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) };
+            b.Content = ring;
+            b.Click += (s, e) => SetHackerColor(c);
+            return b;
+        }
+
+        void SetHackerColor(Color c)
+        {
+            if (busy) return;
+            if (c.R + c.G + c.B < 120) c = Applier.Mix(c, Colors.White, 0.35);   // too dark to read on black
+            Shell.ShellThemes.HackerColor = c;
+            previews.Remove("terminal");
+            BuildTiles(false);
+            BuildDetail(false);
+            ShowPreview(selected, curtain: true);
+            // active: the whole look follows the new colour at once (bar, frames, desktop, lock picture)
+            if (Shell.ShellControl.CurrentPreset == "terminal") Apply_Click(null, null);
+            else status.Text = L("Farbe gespeichert.", "Colour saved.");
+        }
+
+        // =====================================================================
+        // applying: the cue lights go on one after another
+        // =====================================================================
+        void Cue(string step)
+        {
+            if (step == "reset") { status.Text = L("Vorherigen Look abbauen …", "Taking down the previous look …"); return; }
+            var order = new[] { "desktop", "lock", "shell" };
+            int at = Array.IndexOf(order, step);
+            foreach (var c in cues)
+            {
+                int my = Array.IndexOf(order, c.step);
+                if (my < at) Light(c, "done");
+                else if (my == at) Light(c, "active");
+            }
+            status.Text = step == "desktop" ? L("Desktop und Hintergrund …", "Desktop and wallpaper …") : step == "lock" ? L("Sperrbildschirm …", "Lock screen …") : L("Taskleiste, Startmenü und Alt+Tab starten …", "Starting taskbar, Start menu and Alt+Tab …");
+        }
+
+        void Light((Ellipse dot, ScaleTransform pop, string step) c, string state)
+        {
+            c.dot.BeginAnimation(OpacityProperty, null);
+            c.dot.Opacity = 1;
+            switch (state)
+            {
+                case "active":
+                    c.dot.Fill = R("Cue");
+                    if (!Calm) c.dot.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.35, TimeSpan.FromMilliseconds(420)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
+                    break;
+                case "done":
+                case "fail":
+                    c.dot.Fill = R(state == "done" ? "Go" : "Stop");
+                    var pop = new DoubleAnimation(1.7, 1, Ms(420)) { EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.8 } };
+                    c.pop.BeginAnimation(ScaleTransform.ScaleXProperty, pop); c.pop.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+                    break;
+                default:
+                    c.dot.Fill = B(0xD5D7DD);
+                    break;
+            }
+        }
+
+        void SetBusyUi(bool on)
+        {
+            if (applyBtn != null) applyBtn.IsEnabled = !on;
+            foreach (var t in tiles.Values) t.IsHitTestVisible = !on;
+            TabChanges.IsEnabled = !on; TabLooks.IsEnabled = !on;
+            LangDe.IsEnabled = LangEn.IsEnabled = !on;
+        }
+
+        async void Apply_Click(object sender, RoutedEventArgs e)
+        {
+            if (busy) return;
+            busy = true;
+            SetBusyUi(true);
+            var p = selected;
+            foreach (var c in cues) Light(c, "idle");
+            applyText.Text = L("Wird angewendet …", "Applying …");
+            status.Text = L("Bilder für den Look vorbereiten …", "Preparing the look's pictures …");
+            var clock = Stopwatch.StartNew();
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);   // let the button state paint first
+            Applier ap = null;
+            string error = null;
+            try
+            {
+                var o = ApplyOptions.For(p);
+                var bk = new Backup(Backup.DefaultFile) { Mirror = Backup.NewStep() };
+                ap = new Applier(bk, De);
+                var applier = ap;
+                await Task.Run(() => applier.Apply(p, o, step => Dispatcher.BeginInvoke(new Action(() => Cue(step)))));
+                await LockSetupOnce();
+            }
+            catch (Exception ex) { error = ex.Message; }
+            busy = false;
+            bool ok = error == null && ap != null && ap.Problems.Count == 0;
+            // finale: the remaining lights go green one after another
+            int k = 0;
+            foreach (var c in cues)
+            {
+                var cc = c;
+                var tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(Calm ? 1 : 1 + k++ * 70) };
+                tm.Tick += (s2, e2) => { tm.Stop(); Light(cc, ok || cc.step != "shell" ? "done" : "fail"); };
+                tm.Start();
+            }
+            BuildTiles(false);
+            if (selected == p)
+            {
+                applyText.Text = L(p.Name + " neu anwenden", "Apply " + p.Name + " again");
+                status.Text = error != null ? error
+                    : ok ? string.Format(L("{0} ist aktiv. Fertig in {1:0.0} s.", "{0} is active. Done in {1:0.0} s."), p.Name, clock.Elapsed.TotalSeconds)
+                    : L("Angewendet, mit Problemen: ", "Applied with problems: ") + string.Join(", ", ap.Problems.Take(3)) + (ap.Problems.Count > 3 ? " …" : "");
+            }
+            SetBusyUi(false);
+            RefreshCount();
+            Activate();
+        }
+
+        /// <summary>
+        /// One admin prompt, once: lets Win+L show the look's lock screen (Windows would lock before WinMorph
+        /// could react) and removes an all-users picture of an older version. Declining is remembered.
+        /// </summary>
+        async Task LockSetupOnce()
+        {
+            bool needGuard = !LockGuard.Ready && !(Reg.Get(Shell.ShellControl.SettingsKey, "LockSetupDeclined") is int);
+            bool stale = Applier.LockScreenOverrideIsOurs();
+            if (!needGuard && !stale) return;
+            status.Text = L("Einmalige Freigabe für den Sperrbildschirm bei Win+L …", "One-time permission for the lock screen on Win+L …");
+            string args = "--lock-setup " + (needGuard ? LockGuard.UserSid ?? "-" : "-") + " \"" + Backup.DefaultFile + "\"";
+            bool ok = await Task.Run(() => Tools.RunElevated(args));
+            if (!ok && needGuard) using (var k = Reg.Create(Shell.ShellControl.SettingsKey)) k.SetValue("LockSetupDeclined", 1, Microsoft.Win32.RegistryValueKind.DWord);
+        }
+
+        // =====================================================================
+        // pages
+        // =====================================================================
+        void Tab_Checked(object sender, RoutedEventArgs e)
+        {
+            if (LooksPage == null || ChangesPage == null) return;
+            bool changes = TabChanges.IsChecked == true;
+            var show = changes ? (FrameworkElement)ChangesPage : LooksPage;
+            var hide = changes ? (FrameworkElement)LooksPage : ChangesPage;
+            if (changes) BuildChanges();
+            hide.Visibility = Visibility.Collapsed;
+            show.Visibility = Visibility.Visible;
+            var slide = new TranslateTransform(changes ? 26 : -26, 0);
+            show.RenderTransform = slide;
+            Anim(slide, TranslateTransform.XProperty, 0, 420, Out);
+            Anim(show, OpacityProperty, 1, 280, OutSoft, from: 0);
+            MoveTabLine(true);
+        }
+
+        void MoveTabLine(bool anim)
+        {
+            var tab = TabChanges.IsChecked == true ? (FrameworkElement)TabChanges : TabLooks;
+            if (!tab.IsLoaded) return;
+            var x = tab.TransformToAncestor((Visual)TabLine.Parent).Transform(new Point(0, 0)).X + 4;
+            var tt = (TranslateTransform)TabLine.RenderTransform;
+            double w = Math.Max(10, tab.ActualWidth - 8);
+            if (anim) { Anim(tt, TranslateTransform.XProperty, x, 380, Out); Anim(TabLine, WidthProperty, w, 380, Out); }
+            else { tt.BeginAnimation(TranslateTransform.XProperty, null); TabLine.BeginAnimation(WidthProperty, null); tt.X = x; TabLine.Width = w; }
+        }
+
+        int lastCount = -1;
+        void RefreshCount()
+        {
+            int n;
+            try { n = Changes.Read(new Backup(Backup.DefaultFile)).Count(c => c.Active); } catch { n = 0; }
+            ChangeCount.Text = n.ToString();
+            ChangeBadge.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (n != lastCount && lastCount >= 0 && n > 0)
+            {
+                var st = (ScaleTransform)ChangeBadge.RenderTransform;
+                var pop = new DoubleAnimation(1.5, 1, Ms(480)) { EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.9 } };
+                st.BeginAnimation(ScaleTransform.ScaleXProperty, pop); st.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+            }
+            lastCount = n;
+            Dispatcher.BeginInvoke(new Action(() => MoveTabLine(false)), DispatcherPriority.Loaded);
+        }
+
+        // =====================================================================
+        // changes: the cue sheet
+        // =====================================================================
+        RestoreResult lastRestore;
+        bool lastWasUndo;
+
+        void BuildChanges()
+        {
+            ChangesPage.Children.Clear();
+            var b = new Backup(Backup.DefaultFile);
+            List<Change> list;
+            try { list = Changes.Read(b); } catch { list = new List<Change>(); }
+            int active = list.Count(c => c.Active);
+            bool anything = b.HasData || Shell.ShellControl.TaskbarTaken || Shell.ShellControl.CurrentPreset != null || active > 0;
+
+            var grid = new Grid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition());
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            // header: title, summary, the two actions
+            var head = new DockPanel { Margin = new Thickness(0, 0, 0, 18) };
+            var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            var undo = new Button { Style = (Style)FindResource("Outline"), Content = L("Letzten Schritt rückgängig", "Undo last step"), Margin = new Thickness(0, 0, 12, 0), IsEnabled = History.CanUndo };
+            undo.Click += async (s, e) => await RunRestore(undo: true);
+            var restore = new Button { Style = (Style)FindResource("Btn"), Height = 44, FontSize = 14, Content = L("Alles zurücksetzen", "Reset everything"), IsEnabled = anything };
+            restore.Click += (s, e) => Confirm(
+                L("Alles auf das Original zurücksetzen?", "Reset everything to the original?"),
+                L("Taskleiste, Startmenü, Alt+Tab, Fensterrahmen, Hintergrund und Sperrbildschirm werden wieder wie vor WinMorph. Danach wird jeder Wert einzeln geprüft.", "Taskbar, Start menu, Alt+Tab, window frames, wallpaper and lock screen go back to how they were before WinMorph. Every value is checked afterwards."),
+                L("Zurücksetzen", "Reset"), async () => await RunRestore(undo: false));
+            actions.Children.Add(undo); actions.Children.Add(restore);
+            DockPanel.SetDock(actions, Dock.Right);
+            head.Children.Add(actions);
+            var ht = new StackPanel();
+            ht.Children.Add(new TextBlock { Text = L("ÄNDERUNGEN", "CHANGES"), FontFamily = (FontFamily)FindResource("Display"), FontWeight = FontWeights.ExtraBold, FontSize = 46, Margin = new Thickness(0, -6, 0, 0) });
+            string sum = !anything ? L("Nichts geändert: Windows ist im Originalzustand.", "Nothing changed: Windows is in its original state.")
+                : active == 0 ? L("Alle Werte entsprechen dem Original.", "Every value matches the original.")
+                : string.Format(L("{0} Bereiche weichen vom Original ab", "{0} areas differ from the original"), active) + (b.Created != null ? string.Format(L(" · Original gesichert am {0:dd.MM.yyyy, HH:mm}", " · original saved on {0:yyyy-MM-dd, HH:mm}"), b.Created.Value) : "");
+            ht.Children.Add(new TextBlock { Text = sum, FontSize = 14, Foreground = R("Sub") });
+            head.Children.Add(ht);
+            grid.Children.Add(head);
+
+            // the proof after a rollback
+            if (lastRestore != null)
+            {
+                var banner = Banner(lastRestore, lastWasUndo);
+                Grid.SetRow(banner, 1);
+                grid.Children.Add(banner);
+            }
+
+            // the sheet
+            var sheet = new Border { Background = R("Paper"), CornerRadius = new CornerRadius(18), BorderBrush = R("Line"), BorderThickness = new Thickness(1), Padding = new Thickness(0, 6, 0, 6) };
+            Grid.SetRow(sheet, 2);
+            if (!anything && lastRestore == null)
+            {
+                var empty = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                empty.Children.Add(new TextBlock { Text = L("Noch kein Look angewendet.", "No look applied yet."), FontSize = 18, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center });
+                empty.Children.Add(new TextBlock { Text = L("Sobald du einen Look anwendest, steht hier jede einzelne Änderung mit dem Originalwert.", "Once you apply a look, every single change is listed here with its original value."), FontSize = 14, Foreground = R("Sub"), Margin = new Thickness(0, 6, 0, 18), HorizontalAlignment = HorizontalAlignment.Center });
+                var go = new Button { Style = (Style)FindResource("Btn"), Height = 44, FontSize = 14, Content = L("Look auswählen", "Choose a look"), HorizontalAlignment = HorizontalAlignment.Center };
+                go.Click += (s, e) => TabLooks.IsChecked = true;
+                empty.Children.Add(go);
+                sheet.Child = empty;
+            }
+            else
+            {
+                var rows = new StackPanel();
+                rows.Children.Add(SheetRow("Q", L("BEREICH", "AREA"), L("VORHER (ORIGINAL)", "BEFORE (ORIGINAL)"), L("JETZT", "NOW"), null, true, null));
+                int q = 1;
+                foreach (var c in list.OrderByDescending(x => x.Active))
+                {
+                    var row = SheetRow("Q" + q, c.Title, c.Before, c.Now, c.Active, false, c.Group);
+                    rows.Children.Add(row);
+                    var rise = new TranslateTransform(0, 12);
+                    row.RenderTransform = rise; row.Opacity = 0;
+                    Anim(rise, TranslateTransform.YProperty, 0, 460, Out, delay: 40 + q * 34);
+                    Anim(row, OpacityProperty, 1, 300, OutSoft, delay: 40 + q * 34);
+                    q++;
+                }
+                sheet.Child = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = rows, Focusable = false };
+            }
+            grid.Children.Add(sheet);
+
+            // footer: updates, version, website
+            var foot = new DockPanel { Margin = new Thickness(4, 16, 4, 0) };
+            var auto = new CheckBox { Style = (Style)FindResource("Switch"), IsChecked = Updater.Auto, Content = new TextBlock { Text = L("Updates automatisch installieren", "Install updates automatically"), FontSize = 13, Foreground = R("Sub") } };
+            auto.Click += (s, e) => Updater.Auto = auto.IsChecked == true;
+            DockPanel.SetDock(auto, Dock.Left);
+            foot.Children.Add(auto);
+            var site = new TextBlock { FontSize = 13, Foreground = R("Sub"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, ToolTip = Updater.Site };
+            site.Inlines.Add(new System.Windows.Documents.Run("WinMorph " + Updater.Version + "   "));
+            site.Inlines.Add(new System.Windows.Documents.Run("Website ↗") { Foreground = R("Samt"), FontWeight = FontWeights.SemiBold });
+            site.MouseLeftButtonUp += (s, e) => OpenSite();
+            foot.Children.Add(site);
+            Grid.SetRow(foot, 3);
+            grid.Children.Add(foot);
+
+            ChangesPage.Children.Add(grid);
+        }
+
+        FrameworkElement SheetRow(string q, string title, string before, string now, bool? active, bool header, string group)
+        {
+            var g = new Grid { Margin = new Thickness(22, 0, 22, 0), MinHeight = header ? 38 : 52 };
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(64) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.25, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(132) });
+            TextBlock T(string s, int col, double size, bool mono = false, Brush fg = null, FontWeight? w = null)
+            {
+                var t = new TextBlock { Text = s ?? "", FontSize = size, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 14, 0), Foreground = fg ?? R("Ink"), FontWeight = w ?? FontWeights.Normal };
+                if (!header && !string.IsNullOrEmpty(s)) t.ToolTip = s;
+                if (mono) t.FontFamily = (FontFamily)FindResource("Mono");
+                Grid.SetColumn(t, col);
+                g.Children.Add(t);
+                return t;
+            }
+            if (header)
+            {
+                foreach (var (s, col) in new[] { (q, 0), (title, 1), (before, 2), (now, 3), ("STATUS", 4) })
+                    T(s, col, 11, false, R("Faint"), FontWeights.Bold);
+                return new Border { Child = g, BorderBrush = R("Line"), BorderThickness = new Thickness(0, 0, 0, 1) };
+            }
+            var chip = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            chip.Children.Add(new Border { Width = 4, Height = 22, CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 0, 10, 0), Background = GroupBrush(group) });
+            chip.Children.Add(new TextBlock { Text = q, FontFamily = (FontFamily)FindResource("Mono"), FontSize = 13, Foreground = R("Faint"), VerticalAlignment = VerticalAlignment.Center });
+            g.Children.Add(chip);
+            T(title, 1, 14, false, null, FontWeights.SemiBold);
+            T(before, 2, 13, true, R("Sub"));
+            T(now, 3, 13, true, active == true ? R("Ink") : R("Sub"));
+            var pill = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3, 10, 4), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Background = active == true ? R("SamtSoft") : R("GoSoft") };
+            pill.Child = new TextBlock { Text = active == true ? L("● geändert", "● changed") : L("✓ Original", "✓ original"), FontSize = 12, FontWeight = FontWeights.Bold, Foreground = active == true ? R("Samt") : R("GoInk") };
+            Grid.SetColumn(pill, 4);
+            g.Children.Add(pill);
+            return new Border { Child = g, BorderBrush = R("Line"), BorderThickness = new Thickness(0, 0, 0, 1) };
+        }
+
+        Brush GroupBrush(string group)
+        {
+            switch (group)
+            {
+                case "shell": return R("Samt");
+                case "desktop": return B(0x1F6FD1);
+                case "lock": return B(0x5E8A2E);
+                default: return B(0xA7AAB2);
+            }
+        }
+
+        FrameworkElement Banner(RestoreResult r, bool undo)
+        {
+            bool ok = undo ? r.Complete : r.Complete && r.Different == 0;
+            var g = new Grid { Margin = new Thickness(0, 0, 0, 16) };
+            var card = new Border { CornerRadius = new CornerRadius(16), Padding = new Thickness(20, 16, 22, 16), Background = ok ? R("GoSoft") : B(0xFDE7E8), BorderBrush = ok ? R("Go") : R("Stop"), BorderThickness = new Thickness(1.5) };
+            var dock = new DockPanel();
+            // a check (or a cross) that draws itself
+            var mark = new System.Windows.Shapes.Path
+            {
+                Data = Geometry.Parse(ok ? "M4,15 L11,22 L25,7" : "M6,6 L22,22 M22,6 L6,22"), Stroke = ok ? R("Go") : R("Stop"), StrokeThickness = 3.4, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round,
+                Width = 30, Height = 30, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center, StrokeDashArray = new DoubleCollection { 14, 14 }, StrokeDashOffset = 14,
+            };
+            Anim(mark, Shape.StrokeDashOffsetProperty, 0, 640, OutSoft, delay: 160);
+            DockPanel.SetDock(mark, Dock.Left);
+            dock.Children.Add(mark);
+            var t = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            string title = undo ? (ok ? L("Der vorherige Stand ist zurück.", "The previous state is back.") : L("Rückgängig unvollständig.", "Undo incomplete."))
+                : ok ? L("Zurückgesetzt und geprüft: Windows ist wie vor WinMorph.", "Reset and checked: Windows is as it was before WinMorph.")
+                : L("Noch nicht alles zurückgesetzt.", "Not everything is reset yet.");
+            t.Children.Add(new TextBlock { Text = title, FontSize = 15.5, FontWeight = FontWeights.Bold, Foreground = ok ? R("GoInk") : R("Stop") });
+            string sub = !ok ? string.Join(" · ", r.Problems.Take(4)) + " " + L("Das Backup bleibt erhalten, einfach erneut versuchen.", "The backup is kept, just try again.")
+                : undo ? string.Format(L("{0} Werte wiederhergestellt.", "{0} values restored."), r.Restored)
+                : string.Format(L("{0} Werte einzeln mit dem Original verglichen, alle gleich. Taskleiste sichtbar, Win+L wieder bei Windows.", "{0} values compared with the original one by one, all equal. Taskbar visible, Win+L back with Windows."), r.Checked);
+            t.Children.Add(new TextBlock { Text = sub, FontSize = 13, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
+            dock.Children.Add(t);
+            card.Child = dock;
+            g.Children.Add(card);
+            var drop = new TranslateTransform(0, -14);
+            g.RenderTransform = drop; g.Opacity = 0;
+            Anim(drop, TranslateTransform.YProperty, 0, 560, new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.4 });
+            Anim(g, OpacityProperty, 1, 260, OutSoft);
+            return g;
+        }
+
+        async Task RunRestore(bool undo)
+        {
+            if (busy) return;
+            busy = true;
+            SetBusyUi(true);
+            ShowWorking(undo ? L("Vorheriger Stand wird wiederhergestellt …", "Restoring the previous state …") : L("Alles wird zurückgesetzt und geprüft …", "Resetting and checking everything …"));
+            RestoreResult r;
+            try { r = await Task.Run(() => undo ? History.UndoLast() : History.RestoreOriginal()); }
+            catch (Exception ex) { r = new RestoreResult { Failed = 1 }; r.Problems.Add(ex.Message); }
+            HideWorking();
+            lastRestore = r ?? new RestoreResult();
+            lastWasUndo = undo;
+            busy = false;
+            SetBusyUi(false);
+            selected = Presets.Find(Shell.ShellControl.CurrentPreset ?? "") ?? selected;
+            BuildTiles(false);
+            BuildDetail(false);
+            BuildChanges();
+            RefreshCount();
+            Activate();
+        }
+
+        // =====================================================================
+        // dialog and working overlay
+        // =====================================================================
+        void Confirm(string title, string text, string yes, Func<Task> onYes)
+        {
+            Overlay.Children.Clear();
+            Overlay.Opacity = 1;
+            var scrim = new Border { Background = B(0x15161A, 120), Opacity = 0 };
+            scrim.MouseLeftButtonUp += (s, e) => CloseDialog();
+            Overlay.Children.Add(scrim);
+            var card = new Border { Background = R("Paper"), CornerRadius = new CornerRadius(20), Padding = new Thickness(30, 26, 30, 24), Width = 500, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Effect = new DropShadowEffect { BlurRadius = 50, ShadowDepth = 18, Direction = 270, Opacity = 0.3 } };
+            var sp = new StackPanel();
+            sp.Children.Add(new Border { Height = 5, Width = 54, CornerRadius = new CornerRadius(3), Background = R("Samt"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 16) });
+            sp.Children.Add(new TextBlock { Text = title, FontSize = 21, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap });
+            sp.Children.Add(new TextBlock { Text = text, FontSize = 14, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, LineHeight = 21, Margin = new Thickness(0, 8, 0, 22) });
+            var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var no = new Button { Style = (Style)FindResource("Outline"), Content = L("Abbrechen", "Cancel"), Margin = new Thickness(0, 0, 10, 0) };
+            no.Click += (s, e) => CloseDialog();
+            var ok = new Button { Style = (Style)FindResource("Btn"), Height = 44, FontSize = 14, Content = yes };
+            ok.Click += async (s, e) => { Overlay.Visibility = Visibility.Collapsed; Overlay.Children.Clear(); await onYes(); };
+            row.Children.Add(no); row.Children.Add(ok);
+            sp.Children.Add(row);
+            card.Child = sp;
+            var sc = new ScaleTransform(0.94, 0.94);
+            card.RenderTransformOrigin = new Point(0.5, 0.5); card.RenderTransform = sc; card.Opacity = 0;
+            Overlay.Children.Add(card);
+            Overlay.Visibility = Visibility.Visible;
+            Anim(scrim, OpacityProperty, 1, 220, OutSoft);
+            Anim(card, OpacityProperty, 1, 200, OutSoft);
+            var spring = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.35 };
+            Anim(sc, ScaleTransform.ScaleXProperty, 1, 340, spring); Anim(sc, ScaleTransform.ScaleYProperty, 1, 340, spring);
+            Dispatcher.BeginInvoke(new Action(() => { no.Focus(); Keyboard.Focus(no); }), DispatcherPriority.Input);
+        }
+
+        void CloseDialog()
+        {
+            if (Overlay.Visibility != Visibility.Visible || working) return;
+            foreach (UIElement el in Overlay.Children) Anim(el, OpacityProperty, 0, 150, In);
+            var tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(Calm ? 1 : 160) };
+            tm.Tick += (s, e) => { tm.Stop(); if (!working) { Overlay.Visibility = Visibility.Collapsed; Overlay.Children.Clear(); } };
+            tm.Start();
+        }
+
+        bool working;
+        void ShowWorking(string text)
+        {
+            working = true;
+            Overlay.Children.Clear();
+            Overlay.Children.Add(new Border { Background = B(0xF3F4F7, 215) });
+            var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            // three cue lights chase each other while it runs
+            var lights = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 16) };
+            for (int i = 0; i < 3; i++)
+            {
+                var d = new Ellipse { Width = 14, Height = 14, Fill = R("Cue"), Margin = new Thickness(6, 0, 6, 0), Opacity = 0.25 };
+                d.BeginAnimation(OpacityProperty, new DoubleAnimation(0.25, 1, TimeSpan.FromMilliseconds(380)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, BeginTime = TimeSpan.FromMilliseconds(i * 190), EasingFunction = new SineEase() });
+                lights.Children.Add(d);
+            }
+            sp.Children.Add(lights);
+            sp.Children.Add(new TextBlock { Text = text, FontSize = 16, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center });
+            sp.Children.Add(new TextBlock { Text = L("Das dauert nur ein paar Sekunden.", "This only takes a few seconds."), FontSize = 13, Foreground = R("Sub"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 0) });
+            Overlay.Children.Add(sp);
+            Overlay.Visibility = Visibility.Visible;
+            Anim(Overlay, OpacityProperty, 1, 200, OutSoft, from: 0);
+        }
+
+        void HideWorking() { working = false; Overlay.Visibility = Visibility.Collapsed; Overlay.Children.Clear(); }
+
+        // =====================================================================
+        // updates, language, window
+        // =====================================================================
         Updater.Release update;
         Task<string> updateFile;
 
@@ -119,8 +925,8 @@ namespace WinMorph
             {
                 update = await Task.Run(() => Updater.Check());
                 if (update == null) return;
-                // the installed copy loads it right away, so "Update now" takes only seconds
-                if (Updater.Installed) updateFile = Updater.Download(update, pct => Dispatcher.BeginInvoke(new Action(() => { if (UpdBtn.IsEnabled) UpdText.Text = Loc.F("upd.progress", pct); })));
+                // the installed copy loads it right away, so "Update" takes only seconds
+                if (Updater.Installed) updateFile = Updater.Download(update, null);
                 ShowUpdate();
                 if (updateFile != null) { await updateFile; ShowUpdate(); }
             }
@@ -129,32 +935,31 @@ namespace WinMorph
 
         void ShowUpdate()
         {
-            UpdateCard.Visibility = update == null ? Visibility.Collapsed : Visibility.Visible;
+            UpdBtn.Visibility = update == null ? Visibility.Collapsed : Visibility.Visible;
             if (update == null) return;
-            UpdTitle.Text = Loc.F("upd.title", update.Version);
             bool ready = updateFile != null && updateFile.Status == TaskStatus.RanToCompletion;
-            UpdText.Text = Loc.Get(!Updater.Installed ? "upd.portable" : ready ? "upd.ready" : "upd.loading");
-            TUpdBtn.Text = Loc.Get(Updater.Installed ? "upd.install" : "upd.download");
+            TUpd.Text = !Updater.Installed ? L("Version " + update.Version + " herunterladen", "Download version " + update.Version)
+                : ready ? L("Update " + update.Version + " installieren", "Install update " + update.Version) : L("Update " + update.Version + " lädt …", "Update " + update.Version + " loading …");
         }
 
         async void Update_Click(object sender, RoutedEventArgs e)
         {
             if (busy || update == null) return;
-            if (!Updater.Installed) { Website_Click(null, null); return; }
+            if (!Updater.Installed) { OpenSite(); return; }
             UpdBtn.IsEnabled = false;
-            if (updateFile == null || updateFile.IsFaulted) updateFile = Updater.Download(update, pct => Dispatcher.BeginInvoke(new Action(() => UpdText.Text = Loc.F("upd.progress", pct))));
+            if (updateFile == null || updateFile.IsFaulted) updateFile = Updater.Download(update, pct => Dispatcher.BeginInvoke(new Action(() => TUpd.Text = pct + " %")));
             try
             {
                 var file = await updateFile;
-                UpdText.Text = Loc.Get("upd.installing");
+                TUpd.Text = L("Wird installiert …", "Installing …");
                 Updater.Install(file, relaunch: true);
                 await Task.Delay(400);
                 Application.Current.Shutdown();
             }
             catch (Exception ex)
             {
-                UpdText.Text = ex.Message;
-                updateFile = Updater.Download(update, null);   // next click tries again
+                TUpd.Text = ex.Message;
+                updateFile = Updater.Download(update, null);   // the next click tries again
                 UpdBtn.IsEnabled = true;
             }
         }
@@ -167,699 +972,51 @@ namespace WinMorph
                 try { Updater.Install(updateFile.Result, relaunch: false); } catch { }
         }
 
-        void AutoUpdate_Click(object sender, RoutedEventArgs e) => Updater.Auto = OptAutoUpdate.IsChecked == true;
-
-        void Website_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        static void OpenSite()
         {
-            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Updater.Site) { UseShellExecute = true }); } catch { }
+            try { Process.Start(new ProcessStartInfo(Updater.Site) { UseShellExecute = true }); } catch { }
         }
 
-        // ---------------- building UI ----------------
-        void RebuildAll()
-        {
-            TSubtitle.Text = Loc.Get("subtitle");
-            TRestore.Text = Loc.Get("restore");
-            TUndo.Text = Loc.Get("undo");
-            TFooter.Text = Loc.Get("footer");
-            TChanges.Text = Loc.Get("changes");
-            TOptions.Text = Loc.Get("options");
-            TOptExplorer.Text = Loc.Get("opt.explorer");
-            TOptLock.Text = Loc.Get("opt.lock");
-            TAutoUpdate.Text = Loc.Get("upd.auto");
-            TVersion.Text = Loc.F("upd.version", Updater.Version);
-            ShowUpdate();
-            LangDe.Opacity = Loc.De ? 1 : 0.55;
-            LangEn.Opacity = Loc.De ? 0.55 : 1;
-            BuildNav();
-            BuildGallery();
-            if (filter == "live" && liveSelected != null) ShowLiveDetail(liveSelected); else ShowDetail(selected);
-            UpdateBackupInfo();
-        }
-
-        void BuildNav()
-        {
-            NavPanel.Children.Clear();
-            foreach (var key in NavKeys)
-            {
-                int count = key == "all" ? Presets.All.Count : key == "live" ? Live.WallCatalog.All.Count : Presets.All.Count(p => p.Group == key);
-                var row = new DockPanel();
-                var countText = new TextBlock { Text = count.ToString(), FontSize = 12, Foreground = (Brush)FindResource("Faint"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
-                DockPanel.SetDock(countText, Dock.Right);
-                row.Children.Add(countText);
-                var dot = new Border { Width = 8, Height = 8, CornerRadius = new CornerRadius(key == "live" ? 2 : 4), Background = new SolidColorBrush(NavColor(key)), Margin = new Thickness(0, 0, 11, 0), VerticalAlignment = VerticalAlignment.Center };
-                DockPanel.SetDock(dot, Dock.Left);
-                row.Children.Add(dot);
-                row.Children.Add(new TextBlock { Text = Loc.Get(key), Foreground = new SolidColorBrush(Color.FromRgb(0xE6, 0xE9, 0xEF)), FontSize = 14 });
-                var rb = new RadioButton { Style = (Style)FindResource("Nav"), Content = row, GroupName = "nav", IsChecked = key == filter };
-                if (key == "live") rb.Margin = new Thickness(0, 2, 0, 12);
-                rb.Checked += (s, e) => { filter = key; BuildGallery(); GalleryScroll.ScrollToTop(); };
-                NavPanel.Children.Add(rb);
-            }
-        }
-
-        static Color NavColor(string key)
-        {
-            switch (key)
-            {
-                case "live": return Color.FromRgb(0x22, 0xD3, 0x7A);
-                case "windows": return Color.FromRgb(0x3B, 0x8E, 0xF0);
-                case "apple": return Color.FromRgb(0xC9, 0xCE, 0xD6);
-                case "linux": return Color.FromRgb(0xF0, 0x8A, 0x3B);
-                case "future": return Color.FromRgb(0xA7, 0x7B, 0xFF);
-                case "special": return Color.FromRgb(0xF0, 0x4E, 0x6E);
-                default: return Color.FromRgb(0x7C, 0x8C, 0xFF);
-            }
-        }
-
-        void BuildGallery()
-        {
-            bool live = filter == "live";
-            Cards.Visibility = live ? Visibility.Collapsed : Visibility.Visible;
-            ExtrasPanel.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
-            THead.Text = Loc.Get(live ? "livehead" : (filter == "all" ? "headline" : filter));
-            THeadSub.Text = Loc.Get(live ? "livesub" : "headsub");
-            if (live) { BuildLive(); return; }
-
-            Cards.Children.Clear();
-            cardButtons.Clear();
-            cardImages.Clear();
-            foreach (var p in Presets.All.Where(x => filter == "all" || x.Group == filter))
-                Cards.Children.Add(MakeCard(p));
-            HighlightSelected();
-            LayoutCards();
-        }
-
-        void Cards_SizeChanged(object sender, SizeChangedEventArgs e) { if (e.WidthChanged) LayoutCards(); }
-
-        void LayoutCards()
-        {
-            double avail = Cards.ActualWidth;
-            if (avail <= 0) return;
-            const double gap = 16, min = 232;
-            int cols = Math.Max(1, (int)(avail / (min + gap)));
-            double w = Math.Floor(avail / cols - gap) - 1;
-            foreach (var b in cardButtons.Values) b.Width = w;
-            foreach (var img in cardImages) img.Height = Math.Round((w - 4) * 9 / 16);
-        }
-
-        Button MakeCard(Preset p)
-        {
-            var img = new Image { Stretch = Stretch.UniformToFill };
-            var imgHost = new Border { Height = 139, Child = img, Background = new SolidColorBrush(Color.FromRgb(0x20, 0x24, 0x2C)) };
-            imgHost.SizeChanged += (s, e) => imgHost.Clip = TopRounded(imgHost.ActualWidth, imgHost.ActualHeight, 10);
-            cardImages.Add(imgHost);
-
-            var dot = new Border { Width = 10, Height = 10, CornerRadius = new CornerRadius(5), Background = new SolidColorBrush(p.Accent), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-            var nameRow = new DockPanel();
-            if (p.Id == Shell.ShellControl.CurrentPreset)
-            {
-                var badge = new Border { CornerRadius = new CornerRadius(9), Padding = new Thickness(8, 1, 8, 2), Background = new SolidColorBrush(Color.FromArgb(0x30, 0x22, 0xD3, 0x7A)), VerticalAlignment = VerticalAlignment.Center,
-                    Child = new TextBlock { Text = Loc.Get("live.current"), FontSize = 10.5, FontWeight = FontWeights.SemiBold, Foreground = new SolidColorBrush(Color.FromRgb(0x5E, 0xE6, 0x8F)) } };
-                DockPanel.SetDock(badge, Dock.Right);
-                nameRow.Children.Add(badge);
-            }
-            DockPanel.SetDock(dot, Dock.Left);
-            nameRow.Children.Add(dot);
-            nameRow.Children.Add(new TextBlock { Text = p.Name, FontSize = 15, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-            var text = new StackPanel { Margin = new Thickness(14, 11, 14, 13) };
-            text.Children.Add(nameRow);
-            text.Children.Add(new TextBlock { Text = p.Tag(Loc.De), FontSize = 12, Foreground = (Brush)FindResource("Sub"), Margin = new Thickness(18, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
-
-            var content = new StackPanel();
-            content.Children.Add(imgHost);
-            content.Children.Add(text);
-
-            var btn = new Button { Style = (Style)FindResource("CardButton"), Content = content, ToolTip = p.Desc(Loc.De) };
-            btn.Click += (s, e) => ShowDetail(p);
-            cardButtons[p.Id] = btn;
-
-            if (thumbs.TryGetValue(p.Id, out var cached)) img.Source = cached;
-            else Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-            {
-                if (!thumbs.ContainsKey(p.Id)) thumbs[p.Id] = Preview(p, false);
-                img.Source = thumbs[p.Id];
-                FadeIn(img);
-            }));
-            return btn;
-        }
-
-        static Geometry TopRounded(double w, double h, double r)
-        {
-            var g = new StreamGeometry();
-            using (var c = g.Open())
-            {
-                c.BeginFigure(new Point(0, h), true, true);
-                c.LineTo(new Point(0, r), false, false);
-                c.ArcTo(new Point(r, 0), new Size(r, r), 0, false, SweepDirection.Clockwise, false, false);
-                c.LineTo(new Point(w - r, 0), false, false);
-                c.ArcTo(new Point(w, r), new Size(r, r), 0, false, SweepDirection.Clockwise, false, false);
-                c.LineTo(new Point(w, h), false, false);
-            }
-            g.Freeze();
-            return g;
-        }
-
-        void HighlightSelected()
-        {
-            foreach (var kv in cardButtons)
-                kv.Value.BorderBrush = kv.Key == selected?.Id ? new SolidColorBrush(selected.Accent) : Brushes.Transparent;
-        }
-
-        // ---------------- detail panel ----------------
-        void ShowDetail(Preset p)
-        {
-            liveSelected = null;
-            LiveDetailMode(false);
-            selected = p;
-            HighlightSelected();
-            if (bigThumbs.TryGetValue(p.Id, out var big)) BigPreview.Source = big;
-            else
-            {
-                // the click answers at once with the small picture; the big one follows after the next frame
-                BigPreview.Source = thumbs.TryGetValue(p.Id, out var small) ? small : null;
-                Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
-                {
-                    if (selected != p || liveSelected != null) return;
-                    if (!bigThumbs.TryGetValue(p.Id, out var b)) bigThumbs[p.Id] = b = Preview(p, true);
-                    BigPreview.Source = b;
-                }));
-            }
-
-            DName.Text = p.Name;
-            DTag.Text = p.Tag(Loc.De);
-            var pc = p.Id == "terminal" ? Shell.ShellThemes.HackerColor : p.Accent;
-            DTag.Foreground = new SolidColorBrush(Lighten(pc));
-            DDesc.Text = p.Desc(Loc.De);
-
-            var accent = new SolidColorBrush(ButtonColor(pc));
-            ApplyBtn.Background = accent;
-            TApply.Text = Loc.F("apply", p.Name);
-            foreach (var cb in new[] { OptExplorer, OptLock }) cb.Tag = accent;
-
-            BuildColorBox(p);
-
-            // each look remembers what it applies
-            AreaList.Children.Clear();
-            var parts = Presets.Parts(p.Id);
-            foreach (var a in AreaOrder)
-            {
-                if (a == Area.Colors)
-                    AreaList.Children.Add(new TextBlock { Text = Loc.Get("settingshead"), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("Faint"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 12) });
-                var title = new TextBlock { Text = Loc.Get("a." + a), FontSize = 13.5, FontWeight = FontWeights.SemiBold };
-                var detail = new TextBlock { Text = Describe(p, a), FontSize = 12, Foreground = (Brush)FindResource("Sub"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0), LineHeight = 17 };
-                var stack = new StackPanel();
-                stack.Children.Add(title);
-                stack.Children.Add(detail);
-                var area = a;
-                var cb = new CheckBox { Style = (Style)FindResource("Switch"), Content = stack, IsChecked = parts.HasFlag(a), Tag = accent, Margin = new Thickness(0, 0, 0, 13) };
-                var look = p.Id;
-                cb.Checked += (s, e) => Presets.SetParts(look, Presets.Parts(look) | area);
-                cb.Unchecked += (s, e) => Presets.SetParts(look, Presets.Parts(look) & ~area);
-                AreaList.Children.Add(cb);
-            }
-        }
-
-        /// <summary>Colour choice of the hacker look: six ready colours plus any own colour.</summary>
-        void BuildColorBox(Preset p)
-        {
-            ColorBox.Children.Clear();
-            ColorBox.Visibility = p.Id == "terminal" || p.Id == "macos" ? Visibility.Visible : Visibility.Collapsed;
-            if (p.Id == "macos") { BuildMacMode(); return; }
-            if (p.Id != "terminal") return;
-            var cur = Shell.ShellThemes.HackerColor;
-            ColorBox.Children.Add(new TextBlock { Text = Loc.De ? "FARBE" : "COLOUR", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("Faint"), Margin = new Thickness(0, 20, 0, 10) });
-            var row = new WrapPanel();
-            bool known = false;
-            foreach (var (de, en, rgb) in Shell.ShellThemes.HackerColors)
-            {
-                var c = Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
-                bool on = c == cur; known |= on;
-                row.Children.Add(Swatch(c, Loc.De ? de : en, on));
-            }
-            var own = new Button { Style = (Style)FindResource("Ghost"), Margin = new Thickness(0, 0, 8, 8), Height = 34, ToolTip = Loc.De ? "Eigene Farbe wählen" : "Pick your own colour" };
-            var ownRow = new StackPanel { Orientation = Orientation.Horizontal };
-            if (!known) ownRow.Children.Add(new Border { Width = 14, Height = 14, CornerRadius = new CornerRadius(7), Background = new SolidColorBrush(cur), Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center });
-            ownRow.Children.Add(new TextBlock { Text = Loc.De ? "Eigene …" : "Custom …", FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center });
-            own.Content = ownRow;
-            own.Click += (s, e) =>
-            {
-                using (var dlg = new System.Windows.Forms.ColorDialog { FullOpen = true, Color = System.Drawing.Color.FromArgb(cur.R, cur.G, cur.B) })
-                    if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK) SetHackerColor(Color.FromRgb(dlg.Color.R, dlg.Color.G, dlg.Color.B));
-            };
-            row.Children.Add(own);
-            ColorBox.Children.Add(row);
-        }
-
-        /// <summary>macOS look: light or dark.</summary>
-        void BuildMacMode()
-        {
-            ColorBox.Children.Add(new TextBlock { Text = Loc.De ? "DARSTELLUNG" : "APPEARANCE", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("Faint"), Margin = new Thickness(0, 20, 0, 10) });
-            var row = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (var dark in new[] { false, true })
-            {
-                bool on = Presets.MacDark == dark;
-                var b = new Button { Style = (Style)FindResource("Ghost"), Margin = new Thickness(0, 0, 8, 0), MinWidth = 96, Content = (on ? "✓  " : "") + (dark ? (Loc.De ? "Dunkel" : "Dark") : (Loc.De ? "Hell" : "Light")), Opacity = on ? 1 : 0.6 };
-                var d = dark;
-                b.Click += (s, e) =>
-                {
-                    if (Presets.MacDark == d) return;
-                    Presets.MacDark = d;
-                    thumbs.Remove("macos"); bigThumbs.Remove("macos");
-                    // already active: the shell picks up the mode right away
-                    if (Shell.ShellControl.CurrentPreset == "macos" && Shell.ShellControl.IsRunning) Task.Run(() => Shell.ShellControl.Start());
-                    BuildGallery();
-                    ShowDetail(Presets.Find("macos"));
-                    Status.Text = Loc.De ? "Gespeichert. Hintergrund und Farben ändern sich mit „macOS anwenden“." : "Saved. Wallpaper and colours change with “Apply macOS”.";
-                };
-                row.Children.Add(b);
-            }
-            ColorBox.Children.Add(row);
-        }
-
-        Button Swatch(Color c, string name, bool on)
-        {
-            var b = new Button { Width = 34, Height = 34, Margin = new Thickness(0, 0, 8, 8), Cursor = System.Windows.Input.Cursors.Hand, ToolTip = name };
-            var ring = new Border { CornerRadius = new CornerRadius(17), BorderThickness = new Thickness(2), BorderBrush = on ? Brushes.White : Brushes.Transparent, Padding = new Thickness(3) };
-            ring.Child = new Border { CornerRadius = new CornerRadius(12), Background = new SolidColorBrush(c) };
-            var tpl = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) };
-            b.Template = tpl;
-            b.Content = ring;
-            b.Click += (s, e) => SetHackerColor(c);
-            return b;
-        }
-
-        void SetHackerColor(Color c)
-        {
-            if (c.R + c.G + c.B < 120) c = Applier.Mix(c, Color.FromRgb(255, 255, 255), 0.35);   // too dark to read on black
-            Shell.ShellThemes.HackerColor = c;
-            thumbs.Remove("terminal"); bigThumbs.Remove("terminal");
-            var hacker = Presets.Find("terminal");
-            // already active: the shell and the desktop pick up the colour right away
-            if (Shell.ShellControl.CurrentPreset == "terminal" && Shell.ShellControl.IsRunning)
-                Task.Run(() => { Shell.ShellControl.Start(); Live.LiveWall.Start(); });
-            BuildGallery();
-            ShowDetail(hacker);
-            Status.Text = Loc.De ? "Farbe gespeichert. Auch Hintergrund, Akzentfarbe und Sperrbild übernehmen: „Hacker anwenden“." : "Colour saved. To update wallpaper, accent and lock picture too: “Apply Hacker”.";
-        }
-
-        static string Describe(Preset p, Area a)
-        {
-            var parts = new List<string>();
-            Func<string, string> G = Loc.Get;
-            switch (a)
-            {
-                case Area.Shell:
-                    var th = WinMorph.Shell.ShellThemes.For(p.Id);
-                    if (th == null) { parts.Add(G("c.noshell")); break; }
-                    parts.Add(G("c.shell.bar." + th.Layout));
-                    parts.Add(G("c.shell.menu." + th.Menu));
-                    if (th.Frame != null) parts.Add(G("c.shell.frames"));
-                    parts.Add(G("c.shell.winkey"));
-                    parts.Add(G("c.shell.alttab"));
-                    parts.Add(G("c.shell.gpt"));
-                    break;
-                case Area.Taskbar:
-                    parts.Add(Loc.F("c.align", G(p.Center ? "c.center" : "c.left")));
-                    parts.Add(G(p.Combine == 2 ? "c.combine2" : "c.combine0"));
-                    parts.Add(G("c.search" + p.Search));
-                    if (p.TaskView) parts.Add(G("c.taskview"));
-                    if (p.Widgets) parts.Add(G("c.widgets"));
-                    if (p.Copilot) parts.Add(G("c.copilot"));
-                    if (p.AutoHide) parts.Add(G("c.autohide"));
-                    if (p.Seconds) parts.Add(G("c.seconds"));
-                    break;
-                case Area.Colors:
-                    parts.Add(Loc.F("c.mode", G(p.DarkSystem ? "c.dark" : "c.light"), G(p.DarkApps ? "c.dark" : "c.light")));
-                    parts.Add(Loc.F("c.accent", "#" + p.Accent.R.ToString("X2") + p.Accent.G.ToString("X2") + p.Accent.B.ToString("X2")));
-                    parts.Add(G(p.Transparency ? "c.transp" : "c.notransp"));
-                    if (p.AccentTaskbar && p.DarkSystem) parts.Add(G("c.acctb"));
-                    if (p.AccentTitle) parts.Add(G("c.acctitle"));
-                    break;
-                case Area.Windows:
-                    parts.Add(G(p.Animations ? "c.anim" : "c.noanim"));
-                    parts.Add(G(p.FullDrag ? "c.fulldrag" : "c.outline"));
-                    parts.Add(G(p.Snap ? "c.snap" : "c.nosnap"));
-                    if (!p.Shadows) parts.Add(G("c.noshadow"));
-                    if (p.FocusFollows) parts.Add(G("c.focus"));
-                    if (!p.ClearType) parts.Add(G("c.nocleartype"));
-                    if (p.MenuDelay == 0) parts.Add(G("c.menudelay"));
-                    if (p.ClassicContextMenu) parts.Add(G("c.ctx"));
-                    if (p.Compact) parts.Add(G("c.compact"));
-                    break;
-                case Area.Fonts:
-                    parts.Add(Loc.F("c.font", p.Font, p.CaptionBold ? G("c.bold") : ""));
-                    break;
-                case Area.Desktop:
-                    parts.Add(G(p.Live != null ? "c.livewall" : "c.wall"));
-                    if (p.HideDesktopIcons) parts.Add(G("c.noicons"));
-                    if (p.ShowThisPC) parts.Add(G("c.thispc"));
-                    break;
-                case Area.Lock:
-                    parts.Add(G("c.lockscreen"));
-                    parts.Add(G("c.lockpic"));
-                    break;
-                case Area.Cursor:
-                    parts.Add(G("cur." + p.Cursor));
-                    break;
-                case Area.Sounds:
-                    parts.Add(G(p.Silent ? "c.silent" : "c.sounds"));
-                    break;
-                case Area.Start:
-                    parts.Add(G("c.layout" + p.StartLayout));
-                    if (!p.Recommendations) parts.Add(G("c.norec"));
-                    if (p.OsStyle != null) parts.Add(Loc.F("c.os", G("os." + p.OsStyle) + " · " + p.OsSkin));
-                    if (p.EpClassicStart) parts.Add(G("c.epstart"));
-                    break;
-            }
-            return string.Join(" · ", parts);
-        }
-
-        // ---------------- live wallpapers ----------------
-        Live.WallItem liveSelected;
-        static readonly Live.WallItem OffItem = new Live.WallItem { Id = "off", Group = "own" };
-        static readonly Live.WallItem OwnItem = new Live.WallItem { Id = "own", Group = "own" };
-        readonly Dictionary<string, ImageSource> liveThumbs = new Dictionary<string, ImageSource>();
-        readonly Dictionary<string, Button> liveCards = new Dictionary<string, Button>();
-        readonly List<(Button btn, Border img, StackPanel text)> liveLayout = new List<(Button, Border, StackPanel)>();
-        bool liveSizeHooked;
-
-        /// <summary>Cards fill the available width (like the preset gallery).</summary>
-        void LayoutLive()
-        {
-            double avail = ExtrasPanel.ActualWidth;
-            if (avail <= 0) return;
-            const double gap = 14, min = 210;
-            int cols = Math.Max(1, (int)(avail / (min + gap)));
-            double w = Math.Floor(avail / cols - gap) - 1;
-            foreach (var (btn, img, text) in liveLayout) { btn.Width = w; img.Width = w - 4; img.Height = Math.Round((w - 4) * 9 / 16); text.Width = w - 28; }
-        }
-        Live.LiveView livePreview;
-
-        string LiveName(Live.WallItem it) => it == OffItem ? Loc.Get("live.off") : it == OwnItem ? Loc.Get("live.own") : it.Name(Loc.De);
-        string LiveTag(Live.WallItem it) => it == OffItem ? Loc.Get("live.off.tag") : it == OwnItem ? Loc.Get("live.own.tag") : it.Tag(Loc.De);
-        static readonly Color LiveAccent = Color.FromRgb(0x00, 0xC8, 0x53);
-
-        void BuildLive()
-        {
-            ExtrasPanel.Children.Clear();
-            liveCards.Clear();
-            liveLayout.Clear();
-            if (!liveSizeHooked) { liveSizeHooked = true; ExtrasPanel.SizeChanged += (s, e) => { if (filter == "live" && e.WidthChanged) LayoutLive(); }; }
-            var current = Live.LiveWall.Spec;
-            foreach (var g in new[] { "own" }.Concat(Live.WallCatalog.Groups))
-            {
-                ExtrasPanel.Children.Add(new TextBlock { Text = Loc.Get("lg." + g).ToUpperInvariant(), FontSize = 11.5, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("Faint"), Margin = new Thickness(2, 6, 0, 10) });
-                var wrap = new WrapPanel { Margin = new Thickness(0, 0, 0, 14) };
-                var items = g == "own" ? new List<Live.WallItem> { OffItem, OwnItem } : Live.WallCatalog.All.Where(x => x.Group == g).ToList();
-                foreach (var it in items) wrap.Children.Add(LiveCard(it, current != null && it.Scene != null && it.Spec == current || (it.IsVideo && current == it.Spec)));
-                ExtrasPanel.Children.Add(wrap);
-            }
-            if (liveSelected == null) ShowLiveDetail(Live.WallCatalog.FromSpec(current) ?? Live.WallCatalog.All[0]);
-            HighlightLive();
-            Dispatcher.BeginInvoke(new Action(LayoutLive), DispatcherPriority.Loaded);
-        }
-
-        Button LiveCard(Live.WallItem it, bool active)
-        {
-            var img = new Image { Stretch = Stretch.UniformToFill };
-            var imgHost = new Border { Width = 236, Height = 133, Child = img, Background = new SolidColorBrush(Color.FromRgb(0x14, 0x17, 0x1C)) };
-            imgHost.SizeChanged += (s, e) => imgHost.Clip = TopRounded(imgHost.ActualWidth, imgHost.ActualHeight, 10);
-            if (it == OffItem || it == OwnItem)
-                imgHost.Child = new TextBlock { Text = it == OffItem ? "⏻" : "＋", FontSize = 40, Foreground = new SolidColorBrush(Color.FromRgb(0x8A, 0x93, 0xA3)), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            var text = new StackPanel { Margin = new Thickness(12, 9, 12, 11), Width = 212 };
-            var nameRow = new DockPanel();
-            if (active) { var a = new TextBlock { Text = Loc.Get("live.current"), FontSize = 11, Foreground = new SolidColorBrush(LiveAccent), VerticalAlignment = VerticalAlignment.Center }; DockPanel.SetDock(a, Dock.Right); nameRow.Children.Add(a); }
-            nameRow.Children.Add(new TextBlock { Text = LiveName(it), FontSize = 14, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-            text.Children.Add(nameRow);
-            text.Children.Add(new TextBlock { Text = LiveTag(it), FontSize = 11.5, Foreground = (Brush)FindResource("Sub"), Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
-            var content = new StackPanel();
-            content.Children.Add(imgHost); content.Children.Add(text);
-            var btn = new Button { Style = (Style)FindResource("CardButton"), Content = content, Margin = new Thickness(0, 0, 14, 14), Width = 240 };
-            liveLayout.Add((btn, imgHost, text));
-            btn.Click += (s, e) => ShowLiveDetail(it);
-            liveCards[it.Id] = btn;
-            if (it.Scene != null || it.IsVideo) LoadLiveThumb(it, img);
-            return btn;
-        }
-
-        async void LoadLiveThumb(Live.WallItem it, Image img)
-        {
-            if (liveThumbs.TryGetValue(it.Id, out var cached)) { img.Source = cached; return; }
-            if (it.Scene != null)
-            {
-                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
-                try { var bmp = Live.LiveView.Snapshot(it.Scene, 472, 266, 2.5); liveThumbs[it.Id] = bmp; img.Source = bmp; } catch { }
-                return;
-            }
-            var file = await Live.WallCatalog.Thumb(it);
-            if (file == null) return;
-            try
-            {
-                var bi = new BitmapImage();
-                bi.BeginInit(); bi.CacheOption = BitmapCacheOption.OnLoad; bi.UriSource = new Uri(file); bi.DecodePixelWidth = 472; bi.EndInit(); bi.Freeze();
-                liveThumbs[it.Id] = bi; img.Source = bi;
-            }
-            catch { }
-        }
-
-        void HighlightLive()
-        {
-            foreach (var kv in liveCards) kv.Value.BorderBrush = liveSelected != null && kv.Key == liveSelected.Id ? new SolidColorBrush(LiveAccent) : Brushes.Transparent;
-        }
-
-        void LiveDetailMode(bool on)
-        {
-            var v = on ? Visibility.Collapsed : Visibility.Visible;
-            foreach (var el in new UIElement[] { TChanges, AreaList, TOptions, OptExplorer, OptLock }) el.Visibility = v;
-            if (!on && livePreview != null) { if (livePreview.Parent is Viewbox vb) vb.Child = null; PreviewFrame.Child = BigPreview; livePreview = null; }
-        }
-
-        void ShowLiveDetail(Live.WallItem it)
-        {
-            liveSelected = it;
-            LiveDetailMode(true);
-            HighlightLive();
-            DName.Text = LiveName(it);
-            DTag.Text = LiveTag(it);
-            DTag.Foreground = new SolidColorBrush(Color.FromRgb(0x5E, 0xE6, 0x8F));
-            DDesc.Text = it == OffItem ? Loc.Get("live.off.desc") : it == OwnItem ? Loc.Get("live.own.desc") : it.IsVideo ? Loc.F("live.desc.video", "Mixkit (mixkit.co)", it.SizeMb) : Loc.Get(it.Interactive ? "live.desc.scene" : "live.desc.calm");
-            ApplyBtn.Background = new SolidColorBrush(Color.FromRgb(0x1F, 0x8F, 0x4E));
-            TApply.Text = it == OffItem ? Loc.Get("live.off") : it == OwnItem ? Loc.Get("live.own") : Loc.Get("live.apply");
-            Status.Text = "";
-            // animated, interactive preview
-            livePreview = null;
-            if (it.Scene != null) ShowLivePreview("scene:" + it.Scene, Live.MouseMode.Anywhere);
-            else if (it.IsVideo && it.Downloaded) ShowLivePreview("video:" + it.LocalVideo, Live.MouseMode.None);
-            else if (it.IsVideo)
-            {
-                // WPF cannot stream videos from the internet (it crashes on current Windows builds):
-                // until the video is downloaded, the preview is its big still picture with a slow zoom
-                PreviewFrame.Child = BigPreview; BigPreview.Source = null;
-                Live.WallCatalog.Thumb(it, large: true).ContinueWith(tk =>
-                {
-                    if (liveSelected == it && tk.Status == TaskStatus.RanToCompletion && tk.Result != null) ShowLivePreview("image:" + tk.Result, Live.MouseMode.Anywhere);
-                }, TaskScheduler.FromCurrentSynchronizationContext());
-            }
-            else { PreviewFrame.Child = BigPreview; BigPreview.Source = null; }
-        }
-
-        void ShowLivePreview(string spec, Live.MouseMode mouse)
-        {
-            if (livePreview?.Parent is Viewbox old) old.Child = null;
-            livePreview = new Live.LiveView(spec, mouse: mouse);
-            // render at a desktop-like size and scale down, so the preview looks like the real thing
-            livePreview.Width = 1280; livePreview.Height = 720;
-            PreviewFrame.Child = new Viewbox { Child = livePreview, Stretch = Stretch.UniformToFill };
-        }
-
-        async Task ApplyLive(Live.WallItem it)
-        {
-            var bk = new Backup(Backup.DefaultFile) { Mirror = Backup.NewStep() };
-            if (!bk.HasData && MessageBox.Show(this, Loc.Get("confirm.first"), Loc.Get("confirm.title"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-            string spec, poster = null, name = LiveName(it);
-            if (it == OffItem) spec = "";
-            else if (it == OwnItem)
-            {
-                var dlg = new Microsoft.Win32.OpenFileDialog { Filter = (Loc.De ? "Videos und Bilder" : "Videos and pictures") + "|*.mp4;*.wmv;*.mov;*.avi;*.m4v;*.jpg;*.jpeg;*.png;*.bmp", Title = Loc.Get("live.own") };
-                if (dlg.ShowDialog(this) != true) return;
-                bool image = new[] { ".jpg", ".jpeg", ".png", ".bmp" }.Contains(System.IO.Path.GetExtension(dlg.FileName).ToLowerInvariant());
-                spec = (image ? "image:" : "video:") + dlg.FileName;
-                if (image) poster = dlg.FileName;
-                name = System.IO.Path.GetFileName(dlg.FileName);
-            }
-            else
-            {
-                SetBusy(true, Loc.Get("applying"));
-                if (it.IsVideo && !it.Downloaded)
-                {
-                    bool ok = await Live.WallCatalog.EnsureDownloaded(it, pct => Dispatcher.BeginInvoke(new Action(() => Status.Text = Loc.F("live.loading", pct))));
-                    if (!ok) { SetBusy(false, Loc.Get("live.failed")); return; }
-                }
-                var mi = Shell.W32.PrimaryMonitor(out _);
-                poster = it.IsVideo ? await Live.WallCatalog.Thumb(it, true) : Live.LiveWall.Poster(it, mi.rcMonitor.Right - mi.rcMonitor.Left, mi.rcMonitor.Bottom - mi.rcMonitor.Top);
-                spec = it.Spec;
-            }
-            SetBusy(true, Loc.Get("applying"));
-            try
-            {
-                await Task.Run(() => Live.LiveWall.Apply(bk, spec, poster));
-                SetBusy(false, spec == "" ? Loc.Get("live.offdone") : Loc.F("live.done", name));
-            }
-            catch (Exception ex) { SetBusy(false, ex.Message); }
-            UpdateBackupInfo();
-            if (filter == "live") { var keep = liveSelected; BuildLive(); liveSelected = keep; HighlightLive(); }
-        }
-
-        // ---------------- actions ----------------
-        async void Apply_Click(object sender, RoutedEventArgs e)
-        {
-            if (busy) return;
-            if (liveSelected != null) { await ApplyLive(liveSelected); return; }
-            if (selected == null) return;
-            var bk = new Backup(Backup.DefaultFile) { Mirror = Backup.NewStep() };
-            if (!bk.HasData && MessageBox.Show(this, Loc.Get("confirm.first"), Loc.Get("confirm.title"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-
-            SetBusy(true, Loc.Get("applying"));
-            var p = selected;
-            var areas = Presets.Parts(p.Id);
-            var o = new ApplyOptions { Areas = areas, RestartExplorer = OptExplorer.IsChecked == true };
-            bool lockScreen = OptLock.IsChecked == true;
-            await Task.Delay(30);
-            try
-            {
-                var pics = ApplyOptions.For(p, areas | (lockScreen ? Area.Lock : Area.None));
-                string wallFile = pics.LockFile ?? pics.WallpaperFile;
-                o.WallpaperFile = areas.HasFlag(Area.Desktop) || areas.HasFlag(Area.Lock) ? pics.WallpaperFile : null;
-                o.LockFile = areas.HasFlag(Area.Lock) ? pics.LockFile : null;
-                var ap = new Applier(bk, Loc.De);
-                await Task.Run(() => ap.Apply(p, o));
-                // one admin prompt for everything that needs it:
-                //  - Win+L may show the WinMorph lock screen (Windows would lock before WinMorph can react)
-                //  - an old all-users picture from WinMorph is removed (it hid every new lock screen)
-                //  - optionally: the sign-in picture for all users
-                bool wantGuard = areas.HasFlag(Area.Shell) && areas.HasFlag(Area.Lock) && Shell.ShellThemes.For(p.Id) != null && !LockGuard.Ready;
-                bool staleOverride = !lockScreen && Applier.LockScreenOverrideIsOurs();
-                if (lockScreen || wantGuard || staleOverride)
-                {
-                    string args = "--lock-setup " + (wantGuard ? LockGuard.UserSid ?? "-" : "-") + " " + (lockScreen && wallFile != null ? "\"" + wallFile + "\"" : "-") + " \"" + Backup.DefaultFile + "\"";
-                    bool ok = await Task.Run(() => Tools.RunElevated(args));
-                    if (!ok) ap.Problems.Add(Loc.De ? "Sperrbildschirm (keine Admin-Rechte)" : "Lock screen (no admin rights)");
-                    // the shell arms Win+L when it starts; it is already running, so do it here once
-                    else if (wantGuard && Shell.ShellActions.SaverReady()) LockGuard.Arm();
-                }
-                var msg = Loc.F("done", ap.Changed);
-                if (ap.Notes.Count > 0) msg += "\n" + string.Join("\n", ap.Notes);
-                if (ap.Problems.Count > 0) msg += "\n" + Loc.F("problems", string.Join(", ", ap.Problems.Take(4)) + (ap.Problems.Count > 4 ? " …" : ""));
-                SetBusy(false, msg);
-            }
-            catch (Exception ex) { SetBusy(false, ex.Message); }
-            UpdateBackupInfo();
-            if (filter != "live") BuildGallery();   // moves the "active" badge
-            Activate();
-        }
-
-        async void Restore_Click(object sender, RoutedEventArgs e)
-        {
-            if (busy) return;
-            if (!History.CanRestore && Shell.ShellControl.CurrentPreset == null) { Status.Text = Loc.Get("nobackup"); return; }
-            if (MessageBox.Show(this, Loc.Get("confirm.restore"), Loc.Get("restore"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-            SetBusy(true, Loc.Get("restoring"));
-            try
-            {
-                bool restart = OptExplorer.IsChecked == true;
-                var r = await Task.Run(() => History.RestoreOriginal(restart));
-                var msg = r.Complete ? Loc.F("restored", r.Restored) : Loc.Get("restore.incomplete");
-                if (r.Problems.Count > 0) msg += "\n" + Loc.F("problems", string.Join(", ", r.Problems.Take(3)));
-                SetBusy(false, msg);
-            }
-            catch (Exception ex) { SetBusy(false, ex.Message); }
-            UpdateBackupInfo();
-            if (filter != "live") BuildGallery();   // moves the "active" badge
-            Activate();
-        }
-
-        async void Undo_Click(object sender, RoutedEventArgs e)
-        {
-            if (busy) return;
-            if (!History.CanUndo) { Status.Text = Loc.Get("noundo"); return; }
-            SetBusy(true, Loc.Get("restoring"));
-            try
-            {
-                bool restart = OptExplorer.IsChecked == true;
-                var r = await Task.Run(() => History.UndoLast(restart));
-                SetBusy(false, r != null && !r.Complete ? Loc.Get("restore.incomplete") : Loc.F("undone", r?.Restored ?? 0));
-            }
-            catch (Exception ex) { SetBusy(false, ex.Message); }
-            UpdateBackupInfo();
-            if (filter != "live") BuildGallery();   // moves the "active" badge
-            Activate();
-        }
-
-        void SetBusy(bool on, string text)
-        {
-            busy = on;
-            ApplyBtn.IsEnabled = !on;
-            RestoreBtn.IsEnabled = !on;
-            UndoBtn.IsEnabled = !on && History.CanUndo;
-            Status.Text = text;
-        }
-
-        void UpdateBackupInfo()
-        {
-            var bk = new Backup(Backup.DefaultFile);
-            BackupInfo.Text = bk.HasData && bk.Created != null
-                ? Loc.F("backupfrom", bk.Created.Value.ToString(Loc.De ? "dd.MM.yyyy HH:mm" : "yyyy-MM-dd HH:mm"), bk.Count) + (Backup.StepCount > 0 ? " · " + Loc.F("steps", Backup.StepCount) : "")
-                : Loc.Get("nobackup");
-            UndoBtn.IsEnabled = !busy && History.CanUndo;
-        }
-
-        void LangDe_Click(object sender, RoutedEventArgs e) { SetLanguage(true); }
-        void LangEn_Click(object sender, RoutedEventArgs e) { SetLanguage(false); }
+        void LangDe_Click(object sender, RoutedEventArgs e) => SetLanguage(true);
+        void LangEn_Click(object sender, RoutedEventArgs e) => SetLanguage(false);
 
         void SetLanguage(bool de)
         {
+            if (de == De || busy) return;
             Loc.SaveLanguage(de);
-            thumbs.Clear(); bigThumbs.Clear(); liveThumbs.Clear();
-            Task.Run(() => History.EnsureShortcuts());
-            RebuildAll();
-            if (Shell.ShellControl.IsRunning) Shell.ShellControl.Start();
-            if (!string.IsNullOrEmpty(Live.LiveWall.Spec)) { Live.LiveWall.Stop(); Live.LiveWall.Start(); }
+            previews.Clear();
+            Task.Run(() =>
+            {
+                History.EnsureShortcuts();
+                // the running look speaks the new language, too
+                if (Shell.ShellControl.IsRunning) Shell.ShellControl.Start();
+                if (!string.IsNullOrEmpty(Live.LiveWall.Spec)) { Live.LiveWall.Stop(); Live.LiveWall.Start(); }
+            });
+            BuildAll();
         }
 
-        void PreviewFrame_SizeChanged(object sender, SizeChangedEventArgs e)
-            => PreviewFrame.Clip = new RectangleGeometry(new Rect(0, 0, PreviewFrame.ActualWidth, PreviewFrame.ActualHeight), 12, 12);
-
-        // ---------------- helpers ----------------
-        static double Luma(Color c) => (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) / 255.0;
-        static Color ButtonColor(Color c) => Luma(c) > 0.55 ? Applier.Mix(c, Color.FromRgb(0, 0, 0), 0.3) : c;
-        static Color Lighten(Color c) => Luma(c) < 0.45 ? Applier.Mix(c, Color.FromRgb(255, 255, 255), 0.45) : c;
-
-        void DarkTitleBar()
+        void LightTitleBar()
         {
             try
             {
                 var hwnd = new WindowInteropHelper(this).Handle;
-                int on = 1;
-                Native.DwmSetWindowAttribute(hwnd, 20, ref on, 4);
-                int caption = 0x001D1714; // #14171D as 0x00BBGGRR
+                int off = 0;
+                Native.DwmSetWindowAttribute(hwnd, 20, ref off, 4);
+                int caption = 0x00FFFFFF;
                 Native.DwmSetWindowAttribute(hwnd, 35, ref caption, 4);
             }
             catch { }
         }
 
-        // ---------------- screenshot (for docs/testing) ----------------
+        // ---------------- screenshot (docs and CI) ----------------
         public void ScreenshotMode(string file, string presetId, bool de)
         {
             Loc.De = de;
             ContentRendered += async (s, e) =>
             {
-                Live.WallItem liveItem = presetId != null && presetId.StartsWith("live:") ? Live.WallCatalog.Find(presetId.Substring(5)) : null;
-                if (presetId == "live" || liveItem != null) { filter = "live"; }
-                else if (presetId != null && Presets.Find(presetId) != null) selected = Presets.Find(presetId);
-                RebuildAll();
-                if (liveItem != null) ShowLiveDetail(liveItem);   // e.g. "live:mixkit-49122" opens that card
+                if (presetId == "changes") TabChanges.IsChecked = true;
+                else if (presetId != null && Presets.Find(presetId) != null) { selected = Presets.Find(presetId); BuildAll(); }
                 await Task.Delay(6000);
-                // twice the resolution, so the picture stays sharp on the website
                 var bmp = new RenderTargetBitmap((int)(Root.ActualWidth * 2), (int)(Root.ActualHeight * 2), 192, 192, PixelFormats.Pbgra32);
                 bmp.Render(Root);
                 var enc = new PngBitmapEncoder();

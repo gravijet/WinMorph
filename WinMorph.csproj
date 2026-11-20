@@ -27,6 +27,9 @@
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Fonts\*.ttf" />
+  </ItemGroup>
   <ItemGroup Condition="Exists('WinMorph.ico')">
     <Resource Include="WinMorph.ico" />
   </ItemGroup>

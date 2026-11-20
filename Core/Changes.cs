@@ -124,7 +124,11 @@ namespace WinMorph.Core
             {
                 if (name == "ShellPreset") return new Change { Group = "shell", Title = L("Design-Shell", "Design shell"), Before = L("aus", "off"), Now = L("an: ", "on: ") + (look ?? "?") + L(" (Taskleiste, Startmenü, Alt+Tab, Fensterrahmen)", " (taskbar, Start menu, Alt+Tab, window frames)") };
                 if (name == "LiveWall") return new Change { Group = "desktop", Title = L("Live-Desktop", "Live desktop"), Before = L("aus", "off"), Now = L("an", "on") };
-                if (name == "LastPreset") return new Change { Group = "shell", Title = L("Gewählter Look", "Chosen look"), Before = "–", Now = look ?? "–" };
+                if (name == "LastPreset")
+                {
+                    var last = Reg.Get(path, name) as string;
+                    return new Change { Group = "shell", Title = L("Zuletzt gewählter Look (für den Sperrbildschirm)", "Last chosen look (for the lock screen)"), Before = L("keiner", "none"), Now = Presets.Find(last ?? "")?.Name ?? last ?? L("keiner", "none") };
+                }
                 return null;
             }
             if (Is(Run)) return new Change { Group = "shell", Title = L("Autostart bei der Anmeldung", "Start at sign-in"), Before = L("ohne WinMorph", "without WinMorph"), Now = L("Design-Shell und Live-Desktop", "design shell and live desktop") };

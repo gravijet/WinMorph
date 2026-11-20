@@ -54,7 +54,7 @@ namespace WinMorph.Shell
             });
         }
 
-        /// <summary>Own notices only (Zen, Gaming): banners in the look's colours, Windows' banners stay as they are.</summary>
+        /// <summary>Own notices only (Zen focus timer, terminal timer): banners in the look's colours, Windows' banners stay as they are.</summary>
         public static void Use(ShellTheme t) { Stop(); theme = t; }
 
         public static void Stop()

@@ -93,7 +93,7 @@ jobs:
             if (-not $p.WaitForExit(180000)) { $p.Kill(); throw "screenshot timeout: $a" }
             if ($p.ExitCode -ne 0) { throw "screenshot failed: $a" }
           }
-          $looks = "win10","win7","xp","win95","macos","ubuntu","debian","arch","mint","chromeos","nova","nexus","terminal","zen","gaming"
+          $looks = "win7","zen","terminal"
           foreach ($lang in "de","en") {
             $dir = "$pwd\shots\$lang"
             New-Item -ItemType Directory -Force $dir | Out-Null
@@ -102,7 +102,7 @@ jobs:
               Shot "--shell-preview", $l, "$dir\$l-menu.png", "menu", "--lang", $lang
               Shot "--lockscreen-preview", $l, "$dir\lock-$l.png", "--lang", $lang
             }
-            foreach ($scene in "matrix","starfield","plexus","radar","bokeh","zen-desk","gaming-desk") {
+            foreach ($scene in "hacker-desk","zen-desk","matrix") {
               Shot "--live-preview", $scene, "$dir\live-$scene.png", "--lang", $lang
             }
             Shot "--screenshot", "$dir\app.png", "terminal", $lang
