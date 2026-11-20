@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -14,30 +16,36 @@ using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using Path = System.Windows.Shapes.Path;
 using WinMorph.Core;
 
 namespace WinMorph
 {
     /// <summary>
-    /// The WinMorph app: a stage. The chosen look stands behind a velvet curtain that gathers and opens
-    /// when you pick another; applying lights the cue list step by step; the changes page is the cue sheet
-    /// of everything WinMorph changed and the proof after a rollback.
+    /// The WinMorph app: a screen-print studio. Every look is a print. Choosing one pulls the squeegee over the
+    /// proof sheet and the look appears behind the blade; applying it prints one pass per part (desktop, lock
+    /// screen, shell) with its own progress. The changes page is the proof of everything WinMorph changed,
+    /// stamped ORIGINAL or GEÄNDERT, and the evidence after a rollback.
     /// </summary>
     public partial class MainWindow : Window
     {
         static bool De => Loc.De;
         static string L(string de, string en) => De ? de : en;
+        static CultureInfo Ci => De ? new CultureInfo("de-DE") : CultureInfo.InvariantCulture;
         static Color C(uint rgb, byte a = 255) => Color.FromArgb(a, (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
         static SolidColorBrush B(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
         static SolidColorBrush B(uint rgb, byte a = 255) => B(C(rgb, a));
         static Color A(Color c, byte a) => Color.FromArgb(a, c.R, c.G, c.B);
         Brush R(string key) => (Brush)FindResource(key);
+        FontFamily Display => (FontFamily)FindResource("Display");
+        FontFamily Mono => (FontFamily)FindResource("Mono");
 
         static readonly bool Calm = !SystemParameters.ClientAreaAnimation;   // Windows "show animations" off
         static Duration Ms(double ms) => TimeSpan.FromMilliseconds(Calm ? Math.Min(ms, 120) : ms);
         static readonly IEasingFunction Out = new QuinticEase { EasingMode = EasingMode.EaseOut };
         static readonly IEasingFunction OutSoft = new CubicEase { EasingMode = EasingMode.EaseOut };
         static readonly IEasingFunction In = new CubicEase { EasingMode = EasingMode.EaseIn };
+        static readonly IEasingFunction Pull = new CubicEase { EasingMode = EasingMode.EaseInOut };
 
         static void Anim(IAnimatable el, DependencyProperty p, double to, double ms, IEasingFunction ease = null, double? from = null, double delay = 0, Action done = null)
         {
@@ -54,26 +62,22 @@ namespace WinMorph
         {
             InitializeComponent();
             Shell.RenderGuard.Watch(this);
-            try
-            {
-                Logo.Source = new IconBitmapDecoder(new Uri("pack://application:,,,/WinMorph.ico"), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames.OrderByDescending(f => f.PixelWidth).First();
-                Icon = BitmapFrame.Create(new Uri("pack://application:,,,/WinMorph.ico"));
-            }
-            catch { }
+            try { Icon = BitmapFrame.Create(new Uri("pack://application:,,,/WinMorph.ico")); } catch { }
+            Mark.Children.Add(RegMark(34, C(0xD6006F), 2.4));
             selected = Presets.Find(Shell.ShellControl.CurrentPreset ?? "") ?? Presets.All[0];
-            BuildStage();
+            BuildSheet();
             Shell.AppCatalog.Loaded += () => Dispatcher.BeginInvoke(new Action(() =>
             {
                 catalogReady = true;
                 foreach (var id in provisional) previews.Remove(id);
-                if (provisional.Contains(selected.Id)) ShowPreview(selected, curtain: false);
+                if (provisional.Contains(selected.Id)) ShowPrint(selected, pull: false);
                 provisional.Clear();
             }));
             Shell.AppCatalog.LoadAsync(Dispatcher);
             Task.Run(() => History.EnsureShortcuts());
             BuildAll(entrance: true);
             SourceInitialized += (s, e) => LightTitleBar();
-            SizeChanged += (s, e) => DetailCol.Width = new GridLength(ActualWidth < 1140 ? 350 : 400);
+            SizeChanged += (s, e) => TicketCol.Width = new GridLength(ActualWidth < 1160 ? 350 : 390);
             PreviewKeyDown += OnKey;
             Updater.MarkUiOpen();
             Task.Run(() =>
@@ -85,26 +89,30 @@ namespace WinMorph
         }
 
         // =====================================================================
-        // look colours: every look floods its own colour field
+        // inks: every look is printed in its own colours
         // =====================================================================
-        static Brush Field(Preset p)
+        static Color Hacker => Shell.ShellThemes.HackerColor;
+
+        /// <summary>The look's three inks: the field colour of its screen, then two supporting inks.</summary>
+        static Color[] Inks(Preset p)
         {
-            Brush b;
             switch (p.Id)
             {
-                case "win7": b = new LinearGradientBrush(new GradientStopCollection { new GradientStop(C(0x1452B0), 0), new GradientStop(C(0x1F6FD1), 0.55), new GradientStop(C(0x4FB8EC), 1) }, new Point(0, 0), new Point(1, 1)); break;
-                case "zen": b = new LinearGradientBrush(new GradientStopCollection { new GradientStop(C(0x47711F), 0), new GradientStop(C(0x5E8A2E), 0.6), new GradientStop(C(0x86AD4C), 1) }, new Point(0, 0), new Point(1, 1)); break;
-                default: b = new LinearGradientBrush(C(0x070A08), C(0x16201A), 45); break;
+                case "win7": return new[] { C(0x0A62C9), C(0x37B4F2), C(0x7ED957) };      // Aero blue, sky, the green of the start orb
+                case "zen": return new[] { C(0xC23F27), C(0x8A6A44), C(0xE9D9BC) };       // shu vermilion, umber, washi
+                default: return new[] { C(0x0B0F0C), Hacker, Applier.Mix(Hacker, Colors.Black, 0.55) };
             }
+        }
+        static Brush Field(Preset p)
+        {
+            var i = Inks(p);
+            Brush b = p.Id == "terminal" ? new LinearGradientBrush(C(0x050806), C(0x142019), 45)
+                : new LinearGradientBrush(i[0], Applier.Mix(i[0], i[1], 0.35), 45);
             b.Freeze();
             return b;
         }
-        static Color Hacker => Shell.ShellThemes.HackerColor;
-        /// <summary>Text on the look's colour field.</summary>
+        /// <summary>Text on the look's field (white, or the hacker colour on black; 4.5:1 or better).</summary>
         static Color OnField(Preset p) => p.Id == "terminal" ? Hacker : C(0xFFFFFF);
-        /// <summary>The look's strongest colour for buttons (white text on it, 4.5:1 or better).</summary>
-        static Color Act(Preset p) => p.Id == "win7" ? C(0x1A5FC0) : p.Id == "zen" ? C(0x4A7322) : C(0x0B0F0C);
-        static Color ActText(Preset p) => p.Id == "terminal" ? Hacker : C(0xFFFFFF);
 
         // =====================================================================
         // building
@@ -116,83 +124,99 @@ namespace WinMorph
             LangDe.Opacity = De ? 1 : 0.55; LangEn.Opacity = De ? 0.55 : 1;
             LangDe.Background = De ? R("Paper") : Brushes.Transparent; LangEn.Background = De ? Brushes.Transparent : R("Paper");
             ShowUpdate();
-            BuildTiles(entrance);
-            BuildDetail(entrance);
-            ShowPreview(selected, curtain: !entrance, entrance: entrance);
+            BuildScreens(entrance);
+            BuildTicket(entrance);
+            ShowPrint(selected, pull: true, entrance: entrance);
             RefreshCount();
             if (ChangesPage.Visibility == Visibility.Visible) BuildChanges();
-            Dispatcher.BeginInvoke(new Action(() => MoveTabLine(false)), DispatcherPriority.Loaded);
         }
 
-        readonly Dictionary<string, RadioButton> tiles = new Dictionary<string, RadioButton>();
-
-        void BuildTiles(bool entrance)
+        /// <summary>A registration target: circle with cross hairs, the printer's mark that layers line up on.</summary>
+        static FrameworkElement RegMark(double size, Color c, double stroke = 1.2)
         {
-            TileRow.Children.Clear(); tiles.Clear();
+            var g = new Grid { Width = size, Height = size, IsHitTestVisible = false };
+            var pen = B(c);
+            g.Children.Add(new Ellipse { Width = size * 0.62, Height = size * 0.62, Stroke = pen, StrokeThickness = stroke, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+            g.Children.Add(new Rectangle { Width = stroke, Fill = pen, HorizontalAlignment = HorizontalAlignment.Center });
+            g.Children.Add(new Rectangle { Height = stroke, Fill = pen, VerticalAlignment = VerticalAlignment.Center });
+            g.Children.Add(new Ellipse { Width = size * 0.24, Height = size * 0.24, Fill = pen, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+            return g;
+        }
+
+        // ---------------- the screens (look tiles) ----------------
+        readonly Dictionary<string, (RadioButton rb, TranslateTransform lift)> screens = new Dictionary<string, (RadioButton, TranslateTransform)>();
+
+        void BuildScreens(bool entrance)
+        {
+            ScreenRow.Children.Clear(); screens.Clear();
             var active = Shell.ShellControl.CurrentPreset;
             int n = 0;
             foreach (var p in Presets.All)
             {
                 var fg = OnField(p);
-                var g = new Grid { Margin = new Thickness(20, 14, 18, 14) };
-                var name = new Viewbox { StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -4, 64, 0),
-                    Child = new TextBlock { Text = p.Name.ToUpperInvariant(), FontFamily = (FontFamily)FindResource("Display"), FontWeight = FontWeights.ExtraBold, FontSize = 36, Foreground = B(fg) } };
-                var tag = new TextBlock { Text = p.Tag(De), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = B(A(fg, 220)), VerticalAlignment = VerticalAlignment.Bottom, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 26, 0) };
-                var key = new TextBlock { Text = (n + 1).ToString(), FontFamily = (FontFamily)FindResource("Mono"), FontSize = 12, Foreground = B(A(fg, 150)), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
-                g.Children.Add(name); g.Children.Add(tag); g.Children.Add(key);
-                if (p.Id == active) g.Children.Add(ActivePill());
+                var g = new Grid { Margin = new Thickness(16, 10, 14, 12) };
+                var name = new Viewbox
+                {
+                    StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -2, 70, 0),
+                    Child = new TextBlock { Text = p.Name, FontFamily = Display, FontWeight = FontWeights.ExtraBold, FontSize = 34, Foreground = B(fg) },
+                };
+                var tag = new TextBlock { Text = p.Tag(De), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = B(A(fg, 225)), VerticalAlignment = VerticalAlignment.Bottom, TextWrapping = TextWrapping.Wrap, MaxHeight = 36, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 58, 0), LineHeight = 17 };
+                // the colour bar printed on the screen's edge: the look's inks, then its key
+                var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
+                foreach (var ink in Inks(p).Skip(1)) bar.Children.Add(new Border { Width = 11, Height = 11, Background = B(ink), BorderBrush = B(A(fg, 120)), BorderThickness = new Thickness(1), Margin = new Thickness(3, 0, 0, 1) });
+                bar.Children.Add(new TextBlock { Text = (n + 1).ToString(), FontFamily = Mono, FontSize = 12, Foreground = B(A(fg, 170)), Margin = new Thickness(8, 0, 0, -2) });
+                g.Children.Add(name); g.Children.Add(tag); g.Children.Add(bar);
+                if (p.Id == active) g.Children.Add(ActiveStamp());
                 var lift = new TranslateTransform();
+                var rise = new TranslateTransform();
                 var rb = new RadioButton
                 {
-                    Style = (Style)FindResource("Tile"), GroupName = "look", Background = Field(p), BorderBrush = p.Id == "terminal" ? B(Hacker) : R("Ink"), Content = g, IsChecked = p == selected,
-                    Margin = new Thickness(n == 0 ? 0 : 7, 0, n == Presets.All.Count - 1 ? 0 : 7, 0), RenderTransform = lift,
-                    Opacity = p == selected ? 1 : 0.86, ToolTip = L("Taste ", "Key ") + (n + 1),
+                    Style = (Style)FindResource("Screen"), GroupName = "look", Background = Field(p), BorderBrush = R("Magenta"), Content = g, IsChecked = p == selected,
+                    Margin = new Thickness(n == 0 ? 4 : 9, 6, n == Presets.All.Count - 1 ? 4 : 9, 2), ToolTip = L("Taste ", "Key ") + (n + 1),
+                    RenderTransform = new TransformGroup { Children = { lift, rise } },
                 };
-                rb.Effect = new DropShadowEffect { Color = Act(p), BlurRadius = 24, ShadowDepth = 8, Direction = 270, Opacity = p == selected ? 0.35 : 0 };
-                if (p == selected) lift.Y = -6;
+                AutomationProperties.SetName(rb, p.Name);
+                rb.Effect = new DropShadowEffect { Color = C(0x16171B), BlurRadius = 22, ShadowDepth = 8, Direction = 270, Opacity = p == selected ? 0.28 : 0.08 };
+                if (p == selected) lift.Y = -5;
                 var look = p;
                 rb.Checked += (s, e) => Select(look);
-                rb.MouseEnter += (s, e) => { if (look != selected) Anim(rb, OpacityProperty, 1, 160, OutSoft); };
-                rb.MouseLeave += (s, e) => { if (look != selected) Anim(rb, OpacityProperty, 0.86, 220, OutSoft); };
-                tiles[p.Id] = rb;
-                TileRow.Children.Add(rb);
+                rb.MouseEnter += (s, e) => { if (look != selected) Anim(lift, TranslateTransform.YProperty, -2, 160, OutSoft); };
+                rb.MouseLeave += (s, e) => { if (look != selected) Anim(lift, TranslateTransform.YProperty, 0, 220, OutSoft); };
+                screens[p.Id] = (rb, lift);
+                ScreenRow.Children.Add(rb);
                 if (entrance)
                 {
-                    var rise = new TranslateTransform(0, 22);
-                    g.RenderTransform = rise; g.Opacity = 0;
-                    Anim(rise, TranslateTransform.YProperty, 0, 620, Out, delay: 120 + n * 70);
-                    Anim(g, OpacityProperty, 1, 380, OutSoft, delay: 120 + n * 70);
+                    rise.Y = 26; rb.Opacity = 0;
+                    Anim(rise, TranslateTransform.YProperty, 0, 640, Out, delay: 160 + n * 60);
+                    Anim(rb, OpacityProperty, 1, 380, OutSoft, delay: 160 + n * 60);
                 }
                 n++;
             }
         }
 
-        FrameworkElement ActivePill()
+        /// <summary>A rubber stamp on the active look.</summary>
+        FrameworkElement ActiveStamp() => new Border
         {
-            var dot = new Ellipse { Width = 7, Height = 7, Fill = R("Go"), Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
-            if (!Calm) dot.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.35, TimeSpan.FromMilliseconds(900)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
-            var sp = new StackPanel { Orientation = Orientation.Horizontal };
-            sp.Children.Add(dot);
-            sp.Children.Add(new TextBlock { Text = L("AKTIV", "ACTIVE"), FontSize = 11, FontWeight = FontWeights.Bold, Foreground = R("Ink") });
-            return new Border { Background = R("Paper"), CornerRadius = new CornerRadius(8), Padding = new Thickness(8, 3, 9, 3), Child = sp, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top };
-        }
+            Child = new TextBlock { Text = L("AKTIV", "ACTIVE"), FontFamily = Display, FontWeight = FontWeights.ExtraBold, FontSize = 13, Foreground = R("Paper") },
+            Background = R("Magenta"), CornerRadius = new CornerRadius(3), Padding = new Thickness(8, 1, 8, 2),
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, RenderTransform = new RotateTransform(4), RenderTransformOrigin = new Point(0.5, 0.5),
+        };
 
         void Select(Preset p)
         {
             if (p == selected) return;
-            if (busy) { tiles[selected.Id].IsChecked = true; return; }
+            if (busy) { screens[selected.Id].rb.IsChecked = true; return; }
             selected = p;
-            foreach (var kv in tiles)
+            foreach (var kv in screens)
             {
                 bool on = kv.Key == p.Id;
-                var rb = kv.Value;
-                Anim((TranslateTransform)rb.RenderTransform, TranslateTransform.YProperty, on ? -6 : 0, on ? 520 : 300, on ? (IEasingFunction)new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.5 } : OutSoft);
-                Anim(rb, OpacityProperty, on ? 1 : 0.86, 220, OutSoft);
-                if (rb.Effect is DropShadowEffect sh) Anim(sh, DropShadowEffect.OpacityProperty, on ? 0.35 : 0, 300, OutSoft);
+                var (rb, lift) = kv.Value;
+                Anim(lift, TranslateTransform.YProperty, on ? -5 : 0, on ? 480 : 260, on ? (IEasingFunction)new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.6 } : OutSoft);
+                if (rb.Effect is DropShadowEffect sh) Anim(sh, DropShadowEffect.OpacityProperty, on ? 0.28 : 0.08, 260, OutSoft);
                 if (on && rb.IsChecked != true) rb.IsChecked = true;
             }
-            BuildDetail(false);
-            ShowPreview(p, curtain: true);
+            BuildTicket(false);
+            ShowPrint(p, pull: true);
         }
 
         void OnKey(object sender, KeyEventArgs e)
@@ -205,80 +229,132 @@ namespace WinMorph
         }
 
         // =====================================================================
-        // the stage and its curtain
+        // the proof sheet and the squeegee
         // =====================================================================
-        Image stageImg;
-        ScaleTransform curtainL, curtainR;
-        Grid stageLoading;
+        Image printOld, printNew;
+        Grid printArea, blade;
+        Rectangle wash;
+        TranslateTransform bladeMove, washMove;
+        RectangleGeometry reveal;
+        TextBlock sheetCaption, sheetLoading;
+        StackPanel colorBar;
+        bool pulling;
 
-        void BuildStage()
+        void BuildSheet()
         {
-            var inner = StageInner;
-            inner.Children.Clear();
-            var clip = new Grid { ClipToBounds = true };
-            inner.SizeChanged += (s, e) => clip.Clip = new RectangleGeometry(new Rect(0, 0, inner.ActualWidth, inner.ActualHeight), 10, 10);
-            stageImg = new Image { Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            RenderOptions.SetBitmapScalingMode(stageImg, BitmapScalingMode.HighQuality);
-            clip.Children.Add(new Border { Background = B(0x1C1D22) });
-            clip.Children.Add(stageImg);
-            stageLoading = new Grid { Visibility = Visibility.Collapsed };
-            stageLoading.Children.Add(new TextBlock { Text = L("Bühne wird gebaut …", "Setting the stage …"), Foreground = B(0xFFFFFF, 170), FontSize = 14, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
-            clip.Children.Add(stageLoading);
-
-            // the curtain: two velvet halves that gather to the sides, a valance with a gold edge
-            var curtain = new Grid { IsHitTestVisible = false };
-            curtain.ColumnDefinitions.Add(new ColumnDefinition()); curtain.ColumnDefinitions.Add(new ColumnDefinition());
-            curtainL = new ScaleTransform(1, 1); curtainR = new ScaleTransform(1, 1);
-            curtain.Children.Add(new Rectangle { Fill = Velvet(), RenderTransformOrigin = new Point(0, 0), RenderTransform = curtainL, Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 0, Opacity = 0.5 } });
-            var right = new Rectangle { Fill = Velvet(), RenderTransformOrigin = new Point(1, 0), RenderTransform = curtainR, Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 0, Opacity = 0.5 } };
-            Grid.SetColumn(right, 1);
-            curtain.Children.Add(right);
-            clip.Children.Add(curtain);
-            var valance = new Grid { Height = 26, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false };
-            valance.Children.Add(new Border { Background = Velvet(dark: true) });
-            valance.Children.Add(new Border { Height = 2.5, VerticalAlignment = VerticalAlignment.Bottom, Background = new LinearGradientBrush(C(0xC99A3A), C(0xF2D27A), 0) { SpreadMethod = GradientSpreadMethod.Reflect, EndPoint = new Point(0.05, 0) } });
-            clip.Children.Add(valance);
-            inner.Children.Add(clip);
-        }
-
-        /// <summary>Velvet with vertical folds: a repeating light-dark gradient.</summary>
-        static Brush Velvet(bool dark = false)
-        {
-            var folds = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0.09, 0), SpreadMethod = GradientSpreadMethod.Repeat };
-            uint a = dark ? 0x5A0820u : 0x7A0C2Fu, b = dark ? 0x86112Fu : 0xB01A47u, c = dark ? 0x4A061Au : 0x630925u;
-            folds.GradientStops.Add(new GradientStop(C(a), 0)); folds.GradientStops.Add(new GradientStop(C(b), 0.35));
-            folds.GradientStops.Add(new GradientStop(C(a), 0.7)); folds.GradientStops.Add(new GradientStop(C(c), 1));
-            folds.Freeze();
-            return folds;
-        }
-
-        int stageVersion;
-
-        /// <summary>Shows the look on the stage. With curtain: it gathers in, the scenery changes, it opens again.</summary>
-        void ShowPreview(Preset p, bool curtain, bool entrance = false)
-        {
-            int v = ++stageVersion;
-            void Swap()
+            SheetHost.Children.Clear();
+            // the sheet: white paper with crop marks and registration targets around the printed area
+            var sheet = new Border
             {
-                if (v != stageVersion) return;
-                var img = PreviewOf(p);
-                if (img != null) stageImg.Source = img;
-                stageLoading.Visibility = img == null ? Visibility.Visible : Visibility.Collapsed;
-                Open(entrance ? 280 : 60);
+                Background = R("Paper"), Margin = new Thickness(18, 16, 18, 16), Padding = new Thickness(8, 6, 8, 14), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                Effect = new DropShadowEffect { BlurRadius = 26, ShadowDepth = 6, Direction = 270, Opacity = 0.14, Color = C(0x16171B) },
+            };
+            var dock = new DockPanel();
+            var foot = new DockPanel { Margin = new Thickness(38, 0, 38, 0) };
+            sheetCaption = new TextBlock { FontFamily = Mono, FontSize = 11.5, Foreground = R("Faint"), VerticalAlignment = VerticalAlignment.Center };
+            colorBar = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(colorBar, Dock.Right);
+            foot.Children.Add(colorBar); foot.Children.Add(sheetCaption);
+            DockPanel.SetDock(foot, Dock.Bottom);
+            dock.Children.Add(foot);
+
+            printArea = new Grid { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, ClipToBounds = true, Width = 640, Height = 360 };
+            printOld = new Image { Stretch = Stretch.Uniform };
+            printNew = new Image { Stretch = Stretch.Uniform };
+            RenderOptions.SetBitmapScalingMode(printOld, BitmapScalingMode.HighQuality);
+            RenderOptions.SetBitmapScalingMode(printNew, BitmapScalingMode.HighQuality);
+            reveal = new RectangleGeometry(new Rect(0, 0, 0, 0));
+            printNew.Clip = reveal;
+            printArea.Children.Add(new Border { Background = B(0xF1F2F5) });
+            printArea.Children.Add(printOld);
+            printArea.Children.Add(printNew);
+            // fresh ink right behind the blade, and the blade itself (rubber in an aluminium holder)
+            wash = new Rectangle { Height = 90, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false, Opacity = 0 };
+            washMove = new TranslateTransform(); wash.RenderTransform = washMove;
+            printArea.Children.Add(wash);
+            blade = new Grid { Height = 26, VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false, Opacity = 0 };
+            blade.Children.Add(new Border { Height = 16, VerticalAlignment = VerticalAlignment.Top, CornerRadius = new CornerRadius(3), Background = new LinearGradientBrush(new GradientStopCollection { new GradientStop(C(0xE9ECF1), 0), new GradientStop(C(0xA7ADB7), 0.6), new GradientStop(C(0x80868F), 1) }, 90) });
+            blade.Children.Add(new Border { Height = 10, VerticalAlignment = VerticalAlignment.Bottom, CornerRadius = new CornerRadius(0, 0, 2, 2), Background = new LinearGradientBrush(C(0x2B2C31), C(0x101114), 90) });
+            blade.Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 5, Direction = 270, Opacity = 0.35 };
+            bladeMove = new TranslateTransform(); blade.RenderTransform = bladeMove;
+            printArea.Children.Add(blade);
+            sheetLoading = new TextBlock { Text = L("Druckvorlage wird belichtet …", "Exposing the screen …"), FontSize = 14, Foreground = R("Faint"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            printArea.Children.Add(sheetLoading);
+
+            // crop marks and registration targets hug the printed area (in a 30 px margin around it)
+            const double M = 30;
+            printArea.Margin = new Thickness(M);
+            var marks = new Grid { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            marks.Children.Add(printArea);
+            var mag = C(0xD6006F);
+            foreach (var (h, v) in new[] { (HorizontalAlignment.Left, VerticalAlignment.Top), (HorizontalAlignment.Right, VerticalAlignment.Top), (HorizontalAlignment.Left, VerticalAlignment.Bottom), (HorizontalAlignment.Right, VerticalAlignment.Bottom) })
+            {
+                bool l = h == HorizontalAlignment.Left, t = v == VerticalAlignment.Top;
+                // a horizontal and a vertical hairline in line with the edges, stopping short of the print
+                marks.Children.Add(new Rectangle { Width = 18, Height = 1, Fill = R("Ink"), HorizontalAlignment = h, VerticalAlignment = v, Margin = new Thickness(l ? 4 : 0, t ? M : 0, l ? 0 : 4, t ? 0 : M), IsHitTestVisible = false });
+                marks.Children.Add(new Rectangle { Width = 1, Height = 18, Fill = R("Ink"), HorizontalAlignment = h, VerticalAlignment = v, Margin = new Thickness(l ? M : 0, t ? 4 : 0, l ? 0 : M, t ? 0 : 4), IsHitTestVisible = false });
             }
-            if (!curtain && !entrance) { stageImg.Source = PreviewOf(p) ?? stageImg.Source; return; }
-            if (entrance) { curtainL.ScaleX = curtainR.ScaleX = 1; Dispatcher.BeginInvoke(new Action(Swap), DispatcherPriority.Background); return; }
-            // close (quick, accelerating), then the change happens behind the curtain
-            Anim(curtainL, ScaleTransform.ScaleXProperty, 1, 260, In);
-            Anim(curtainR, ScaleTransform.ScaleXProperty, 1, 260, In, done: () => Dispatcher.BeginInvoke(new Action(Swap), DispatcherPriority.Background));
+            var top = RegMark(20, mag); top.VerticalAlignment = VerticalAlignment.Top; top.Margin = new Thickness(0, 4, 0, 0);
+            var left = RegMark(20, mag); left.HorizontalAlignment = HorizontalAlignment.Left; left.Margin = new Thickness(4, 0, 0, 0);
+            var right = RegMark(20, mag); right.HorizontalAlignment = HorizontalAlignment.Right; right.Margin = new Thickness(0, 0, 4, 0);
+            marks.Children.Add(top); marks.Children.Add(left); marks.Children.Add(right);
+            dock.Children.Add(marks);
+            sheet.Child = dock;
+            SheetHost.Children.Add(sheet);
+            SheetHost.SizeChanged += (s, e) => FitPrint();
         }
 
-        void Open(double delay)
+        /// <summary>The printed area keeps 16:9 and fills the sheet as far as the table allows.</summary>
+        void FitPrint()
         {
-            // opening is heavy and decisive: velvet gathers to the sides and settles
-            var ease = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 6 };
-            Anim(curtainL, ScaleTransform.ScaleXProperty, 0.07, 900, ease, delay: delay);
-            Anim(curtainR, ScaleTransform.ScaleXProperty, 0.07, 900, ease, delay: delay + 40);
+            double w = SheetHost.ActualWidth - 36 - 16 - 60 - 4, h = SheetHost.ActualHeight - 32 - 20 - 60 - 18 - 4;
+            if (w <= 0 || h <= 0) return;
+            double k = Math.Min(w / 16, h / 9);
+            printArea.Width = Math.Floor(16 * k); printArea.Height = Math.Floor(9 * k);
+            if (!pulling) { reveal.BeginAnimation(RectangleGeometry.RectProperty, null); reveal.Rect = new Rect(0, 0, printArea.Width, printArea.Height); }
+        }
+
+        int printVersion;
+
+        /// <summary>Shows the look on the sheet. With a pull: the squeegee crosses the sheet and the new print appears behind it.</summary>
+        void ShowPrint(Preset p, bool pull, bool entrance = false)
+        {
+            int v = ++printVersion;
+            var inks = Inks(p);
+            sheetCaption.Text = L("ANDRUCK", "PROOF") + "  ·  " + p.Name.ToUpperInvariant() + "  ·  " + (Presets.All.IndexOf(p) + 1) + "/" + Presets.All.Count;
+            colorBar.Children.Clear();
+            foreach (var ink in inks.Concat(new[] { C(0xD6006F), C(0xFFC21A), C(0x16171B) }))
+                colorBar.Children.Add(new Border { Width = 14, Height = 10, Background = B(ink), Margin = new Thickness(2, 0, 0, 0), BorderBrush = B(0xDEE1E7), BorderThickness = new Thickness(ink.R + ink.G + ink.B > 660 ? 1 : 0) });
+            void Go()
+            {
+                if (v != printVersion) return;
+                var img = PreviewOf(p);
+                sheetLoading.Visibility = img == null ? Visibility.Visible : Visibility.Collapsed;
+                if (!pull || Calm || img == null) { printOld.Source = img; printNew.Source = null; return; }
+                printNew.Source = img;
+                double w = printArea.Width, h = printArea.Height;
+                var dur = TimeSpan.FromMilliseconds(entrance ? 900 : 620);
+                var begin = TimeSpan.FromMilliseconds(entrance ? 240 : 0);
+                wash.Fill = new LinearGradientBrush(new GradientStopCollection { new GradientStop(A(inks[0], 0), 0), new GradientStop(A(inks[0], 110), 0.72), new GradientStop(A(inks[1], 170), 1) }, 90);
+                pulling = true;
+                var r = new RectAnimation(new Rect(0, 0, w, 0), new Rect(0, 0, w, h), dur) { EasingFunction = Pull, BeginTime = begin };
+                r.Completed += (s, e) =>
+                {
+                    if (v != printVersion) return;
+                    pulling = false;
+                    printOld.Source = printNew.Source; printNew.Source = null;
+                    reveal.BeginAnimation(RectangleGeometry.RectProperty, null); reveal.Rect = new Rect(0, 0, printArea.Width, printArea.Height);
+                    Anim(blade, OpacityProperty, 0, 180, In);
+                    Anim(wash, OpacityProperty, 0, 260, In);
+                };
+                reveal.BeginAnimation(RectangleGeometry.RectProperty, r);
+                bladeMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-26, h, dur) { EasingFunction = Pull, BeginTime = begin });
+                washMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(-26 - 90, h - 90, dur) { EasingFunction = Pull, BeginTime = begin });
+                blade.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(80)) { BeginTime = begin });
+                wash.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(120)) { BeginTime = begin });
+            }
+            // the preview may take a moment the first time: draw after the click has painted
+            Dispatcher.BeginInvoke(new Action(Go), entrance ? DispatcherPriority.Background : DispatcherPriority.Input);
         }
 
         // ---- preview pictures: drawn once, kept on disk for a day ----
@@ -318,7 +394,7 @@ namespace WinMorph
         {
             var c = Hacker;
             string variant = p.Id == "terminal" ? c.R.ToString("X2") + c.G.ToString("X2") + c.B.ToString("X2") : "";
-            return System.IO.Path.Combine(PreviewDir, p.Id + "-stage-" + (De ? "de" : "en") + "-" + variant + "-" + Updater.Version + ".png");
+            return System.IO.Path.Combine(PreviewDir, p.Id + "-print-" + (De ? "de" : "en") + "-" + variant + "-" + Updater.Version + ".png");
         }
 
         static BitmapSource LoadPreview(string file)
@@ -335,112 +411,147 @@ namespace WinMorph
         }
 
         // =====================================================================
-        // detail card: name, what is applied (the cue list), the action
+        // the job ticket: what the look prints, pass by pass, and the action
         // =====================================================================
-        readonly List<(Ellipse dot, ScaleTransform pop, string step)> cues = new List<(Ellipse, ScaleTransform, string)>();
+        sealed class Pass
+        {
+            public string Step;
+            public Border Fill;
+            public ScaleTransform FillScale;
+            public TextBlock State;
+            public Path Check;
+        }
+        readonly List<Pass> passes = new List<Pass>();
         Button applyBtn;
         TextBlock applyText, status;
+        Border applyFill;
+        ScaleTransform applyScale;
 
-        static (string step, string de, string en, string subDe, string subEn)[] Parts(Preset p)
+        /// <summary>The passes of a look: desktop, lock screen, then everything the design shell draws.</summary>
+        static (string step, string de, string en, string subDe, string subEn)[] Passes(Preset p)
         {
             switch (p.Id)
             {
                 case "win7": return new[]
                 {
-                    ("shell", "Taskleiste & Startmenü", "Taskbar & Start menu", "Glasleiste mit Startkugel, zweispaltiges Startmenü mit Suche", "Glass bar with start orb, two-column Start menu with search"),
-                    ("shell", "Alt+Tab", "Alt+Tab", "Aero-Glas mit Live-Vorschau aller Fenster", "Aero glass with live previews of every window"),
-                    ("shell", "Fensterrahmen", "Window frames", "Blaue Glas-Titelleisten", "Blue glass title bars"),
                     ("desktop", "Desktop", "Desktop", "Aero-Hintergrund mit Lichtbändern", "Aero wallpaper with light ribbons"),
-                    ("lock", "Sperrbildschirm", "Lock screen", "Aero-Anmeldung, auch bei Win+L", "Aero sign-in, also on Win+L"),
+                    ("lock", "Sperrbildschirm", "Lock screen", "Aero-Anmeldung mit Kennwortfeld, auch bei Win+L", "Aero sign-in with password box, also on Win+L"),
+                    ("shell", "Taskleiste, Startmenü, Alt+Tab", "Taskbar, Start menu, Alt+Tab", "Glasleiste mit Startkugel, Aero-Alt+Tab mit Live-Vorschau, blaue Titelleisten", "Glass bar with start orb, Aero Alt+Tab with live previews, blue title bars"),
+                    ("shell", "Explorer, Task-Manager, Ausführen", "Explorer, Task Manager, Run", "Im Windows-7-Stil auf Win+E, Strg+Umschalt+Esc und Win+R; Aero-Mauszeiger", "Windows 7 style on Win+E, Ctrl+Shift+Esc and Win+R; Aero pointers"),
                 };
                 case "zen": return new[]
                 {
-                    ("shell", "Taskleiste & Startmenü", "Taskbar & Start menu", "Schwebende helle Leiste mit Fokus-Timer, Atemübung und Regen", "Floating light bar with focus timer, breathing and rain"),
-                    ("shell", "Alt+Tab", "Alt+Tab", "Shōji-Schiebetüren und Ema-Täfelchen", "Shoji sliding doors and ema plaques"),
-                    ("shell", "Fensterrahmen", "Window frames", "Warme Papier-Titelleisten", "Warm paper title bars"),
                     ("desktop", "Desktop", "Desktop", "Berglandschaft, Licht folgt der Tageszeit", "Mountain landscape lit by the time of day"),
-                    ("lock", "Sperrbildschirm", "Lock screen", "Stiller Sperrbildschirm mit Uhr", "Quiet lock screen with a clock"),
+                    ("lock", "Sperrbildschirm", "Lock screen", "Atemkreis; das Passwort legt sich als Tintensteine auf einen Pinselstrich", "Breathing circle; the password lies as ink stones on a brush stroke"),
+                    ("shell", "Leiste & Startmenü", "Bar & Start menu", "Schwebende helle Leiste mit Fokus-Timer, Atemübung und Regen; Startmenü als Hängerolle", "Floating light bar with focus timer, breathing and rain; Start menu as a hanging scroll"),
+                    ("shell", "Alt+Tab & Fenster", "Alt+Tab & windows", "Shōji-Schiebetüren mit dem Inhalt der App, Ema-Täfelchen, warme Papier-Titelleisten", "Shoji doors with the app's content, ema plaques, warm paper title bars"),
                 };
                 default: return new[]
                 {
-                    ("shell", "Statuszeile & Terminal", "Status line & terminal", "Netz, CPU, RAM, Akku, Uhr; Windows-Taste öffnet das Terminal", "Network, CPU, RAM, battery, clock; the Windows key opens the terminal"),
-                    ("shell", "Alt+Tab", "Alt+Tab", "Prozess-Tabelle mit PID, RAM und Live-Vorschau", "Process table with PID, memory and live preview"),
-                    ("shell", "Fensterrahmen", "Window frames", "Dunkle Rahmen in deiner Farbe", "Dark frames in your colour"),
                     ("desktop", "Desktop", "Desktop", "Live-Systeminfos neben deinen Symbolen", "Live system info next to your icons"),
-                    ("lock", "Sperrbildschirm", "Lock screen", "Terminal-Sperrbildschirm, auch bei Win+L", "Terminal lock screen, also on Win+L"),
+                    ("lock", "Sperrbildschirm", "Lock screen", "Terminal-Anmeldung im Code-Regen, auch bei Win+L", "Terminal sign-in in the code rain, also on Win+L"),
+                    ("shell", "Statuszeile, Terminal, Alt+Tab", "Status line, terminal, Alt+Tab", "Netz, CPU, RAM, Akku, Uhr; die Windows-Taste öffnet das Terminal; Prozess-Tabelle", "Network, CPU, RAM, battery, clock; the Windows key opens the terminal; process table"),
+                    ("shell", "Dateien, Task-Manager, Ausführen", "Files, task manager, run", "Eigene Terminal-Apps auf Win+E, Strg+Umschalt+Esc und Win+R; Mauszeiger in deiner Farbe", "Own terminal apps on Win+E, Ctrl+Shift+Esc and Win+R; pointers in your colour"),
                 };
             }
         }
 
-        void BuildDetail(bool entrance)
+        void BuildTicket(bool entrance)
         {
             var p = selected;
-            DetailHost.Children.Clear();
-            cues.Clear();
+            var inks = Inks(p);
+            TicketHost.Children.Clear();
+            passes.Clear();
+            var card = new Border { Background = R("Paper"), CornerRadius = new CornerRadius(14), BorderBrush = R("Rule"), BorderThickness = new Thickness(1.2), ClipToBounds = true };
             var dock = new DockPanel { LastChildFill = true };
 
-            // colour field header
-            var head = new Border { Background = Field(p), CornerRadius = new CornerRadius(19, 19, 0, 0), Padding = new Thickness(28, 22, 28, 20) };
+            // head: the look's ink field with the job number
+            var head = new Border { Background = Field(p), Padding = new Thickness(26, 18, 26, 18), CornerRadius = new CornerRadius(13, 13, 0, 0) };
             var hs = new StackPanel();
-            hs.Children.Add(new TextBlock { Text = p.Name.ToUpperInvariant(), FontFamily = (FontFamily)FindResource("Display"), FontWeight = FontWeights.ExtraBold, FontSize = 50, Foreground = B(OnField(p)), Margin = new Thickness(0, -6, 0, 0) });
-            hs.Children.Add(new TextBlock { Text = p.Tag(De), FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = B(OnField(p)), Opacity = 0.85 });
+            hs.Children.Add(new TextBlock { Text = L("AUFTRAG", "JOB") + "  Nº " + (Presets.All.IndexOf(p) + 1).ToString("00") + "  ·  " + L("3 DRUCKGÄNGE", "3 PASSES"), FontFamily = Mono, FontSize = 11.5, Foreground = B(A(OnField(p), 210)) });
+            hs.Children.Add(new TextBlock { Text = p.Name, FontFamily = Display, FontWeight = FontWeights.ExtraBold, FontSize = 46, Foreground = B(OnField(p)), Margin = new Thickness(0, 2, 0, 0) });
+            hs.Children.Add(new TextBlock { Text = p.Tag(De), FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = B(A(OnField(p), 225)) });
             head.Child = hs;
             DockPanel.SetDock(head, Dock.Top);
             dock.Children.Add(head);
+            // the perforation where the ticket was torn off the pad
+            var perf = new Rectangle { Height = 1.5, Stroke = R("Rule"), StrokeThickness = 1.5, StrokeDashArray = new DoubleCollection { 3, 3 } };
+            DockPanel.SetDock(perf, Dock.Top);
+            dock.Children.Add(perf);
 
-            // action area at the bottom
-            var foot = new StackPanel { Margin = new Thickness(28, 6, 28, 24) };
-            applyText = new TextBlock { FontSize = 15.5, FontWeight = FontWeights.SemiBold, Foreground = B(ActText(p)) };
-            applyBtn = new Button { Style = (Style)FindResource("Btn"), Background = B(Act(p)), Content = applyText, HorizontalAlignment = HorizontalAlignment.Stretch };
-            if (p.Id == "terminal") applyBtn.BorderBrush = B(Hacker);
-            applyBtn.Click += Apply_Click;
+            // foot: the action; while printing, the button itself fills like a progress bar
+            var foot = new StackPanel { Margin = new Thickness(26, 4, 26, 22) };
             bool active = Shell.ShellControl.CurrentPreset == p.Id;
-            applyText.Text = active ? L(p.Name + " neu anwenden", "Apply " + p.Name + " again") : L(p.Name + " anwenden", "Apply " + p.Name);
-            foot.Children.Add(applyBtn);
-            status = new TextBlock { FontSize = 13, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 12, 0, 0), LineHeight = 19 };
-            status.Text = L("Ändert keine Windows-Einstellungen. Unter „Änderungen“ lässt sich alles vollständig zurücksetzen.", "Changes no Windows settings. Everything can be fully reset under “Changes”.");
+            string idle = active ? L(p.Name + " neu anwenden", "Apply " + p.Name + " again") : L(p.Name + " anwenden", "Apply " + p.Name);
+            applyBtn = new Button { Style = (Style)FindResource("Btn"), HorizontalAlignment = HorizontalAlignment.Stretch };
+            AutomationProperties.SetName(applyBtn, idle);
+            applyBtn.Click += Apply_Click;
+            applyScale = new ScaleTransform(0, 1);
+            applyFill = new Border { Background = R("MagentaDeep"), CornerRadius = new CornerRadius(8), RenderTransform = applyScale, IsHitTestVisible = false };
+            applyText = new TextBlock { Text = idle, FontSize = 15.5, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
+            var btnHost = new Grid();
+            btnHost.Children.Add(applyBtn); btnHost.Children.Add(applyFill); btnHost.Children.Add(applyText);
+            foot.Children.Add(btnHost);
+            status = new TextBlock { FontSize = 13, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 11, 0, 0), LineHeight = 19 };
+            status.Text = L("Unter „Änderungen“ lässt sich alles vollständig zurücksetzen. Strg+Enter wendet an.", "Everything can be fully reset under “Changes”. Ctrl+Enter applies.");
             foot.Children.Add(status);
             DockPanel.SetDock(foot, Dock.Bottom);
             dock.Children.Add(foot);
 
-            // body: description, cue list, colour
-            var body = new StackPanel { Margin = new Thickness(28, 20, 28, 8) };
-            body.Children.Add(new TextBlock { Text = p.Desc(De), FontSize = 14, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, LineHeight = 21 });
-            body.Children.Add(new TextBlock { Text = L("WIRD ANGEWENDET", "WHAT IS APPLIED"), FontSize = 11.5, FontWeight = FontWeights.Bold, Foreground = R("Faint"), Margin = new Thickness(0, 20, 0, 10) });
-            foreach (var part in Parts(p))
+            // body: description and the passes
+            var body = new StackPanel { Margin = new Thickness(26, 16, 26, 8) };
+            body.Children.Add(new TextBlock { Text = p.Desc(De), FontSize = 13.5, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, LineHeight = 20 });
+            body.Children.Add(new TextBlock { Text = L("DRUCKGÄNGE", "PASSES"), FontFamily = Mono, FontSize = 11.5, Foreground = R("Faint"), Margin = new Thickness(0, 16, 0, 8) });
+            int k = 0;
+            foreach (var part in Passes(p))
             {
-                var row = new Grid { Margin = new Thickness(0, 0, 0, 11) };
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
+                var ink = p.Id == "terminal" ? (k == 0 ? Applier.Mix(Hacker, Colors.Black, 0.55) : Hacker) : inks[Math.Min(k, 2)];
+                bool pale = ink.R + ink.G + ink.B > 600;
+                var row = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
                 row.ColumnDefinitions.Add(new ColumnDefinition());
-                var pop = new ScaleTransform(1, 1);
-                var dot = new Ellipse { Width = 10, Height = 10, Fill = B(0xD5D7DD), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 5, 0, 0), RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = pop };
-                row.Children.Add(dot);
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                // the swatch: an ink square that fills from the bottom while its pass prints, then gets a check
+                var sw = new Border { Width = 22, Height = 22, CornerRadius = new CornerRadius(3), BorderBrush = B(pale ? C(0xB9AC98) : ink), BorderThickness = new Thickness(1.6), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 1, 0, 0), ClipToBounds = true, HorizontalAlignment = HorizontalAlignment.Left };
+                var fillScale = new ScaleTransform(1, 0.25);
+                var fill = new Border { Background = B(ink), RenderTransformOrigin = new Point(0.5, 1), RenderTransform = fillScale };
+                var check = new Path { Data = Geometry.Parse("M4,10 L8,14 L15,5"), Stroke = B(pale || ink.G > 200 ? C(0x16171B) : C(0xFFFFFF)), StrokeThickness = 2.2, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, StrokeDashArray = new DoubleCollection { 20, 20 }, StrokeDashOffset = 20, Width = 19, Height = 19, Opacity = 0 };
+                var swg = new Grid(); swg.Children.Add(fill); swg.Children.Add(check);
+                sw.Child = swg;
+                row.Children.Add(sw);
                 var t = new StackPanel();
-                t.Children.Add(new TextBlock { Text = De ? part.de : part.en, FontSize = 14, FontWeight = FontWeights.SemiBold });
-                t.Children.Add(new TextBlock { Text = De ? part.subDe : part.subEn, FontSize = 12.5, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 0) });
+                t.Children.Add(new TextBlock { Text = De ? part.de : part.en, FontSize = 14, FontWeight = FontWeights.Bold });
+                t.Children.Add(new TextBlock { Text = (De ? part.subDe : part.subEn).Replace("+", "\u2060+\u2060"), FontSize = 12.5, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1, 0, 0) });
                 Grid.SetColumn(t, 1);
                 row.Children.Add(t);
+                var state = new TextBlock { FontFamily = Mono, FontSize = 11.5, Foreground = R("Faint"), Margin = new Thickness(10, 3, 0, 0), VerticalAlignment = VerticalAlignment.Top };
+                Grid.SetColumn(state, 2);
+                row.Children.Add(state);
                 body.Children.Add(row);
-                cues.Add((dot, pop, part.step));
+                passes.Add(new Pass { Step = part.step, Fill = fill, FillScale = fillScale, State = state, Check = check });
+                k++;
             }
             if (p.Id == "terminal") body.Children.Add(ColorPicker());
             var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = body, Focusable = false };
             dock.Children.Add(scroll);
-            DetailHost.Children.Add(dock);
+            card.Child = dock;
+            TicketHost.Children.Add(card);
 
-            // the card re-composes: header colour first, then the text rises
-            var rise = new TranslateTransform(0, entrance ? 26 : 10);
+            // the ticket is laid down: the head settles first, then the body rises
+            var rise = new TranslateTransform(0, entrance ? 24 : 10);
             body.RenderTransform = rise; body.Opacity = 0;
-            Anim(rise, TranslateTransform.YProperty, 0, 520, Out, delay: entrance ? 240 : 40);
-            Anim(body, OpacityProperty, 1, 340, OutSoft, delay: entrance ? 240 : 40);
-            if (entrance) { var slide = new TranslateTransform(30, 0); DetailCard.RenderTransform = slide; DetailCard.Opacity = 0; Anim(slide, TranslateTransform.XProperty, 0, 700, Out, delay: 60); Anim(DetailCard, OpacityProperty, 1, 420, OutSoft, delay: 60); }
+            Anim(rise, TranslateTransform.YProperty, 0, 520, Out, delay: entrance ? 260 : 60);
+            Anim(body, OpacityProperty, 1, 340, OutSoft, delay: entrance ? 260 : 60);
+            var headIn = new TranslateTransform(0, -8); head.RenderTransform = headIn;
+            Anim(headIn, TranslateTransform.YProperty, 0, 420, Out);
+            if (entrance) { var slide = new TranslateTransform(28, 0); card.RenderTransform = slide; card.Opacity = 0; Anim(slide, TranslateTransform.XProperty, 0, 700, Out, delay: 80); Anim(card, OpacityProperty, 1, 420, OutSoft, delay: 80); }
             SetBusyUi(busy);
         }
 
         FrameworkElement ColorPicker()
         {
             var sp = new StackPanel();
-            sp.Children.Add(new TextBlock { Text = L("FARBE", "COLOUR"), FontSize = 11.5, FontWeight = FontWeights.Bold, Foreground = R("Faint"), Margin = new Thickness(0, 10, 0, 10) });
+            sp.Children.Add(new TextBlock { Text = L("DRUCKFARBE", "INK COLOUR"), FontFamily = Mono, FontSize = 11.5, Foreground = R("Faint"), Margin = new Thickness(0, 8, 0, 8) });
             var row = new WrapPanel();
             var cur = Hacker; bool known = false;
             foreach (var (de, en, rgb) in Shell.ShellThemes.HackerColors)
@@ -463,8 +574,9 @@ namespace WinMorph
         Button Swatch(Color c, string name, bool on)
         {
             var b = new Button { Width = 34, Height = 34, Margin = new Thickness(0, 0, 8, 8), Cursor = Cursors.Hand, ToolTip = name, FocusVisualStyle = (Style)FindResource("Focus") };
-            var ring = new Border { CornerRadius = new CornerRadius(17), BorderThickness = new Thickness(2.5), BorderBrush = on ? R("Ink") : Brushes.Transparent, Padding = new Thickness(3) };
-            ring.Child = new Border { CornerRadius = new CornerRadius(12), Background = new LinearGradientBrush(C(0x0B0F0C), c, 45) };
+            AutomationProperties.SetName(b, name);
+            var ring = new Border { CornerRadius = new CornerRadius(5), BorderThickness = new Thickness(2.5), BorderBrush = on ? R("Magenta") : Brushes.Transparent, Padding = new Thickness(3) };
+            ring.Child = new Border { CornerRadius = new CornerRadius(2), Background = new LinearGradientBrush(C(0x0B0F0C), c, 45) };
             b.Template = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) };
             b.Content = ring;
             b.Click += (s, e) => SetHackerColor(c);
@@ -477,57 +589,72 @@ namespace WinMorph
             if (c.R + c.G + c.B < 120) c = Applier.Mix(c, Colors.White, 0.35);   // too dark to read on black
             Shell.ShellThemes.HackerColor = c;
             previews.Remove("terminal");
-            BuildTiles(false);
-            BuildDetail(false);
-            ShowPreview(selected, curtain: true);
-            // active: the whole look follows the new colour at once (bar, frames, desktop, lock picture)
+            BuildScreens(false);
+            BuildTicket(false);
+            ShowPrint(selected, pull: true);
+            // active: the whole look follows the new colour at once (bar, frames, pointers, desktop, lock picture)
             if (Shell.ShellControl.CurrentPreset == "terminal") Apply_Click(null, null);
-            else status.Text = L("Farbe gespeichert.", "Colour saved.");
+            else status.Text = L("Druckfarbe gespeichert.", "Ink colour saved.");
         }
 
         // =====================================================================
-        // applying: the cue lights go on one after another
+        // applying: one pass after another, each with its own progress
         // =====================================================================
-        void Cue(string step)
+        static readonly string[] Order = { "reset", "desktop", "lock", "shell" };
+        static readonly Dictionary<string, (double weight, double expectMs)> Weights = new Dictionary<string, (double, double)>
         {
-            if (step == "reset") { status.Text = L("Vorherigen Look abbauen …", "Taking down the previous look …"); return; }
-            var order = new[] { "desktop", "lock", "shell" };
-            int at = Array.IndexOf(order, step);
-            foreach (var c in cues)
+            ["reset"] = (0.12, 600), ["desktop"] = (0.30, 1600), ["lock"] = (0.18, 900), ["shell"] = (0.40, 2600),
+        };
+        string currentStep;
+        Stopwatch stepClock;
+
+        static double DoneBefore(string step) => Order.TakeWhile(s => s != step).Sum(s => Weights[s].weight);
+
+        void Step(string step)
+        {
+            // the previous pass is printed: its swatch is full and checked, with its time
+            if (currentStep != null) FinishPass(currentStep, true);
+            currentStep = step;
+            stepClock = Stopwatch.StartNew();
+            var (w, expect) = Weights[step];
+            // the button fills towards 90 % of this pass in the time it usually takes, then waits for the real end
+            applyScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(DoneBefore(step) + w * 0.9, Ms(expect)) { EasingFunction = OutSoft });
+            foreach (var ps in passes.Where(x => x.Step == step))
             {
-                int my = Array.IndexOf(order, c.step);
-                if (my < at) Light(c, "done");
-                else if (my == at) Light(c, "active");
+                ps.FillScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.25, 0.9, Ms(expect)) { EasingFunction = OutSoft });
+                ps.State.Text = L("druckt", "printing");
+                ps.State.Foreground = R("Magenta");
             }
-            status.Text = step == "desktop" ? L("Desktop und Hintergrund …", "Desktop and wallpaper …") : step == "lock" ? L("Sperrbildschirm …", "Lock screen …") : L("Taskleiste, Startmenü und Alt+Tab starten …", "Starting taskbar, Start menu and Alt+Tab …");
+            string text;
+            switch (step)
+            {
+                case "reset": text = L("Vorherigen Look abbauen", "Taking down the previous look"); break;
+                case "desktop": text = L("Druckgang 1 von 3 · Desktop", "Pass 1 of 3 · desktop"); break;
+                case "lock": text = L("Druckgang 2 von 3 · Sperrbildschirm", "Pass 2 of 3 · lock screen"); break;
+                default: text = L("Druckgang 3 von 3 · Taskleiste, Alt+Tab, Apps", "Pass 3 of 3 · taskbar, Alt+Tab, apps"); break;
+            }
+            status.Text = text + " …";
         }
 
-        void Light((Ellipse dot, ScaleTransform pop, string step) c, string state)
+        void FinishPass(string step, bool ok)
         {
-            c.dot.BeginAnimation(OpacityProperty, null);
-            c.dot.Opacity = 1;
-            switch (state)
+            var secs = stepClock?.Elapsed.TotalSeconds ?? 0;
+            int i = 0;
+            foreach (var ps in passes.Where(x => x.Step == step))
             {
-                case "active":
-                    c.dot.Fill = R("Cue");
-                    if (!Calm) c.dot.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.35, TimeSpan.FromMilliseconds(420)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
-                    break;
-                case "done":
-                case "fail":
-                    c.dot.Fill = R(state == "done" ? "Go" : "Stop");
-                    var pop = new DoubleAnimation(1.7, 1, Ms(420)) { EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.8 } };
-                    c.pop.BeginAnimation(ScaleTransform.ScaleXProperty, pop); c.pop.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
-                    break;
-                default:
-                    c.dot.Fill = B(0xD5D7DD);
-                    break;
+                ps.FillScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, Ms(200)) { EasingFunction = Out });
+                ps.Check.Opacity = ok ? 1 : 0;
+                Anim(ps.Check, Shape.StrokeDashOffsetProperty, ok ? 0 : 20, 360, OutSoft, delay: 120 + i++ * 60);
+                ps.State.Text = ok ? secs.ToString("0.0", Ci) + " s" : L("Fehler", "error");
+                ps.State.Foreground = ok ? R("GoInk") : R("Stop");
+                if (!ok) ps.Fill.Background = R("Stop");
             }
         }
 
         void SetBusyUi(bool on)
         {
             if (applyBtn != null) applyBtn.IsEnabled = !on;
-            foreach (var t in tiles.Values) t.IsHitTestVisible = !on;
+            foreach (var t in screens.Values) t.rb.IsHitTestVisible = !on;
             TabChanges.IsEnabled = !on; TabLooks.IsEnabled = !on;
             LangDe.IsEnabled = LangEn.IsEnabled = !on;
         }
@@ -538,10 +665,19 @@ namespace WinMorph
             busy = true;
             SetBusyUi(true);
             var p = selected;
-            foreach (var c in cues) Light(c, "idle");
-            applyText.Text = L("Wird angewendet …", "Applying …");
-            status.Text = L("Bilder für den Look vorbereiten …", "Preparing the look's pictures …");
+            foreach (var ps in passes)
+            {
+                ps.FillScale.BeginAnimation(ScaleTransform.ScaleYProperty, null); ps.FillScale.ScaleY = 0.25;
+                ps.Check.BeginAnimation(Shape.StrokeDashOffsetProperty, null); ps.Check.StrokeDashOffset = 20; ps.Check.Opacity = 0;
+                ps.State.Text = L("wartet", "waiting"); ps.State.Foreground = R("Faint");
+            }
+            applyScale.BeginAnimation(ScaleTransform.ScaleXProperty, null); applyScale.ScaleX = 0;
+            applyFill.BeginAnimation(OpacityProperty, null); applyFill.Opacity = 1;
+            status.Text = L("Druckvorlagen für den Look vorbereiten …", "Preparing the look's screens …");
             var clock = Stopwatch.StartNew();
+            var ticker = new DispatcherTimer(TimeSpan.FromMilliseconds(100), DispatcherPriority.Background, (s, ev) => applyText.Text = L("Wird gedruckt …  ", "Printing …  ") + clock.Elapsed.TotalSeconds.ToString("0.0", Ci) + " s", Dispatcher);
+            applyText.Text = L("Wird gedruckt …", "Printing …");
+            currentStep = null;
             await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);   // let the button state paint first
             Applier ap = null;
             string error = null;
@@ -551,28 +687,31 @@ namespace WinMorph
                 var bk = new Backup(Backup.DefaultFile) { Mirror = Backup.NewStep() };
                 ap = new Applier(bk, De);
                 var applier = ap;
-                await Task.Run(() => applier.Apply(p, o, step => Dispatcher.BeginInvoke(new Action(() => Cue(step)))));
+                await Task.Run(() => applier.Apply(p, o, step => Dispatcher.BeginInvoke(new Action(() => { if (Weights.ContainsKey(step)) Step(step); }))));
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
                 await LockSetupOnce();
             }
             catch (Exception ex) { error = ex.Message; }
+            ticker.Stop();
             busy = false;
             bool ok = error == null && ap != null && ap.Problems.Count == 0;
-            // finale: the remaining lights go green one after another
-            int k = 0;
-            foreach (var c in cues)
-            {
-                var cc = c;
-                var tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(Calm ? 1 : 1 + k++ * 70) };
-                tm.Tick += (s2, e2) => { tm.Stop(); Light(cc, ok || cc.step != "shell" ? "done" : "fail"); };
-                tm.Start();
-            }
-            BuildTiles(false);
+            if (currentStep != null) FinishPass(currentStep, ok);
+            if (!ok)
+                foreach (var ps in passes.Where(x => Array.IndexOf(Order, x.Step) > Array.IndexOf(Order, currentStep ?? "reset")))
+                { ps.State.Text = L("nicht gedruckt", "not printed"); ps.State.Foreground = R("Stop"); }
+            currentStep = null;
+            applyScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, Ms(260)) { EasingFunction = Out });
+            Anim(applyFill, OpacityProperty, 0, 500, OutSoft, delay: 1200);
+            BuildScreens(false);
             if (selected == p)
             {
-                applyText.Text = L(p.Name + " neu anwenden", "Apply " + p.Name + " again");
+                applyText.Text = ok ? "✓  " + L(p.Name + " ist aktiv", p.Name + " is active") : L(p.Name + " erneut anwenden", "Apply " + p.Name + " again");
                 status.Text = error != null ? error
-                    : ok ? string.Format(L("{0} ist aktiv. Fertig in {1:0.0} s.", "{0} is active. Done in {1:0.0} s."), p.Name, clock.Elapsed.TotalSeconds)
+                    : ok ? string.Format(Ci, L("Gedruckt in {0:0.0} s. Bleibt auch nach einem Neustart.", "Printed in {0:0.0} s. Stays after a restart, too."), clock.Elapsed.TotalSeconds)
                     : L("Angewendet, mit Problemen: ", "Applied with problems: ") + string.Join(", ", ap.Problems.Take(3)) + (ap.Problems.Count > 3 ? " …" : "");
+                var back = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+                back.Tick += (s2, e2) => { back.Stop(); if (!busy && selected == p) applyText.Text = L(p.Name + " neu anwenden", "Apply " + p.Name + " again"); };
+                back.Start();
             }
             SetBusyUi(false);
             RefreshCount();
@@ -606,22 +745,10 @@ namespace WinMorph
             if (changes) BuildChanges();
             hide.Visibility = Visibility.Collapsed;
             show.Visibility = Visibility.Visible;
-            var slide = new TranslateTransform(changes ? 26 : -26, 0);
+            var slide = new TranslateTransform(changes ? 30 : -30, 0);
             show.RenderTransform = slide;
-            Anim(slide, TranslateTransform.XProperty, 0, 420, Out);
+            Anim(slide, TranslateTransform.XProperty, 0, 440, Out);
             Anim(show, OpacityProperty, 1, 280, OutSoft, from: 0);
-            MoveTabLine(true);
-        }
-
-        void MoveTabLine(bool anim)
-        {
-            var tab = TabChanges.IsChecked == true ? (FrameworkElement)TabChanges : TabLooks;
-            if (!tab.IsLoaded) return;
-            var x = tab.TransformToAncestor((Visual)TabLine.Parent).Transform(new Point(0, 0)).X + 4;
-            var tt = (TranslateTransform)TabLine.RenderTransform;
-            double w = Math.Max(10, tab.ActualWidth - 8);
-            if (anim) { Anim(tt, TranslateTransform.XProperty, x, 380, Out); Anim(TabLine, WidthProperty, w, 380, Out); }
-            else { tt.BeginAnimation(TranslateTransform.XProperty, null); TabLine.BeginAnimation(WidthProperty, null); tt.X = x; TabLine.Width = w; }
         }
 
         int lastCount = -1;
@@ -638,11 +765,10 @@ namespace WinMorph
                 st.BeginAnimation(ScaleTransform.ScaleXProperty, pop); st.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
             }
             lastCount = n;
-            Dispatcher.BeginInvoke(new Action(() => MoveTabLine(false)), DispatcherPriority.Loaded);
         }
 
         // =====================================================================
-        // changes: the cue sheet
+        // changes: the proof of everything WinMorph changed
         // =====================================================================
         RestoreResult lastRestore;
         bool lastWasUndo;
@@ -662,7 +788,7 @@ namespace WinMorph
             grid.RowDefinitions.Add(new RowDefinition());
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-            // header: title, summary, the two actions
+            // head: title, summary, the two actions
             var head = new DockPanel { Margin = new Thickness(0, 0, 0, 18) };
             var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             var undo = new Button { Style = (Style)FindResource("Outline"), Content = L("Letzten Schritt rückgängig", "Undo last step"), Margin = new Thickness(0, 0, 12, 0), IsEnabled = History.CanUndo };
@@ -670,13 +796,13 @@ namespace WinMorph
             var restore = new Button { Style = (Style)FindResource("Btn"), Height = 44, FontSize = 14, Content = L("Alles zurücksetzen", "Reset everything"), IsEnabled = anything };
             restore.Click += (s, e) => Confirm(
                 L("Alles auf das Original zurücksetzen?", "Reset everything to the original?"),
-                L("Taskleiste, Startmenü, Alt+Tab, Fensterrahmen, Hintergrund und Sperrbildschirm werden wieder wie vor WinMorph. Danach wird jeder Wert einzeln geprüft.", "Taskbar, Start menu, Alt+Tab, window frames, wallpaper and lock screen go back to how they were before WinMorph. Every value is checked afterwards."),
+                L("Taskleiste, Startmenü, Alt+Tab, Fensterrahmen, Mauszeiger, Hintergrund und Sperrbildschirm werden wieder wie vor WinMorph. Danach wird jeder Wert einzeln geprüft.", "Taskbar, Start menu, Alt+Tab, window frames, pointers, wallpaper and lock screen go back to how they were before WinMorph. Every value is checked afterwards."),
                 L("Zurücksetzen", "Reset"), async () => await RunRestore(undo: false));
             actions.Children.Add(undo); actions.Children.Add(restore);
             DockPanel.SetDock(actions, Dock.Right);
             head.Children.Add(actions);
             var ht = new StackPanel();
-            ht.Children.Add(new TextBlock { Text = L("ÄNDERUNGEN", "CHANGES"), FontFamily = (FontFamily)FindResource("Display"), FontWeight = FontWeights.ExtraBold, FontSize = 46, Margin = new Thickness(0, -6, 0, 0) });
+            ht.Children.Add(new TextBlock { Text = L("Änderungen", "Changes"), FontFamily = Display, FontWeight = FontWeights.ExtraBold, FontSize = 44, Margin = new Thickness(0, -6, 0, 0) });
             string sum = !anything ? L("Nichts geändert: Windows ist im Originalzustand.", "Nothing changed: Windows is in its original state.")
                 : active == 0 ? L("Alle Werte entsprechen dem Original.", "Every value matches the original.")
                 : string.Format(L("{0} Bereiche weichen vom Original ab", "{0} areas differ from the original"), active) + (b.Created != null ? string.Format(L(" · Original gesichert am {0:dd.MM.yyyy, HH:mm}", " · original saved on {0:yyyy-MM-dd, HH:mm}"), b.Created.Value) : "");
@@ -684,7 +810,6 @@ namespace WinMorph
             head.Children.Add(ht);
             grid.Children.Add(head);
 
-            // the proof after a rollback
             if (lastRestore != null)
             {
                 var banner = Banner(lastRestore, lastWasUndo);
@@ -692,13 +817,15 @@ namespace WinMorph
                 grid.Children.Add(banner);
             }
 
-            // the sheet
-            var sheet = new Border { Background = R("Paper"), CornerRadius = new CornerRadius(18), BorderBrush = R("Line"), BorderThickness = new Thickness(1), Padding = new Thickness(0, 6, 0, 6) };
+            // the proof sheet
+            var sheet = new Border { Background = R("Paper"), CornerRadius = new CornerRadius(12), BorderBrush = R("Rule"), BorderThickness = new Thickness(1.2), Padding = new Thickness(0, 4, 0, 4) };
             Grid.SetRow(sheet, 2);
             if (!anything && lastRestore == null)
             {
                 var empty = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-                empty.Children.Add(new TextBlock { Text = L("Noch kein Look angewendet.", "No look applied yet."), FontSize = 18, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center });
+                var mark = RegMark(46, C(0xD6006F), 2); mark.Margin = new Thickness(0, 0, 0, 14);
+                empty.Children.Add(mark);
+                empty.Children.Add(new TextBlock { Text = L("Noch kein Look gedruckt.", "No look printed yet."), FontSize = 18, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center });
                 empty.Children.Add(new TextBlock { Text = L("Sobald du einen Look anwendest, steht hier jede einzelne Änderung mit dem Originalwert.", "Once you apply a look, every single change is listed here with its original value."), FontSize = 14, Foreground = R("Sub"), Margin = new Thickness(0, 6, 0, 18), HorizontalAlignment = HorizontalAlignment.Center });
                 var go = new Button { Style = (Style)FindResource("Btn"), Height = 44, FontSize = 14, Content = L("Look auswählen", "Choose a look"), HorizontalAlignment = HorizontalAlignment.Center };
                 go.Click += (s, e) => TabLooks.IsChecked = true;
@@ -708,31 +835,31 @@ namespace WinMorph
             else
             {
                 var rows = new StackPanel();
-                rows.Children.Add(SheetRow("Q", L("BEREICH", "AREA"), L("VORHER (ORIGINAL)", "BEFORE (ORIGINAL)"), L("JETZT", "NOW"), null, true, null));
+                rows.Children.Add(SheetRow("Nº", L("BEREICH", "AREA"), L("VORHER (ORIGINAL)", "BEFORE (ORIGINAL)"), L("JETZT", "NOW"), null, true, null, 0));
                 int q = 1;
                 foreach (var c in list.OrderByDescending(x => x.Active))
                 {
-                    var row = SheetRow("Q" + q, c.Title, c.Before, c.Now, c.Active, false, c.Group);
+                    var row = SheetRow(q.ToString("00"), c.Title, c.Before, c.Now, c.Active, false, c.Group, q);
                     rows.Children.Add(row);
                     var rise = new TranslateTransform(0, 12);
                     row.RenderTransform = rise; row.Opacity = 0;
-                    Anim(rise, TranslateTransform.YProperty, 0, 460, Out, delay: 40 + q * 34);
-                    Anim(row, OpacityProperty, 1, 300, OutSoft, delay: 40 + q * 34);
+                    Anim(rise, TranslateTransform.YProperty, 0, 460, Out, delay: 40 + q * 32);
+                    Anim(row, OpacityProperty, 1, 300, OutSoft, delay: 40 + q * 32);
                     q++;
                 }
                 sheet.Child = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = rows, Focusable = false };
             }
             grid.Children.Add(sheet);
 
-            // footer: updates, version, website
+            // foot: updates, version, website
             var foot = new DockPanel { Margin = new Thickness(4, 16, 4, 0) };
             var auto = new CheckBox { Style = (Style)FindResource("Switch"), IsChecked = Updater.Auto, Content = new TextBlock { Text = L("Updates automatisch installieren", "Install updates automatically"), FontSize = 13, Foreground = R("Sub") } };
             auto.Click += (s, e) => Updater.Auto = auto.IsChecked == true;
             DockPanel.SetDock(auto, Dock.Left);
             foot.Children.Add(auto);
             var site = new TextBlock { FontSize = 13, Foreground = R("Sub"), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Cursor = Cursors.Hand, ToolTip = Updater.Site };
-            site.Inlines.Add(new System.Windows.Documents.Run("WinMorph " + Updater.Version + "   "));
-            site.Inlines.Add(new System.Windows.Documents.Run("Website ↗") { Foreground = R("Samt"), FontWeight = FontWeights.SemiBold });
+            site.Inlines.Add(new System.Windows.Documents.Run("WinMorph " + Updater.Version + "   ") { FontFamily = Mono });
+            site.Inlines.Add(new System.Windows.Documents.Run("Website ↗") { Foreground = R("Magenta"), FontWeight = FontWeights.Bold });
             site.MouseLeftButtonUp += (s, e) => OpenSite();
             foot.Children.Add(site);
             Grid.SetRow(foot, 3);
@@ -741,19 +868,19 @@ namespace WinMorph
             ChangesPage.Children.Add(grid);
         }
 
-        FrameworkElement SheetRow(string q, string title, string before, string now, bool? active, bool header, string group)
+        FrameworkElement SheetRow(string q, string title, string before, string now, bool? active, bool header, string group, int index)
         {
-            var g = new Grid { Margin = new Thickness(22, 0, 22, 0), MinHeight = header ? 38 : 52 };
+            var g = new Grid { Margin = new Thickness(22, 0, 22, 0), MinHeight = header ? 38 : 54 };
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(64) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.25, GridUnitType.Star) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(132) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
             TextBlock T(string s, int col, double size, bool mono = false, Brush fg = null, FontWeight? w = null)
             {
                 var t = new TextBlock { Text = s ?? "", FontSize = size, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 14, 0), Foreground = fg ?? R("Ink"), FontWeight = w ?? FontWeights.Normal };
                 if (!header && !string.IsNullOrEmpty(s)) t.ToolTip = s;
-                if (mono) t.FontFamily = (FontFamily)FindResource("Mono");
+                if (mono) t.FontFamily = Mono;
                 Grid.SetColumn(t, col);
                 g.Children.Add(t);
                 return t;
@@ -761,30 +888,46 @@ namespace WinMorph
             if (header)
             {
                 foreach (var (s, col) in new[] { (q, 0), (title, 1), (before, 2), (now, 3), ("STATUS", 4) })
-                    T(s, col, 11, false, R("Faint"), FontWeights.Bold);
-                return new Border { Child = g, BorderBrush = R("Line"), BorderThickness = new Thickness(0, 0, 0, 1) };
+                    T(s, col, 11, true, R("Faint"));
+                return new Border { Child = g, BorderBrush = R("Rule"), BorderThickness = new Thickness(0, 0, 0, 1) };
             }
             var chip = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            chip.Children.Add(new Border { Width = 4, Height = 22, CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 0, 10, 0), Background = GroupBrush(group) });
-            chip.Children.Add(new TextBlock { Text = q, FontFamily = (FontFamily)FindResource("Mono"), FontSize = 13, Foreground = R("Faint"), VerticalAlignment = VerticalAlignment.Center });
+            chip.Children.Add(new Border { Width = 12, Height = 12, Margin = new Thickness(0, 0, 10, 0), Background = GroupBrush(group) });
+            chip.Children.Add(new TextBlock { Text = q, FontFamily = Mono, FontSize = 13, Foreground = R("Faint"), VerticalAlignment = VerticalAlignment.Center });
             g.Children.Add(chip);
             T(title, 1, 14, false, null, FontWeights.SemiBold);
             T(before, 2, 13, true, R("Sub"));
             T(now, 3, 13, true, active == true ? R("Ink") : R("Sub"));
-            var pill = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3, 10, 4), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Background = active == true ? R("SamtSoft") : R("GoSoft") };
-            pill.Child = new TextBlock { Text = active == true ? L("● geändert", "● changed") : L("✓ Original", "✓ original"), FontSize = 12, FontWeight = FontWeights.Bold, Foreground = active == true ? R("Samt") : R("GoInk") };
-            Grid.SetColumn(pill, 4);
-            g.Children.Add(pill);
-            return new Border { Child = g, BorderBrush = R("Line"), BorderThickness = new Thickness(0, 0, 0, 1) };
+            // a rubber stamp: GEÄNDERT in magenta, ORIGINAL in green; it lands with a small thump
+            bool changed = active == true;
+            var stamp = new Border
+            {
+                CornerRadius = new CornerRadius(3), BorderThickness = new Thickness(2), Padding = new Thickness(8, 1, 8, 2), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center,
+                BorderBrush = changed ? R("Magenta") : R("Go"), Background = changed ? R("MagentaSoft") : R("GoSoft"), RenderTransformOrigin = new Point(0.5, 0.5),
+                Child = new TextBlock { Text = changed ? L("GEÄNDERT", "CHANGED") : "ORIGINAL", FontFamily = Display, FontWeight = FontWeights.ExtraBold, FontSize = 12.5, Foreground = changed ? R("Magenta") : R("GoInk") },
+            };
+            var sc = new ScaleTransform(1, 1);
+            stamp.RenderTransform = new TransformGroup { Children = { sc, new RotateTransform(index % 2 == 0 ? -3 : 2.5) } };
+            if (!Calm)
+            {
+                var at = TimeSpan.FromMilliseconds(180 + index * 40);
+                var thump = new DoubleAnimation(1.7, 1, TimeSpan.FromMilliseconds(380)) { EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.5 }, BeginTime = at };
+                sc.BeginAnimation(ScaleTransform.ScaleXProperty, thump); sc.BeginAnimation(ScaleTransform.ScaleYProperty, thump);
+                stamp.Opacity = 0;
+                stamp.BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(120)) { BeginTime = at });
+            }
+            Grid.SetColumn(stamp, 4);
+            g.Children.Add(stamp);
+            return new Border { Child = g, BorderBrush = R("Rule"), BorderThickness = new Thickness(0, 0, 0, 1) };
         }
 
         Brush GroupBrush(string group)
         {
             switch (group)
             {
-                case "shell": return R("Samt");
-                case "desktop": return B(0x1F6FD1);
-                case "lock": return B(0x5E8A2E);
+                case "shell": return R("Magenta");
+                case "desktop": return B(0x0A62C9);
+                case "lock": return B(0xFFC21A);
                 default: return B(0xA7AAB2);
             }
         }
@@ -793,10 +936,9 @@ namespace WinMorph
         {
             bool ok = undo ? r.Complete : r.Complete && r.Different == 0;
             var g = new Grid { Margin = new Thickness(0, 0, 0, 16) };
-            var card = new Border { CornerRadius = new CornerRadius(16), Padding = new Thickness(20, 16, 22, 16), Background = ok ? R("GoSoft") : B(0xFDE7E8), BorderBrush = ok ? R("Go") : R("Stop"), BorderThickness = new Thickness(1.5) };
+            var card = new Border { CornerRadius = new CornerRadius(12), Padding = new Thickness(20, 16, 22, 16), Background = ok ? R("GoSoft") : B(0xFDE7E8), BorderBrush = ok ? R("Go") : R("Stop"), BorderThickness = new Thickness(1.5) };
             var dock = new DockPanel();
-            // a check (or a cross) that draws itself
-            var mark = new System.Windows.Shapes.Path
+            var mark = new Path
             {
                 Data = Geometry.Parse(ok ? "M4,15 L11,22 L25,7" : "M6,6 L22,22 M22,6 L6,22"), Stroke = ok ? R("Go") : R("Stop"), StrokeThickness = 3.4, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round,
                 Width = 30, Height = 30, Margin = new Thickness(0, 0, 14, 0), VerticalAlignment = VerticalAlignment.Center, StrokeDashArray = new DoubleCollection { 14, 14 }, StrokeDashOffset = 14,
@@ -811,7 +953,7 @@ namespace WinMorph
             t.Children.Add(new TextBlock { Text = title, FontSize = 15.5, FontWeight = FontWeights.Bold, Foreground = ok ? R("GoInk") : R("Stop") });
             string sub = !ok ? string.Join(" · ", r.Problems.Take(4)) + " " + L("Das Backup bleibt erhalten, einfach erneut versuchen.", "The backup is kept, just try again.")
                 : undo ? string.Format(L("{0} Werte wiederhergestellt.", "{0} values restored."), r.Restored)
-                : string.Format(L("{0} Werte einzeln mit dem Original verglichen, alle gleich. Taskleiste sichtbar, Win+L wieder bei Windows.", "{0} values compared with the original one by one, all equal. Taskbar visible, Win+L back with Windows."), r.Checked);
+                : string.Format(L("{0} Werte einzeln mit dem Original verglichen, alle gleich. Taskleiste sichtbar, Mauszeiger und Win+L wieder von Windows.", "{0} values compared with the original one by one, all equal. Taskbar visible, pointers and Win+L back with Windows."), r.Checked);
             t.Children.Add(new TextBlock { Text = sub, FontSize = 13, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
             dock.Children.Add(t);
             card.Child = dock;
@@ -838,8 +980,8 @@ namespace WinMorph
             busy = false;
             SetBusyUi(false);
             selected = Presets.Find(Shell.ShellControl.CurrentPreset ?? "") ?? selected;
-            BuildTiles(false);
-            BuildDetail(false);
+            BuildScreens(false);
+            BuildTicket(false);
             BuildChanges();
             RefreshCount();
             Activate();
@@ -852,12 +994,13 @@ namespace WinMorph
         {
             Overlay.Children.Clear();
             Overlay.Opacity = 1;
-            var scrim = new Border { Background = B(0x15161A, 120), Opacity = 0 };
+            var scrim = new Border { Background = B(0x16171B, 120), Opacity = 0 };
             scrim.MouseLeftButtonUp += (s, e) => CloseDialog();
             Overlay.Children.Add(scrim);
-            var card = new Border { Background = R("Paper"), CornerRadius = new CornerRadius(20), Padding = new Thickness(30, 26, 30, 24), Width = 500, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Effect = new DropShadowEffect { BlurRadius = 50, ShadowDepth = 18, Direction = 270, Opacity = 0.3 } };
+            var card = new Border { Background = R("Paper"), CornerRadius = new CornerRadius(14), Padding = new Thickness(30, 26, 30, 24), Width = 500, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Effect = new DropShadowEffect { BlurRadius = 50, ShadowDepth = 18, Direction = 270, Opacity = 0.3 } };
             var sp = new StackPanel();
-            sp.Children.Add(new Border { Height = 5, Width = 54, CornerRadius = new CornerRadius(3), Background = R("Samt"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 16) });
+            var mark = RegMark(30, C(0xD6006F), 2); mark.HorizontalAlignment = HorizontalAlignment.Left; mark.Margin = new Thickness(0, 0, 0, 14);
+            sp.Children.Add(mark);
             sp.Children.Add(new TextBlock { Text = title, FontSize = 21, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap });
             sp.Children.Add(new TextBlock { Text = text, FontSize = 14, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, LineHeight = 21, Margin = new Thickness(0, 8, 0, 22) });
             var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
@@ -893,18 +1036,22 @@ namespace WinMorph
         {
             working = true;
             Overlay.Children.Clear();
-            Overlay.Children.Add(new Border { Background = B(0xF3F4F7, 215) });
-            var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            // three cue lights chase each other while it runs
-            var lights = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 16) };
-            for (int i = 0; i < 3; i++)
+            Overlay.Children.Add(new Border { Background = B(0xFFFFFF, 228) });
+            var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Width = 360 };
+            // the screen is washed out: a squeegee sweeps back and forth over a strip of fading ink
+            var strip = new Grid { Height = 44, ClipToBounds = true, Margin = new Thickness(0, 0, 0, 18) };
+            var ink = new Border { Background = new LinearGradientBrush(C(0xD6006F), C(0xFFC21A), 0), CornerRadius = new CornerRadius(4) };
+            strip.Children.Add(ink);
+            var sq = new Border { Width = 10, HorizontalAlignment = HorizontalAlignment.Left, CornerRadius = new CornerRadius(2), Background = new LinearGradientBrush(C(0x2B2C31), C(0x101114), 0), Effect = new DropShadowEffect { BlurRadius = 10, ShadowDepth = 3, Direction = 0, Opacity = 0.35 } };
+            var move = new TranslateTransform(); sq.RenderTransform = move;
+            strip.Children.Add(sq);
+            if (!Calm)
             {
-                var d = new Ellipse { Width = 14, Height = 14, Fill = R("Cue"), Margin = new Thickness(6, 0, 6, 0), Opacity = 0.25 };
-                d.BeginAnimation(OpacityProperty, new DoubleAnimation(0.25, 1, TimeSpan.FromMilliseconds(380)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, BeginTime = TimeSpan.FromMilliseconds(i * 190), EasingFunction = new SineEase() });
-                lights.Children.Add(d);
+                move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, 350, TimeSpan.FromMilliseconds(900)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = Pull });
+                ink.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0.35, TimeSpan.FromMilliseconds(1800)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
             }
-            sp.Children.Add(lights);
-            sp.Children.Add(new TextBlock { Text = text, FontSize = 16, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center });
+            sp.Children.Add(strip);
+            sp.Children.Add(new TextBlock { Text = text, FontSize = 16, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center });
             sp.Children.Add(new TextBlock { Text = L("Das dauert nur ein paar Sekunden.", "This only takes a few seconds."), FontSize = 13, Foreground = R("Sub"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 0) });
             Overlay.Children.Add(sp);
             Overlay.Visibility = Visibility.Visible;
@@ -1002,7 +1149,7 @@ namespace WinMorph
                 var hwnd = new WindowInteropHelper(this).Handle;
                 int off = 0;
                 Native.DwmSetWindowAttribute(hwnd, 20, ref off, 4);
-                int caption = 0x00FFFFFF;
+                int caption = 0x00F2EEEC;   // the print table colour (BGR)
                 Native.DwmSetWindowAttribute(hwnd, 35, ref caption, 4);
             }
             catch { }

@@ -193,7 +193,7 @@ namespace WinMorph.Shell
         }
 
         // ================= run (Win+R) =================
-        static string RunHistoryFile => System.IO.Path.Combine(Core.Backup.DataDir, "run-history.txt");
+        internal static string RunHistoryFile => System.IO.Path.Combine(Core.Backup.DataDir, "run-history.txt");
 
         void BuildRun()
         {

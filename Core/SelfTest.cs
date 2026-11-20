@@ -71,6 +71,11 @@ namespace WinMorph.Core
                 Applier.CaptureCurrent(step, b2);
                 Check(step.Has("REG\t" + key + "\tdw") && step.Has("KEY\t" + key + @"\NewKey"), "undo step captures the current values");
 
+                // hacker pointers: the generated .cur file loads as a real cursor (nothing is set system-wide here)
+                Check(WinMorph.Shell.CursorSkin.SelfCheck(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "winmorph-test.cur")), "generated mouse pointer loads");
+                // every look has its own start menu kind; Zen's is the hanging scroll
+                Check(WinMorph.Shell.ShellThemes.For("zen").Menu == WinMorph.Shell.MenuKind.Zen && WinMorph.Shell.ShellThemes.For("win7").Menu == WinMorph.Shell.MenuKind.Seven, "start menu per look");
+
                 // looks: exactly Windows 7, Zen and Hacker, each with its own bar, Alt+Tab and lock screen
                 Check(string.Join(",", Presets.All.ConvertAll(x => x.Id)) == "win7,zen,terminal", "three looks: win7, zen, terminal");
                 var themes = Presets.All.ConvertAll(x => WinMorph.Shell.ShellThemes.For(x.Id));

@@ -64,7 +64,8 @@ namespace WinMorph.Shell
             if (size.cx <= 0 || size.cy <= 0) return;
             // only the visible window: Windows 10/11 windows carry an invisible resize border around them
             double sl = 0, st = 0, sr = size.cx, sb = size.cy;
-            if (GetWindowRect(source, out var wr) && DwmGetWindowAttribute(source, 9 /* EXTENDED_FRAME_BOUNDS */, out var fb, 16) == 0 && wr.Right > wr.Left)
+            // (a minimised window sits as a tiny box far off screen; its picture is the last frame before it was minimised)
+            if (!IsIconic(source) && GetWindowRect(source, out var wr) && DwmGetWindowAttribute(source, 9 /* EXTENDED_FRAME_BOUNDS */, out var fb, 16) == 0 && wr.Right > wr.Left)
             {
                 double k0 = size.cx / (double)(wr.Right - wr.Left);
                 sl = Math.Max(0, (fb.Left - wr.Left) * k0); st = Math.Max(0, (fb.Top - wr.Top) * k0);
@@ -91,6 +92,7 @@ namespace WinMorph.Shell
         }
 
         [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out W32.RECT r);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
         [System.Runtime.InteropServices.DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int attr, out W32.RECT r, int size);
 
         public void Dispose()

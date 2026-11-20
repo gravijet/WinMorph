@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.IO;
 using System.Threading;
 using System.Windows;
@@ -94,6 +95,7 @@ namespace WinMorph.Shell
         static void GiveBackTaskbar()
         {
             Core.LockGuard.Disarm();
+            CursorSkin.Reset();   // the user's own mouse pointers again
             if (Core.Reg.Get(SettingsKey, OrigAutoHideValue) is int orig)
             {
                 Core.Applier.SetAutoHideRaw(orig == 1);
@@ -161,6 +163,47 @@ namespace WinMorph.Shell
         /// <summary>Ctrl+Alt+Shift+F12: stop the shell immediately, the normal taskbar comes back.</summary>
         public static void EmergencyStop() => emergency?.Invoke();
 
+        static volatile bool earlyDone;
+
+        /// <summary>
+        /// The very first thing the shell process does (before WPF draws anything): it remembers the JIT work of
+        /// earlier starts (multi-core JIT makes the next start faster) and keeps the Windows taskbar hidden
+        /// until the look's own bar is there. Only when a known look is set.
+        /// </summary>
+        public static void EarlyStart()
+        {
+            try
+            {
+                System.Runtime.ProfileOptimization.SetProfileRoot(Core.Backup.DataDir);
+                System.Runtime.ProfileOptimization.StartProfile("shell.jitprofile");
+            }
+            catch { }
+            if (ShellThemes.For(CurrentPreset ?? "") == null) return;
+            new Thread(() =>
+            {
+                var until = DateTime.UtcNow.AddSeconds(30);
+                while (!earlyDone && DateTime.UtcNow < until)
+                {
+                    try { HideNative(); } catch { }
+                    Thread.Sleep(40);
+                }
+            }) { IsBackground = true, Name = "WinMorph early taskbar" }.Start();
+        }
+
+        /// <summary>How long the look took to appear (process start → bar on screen), the last 20 starts.</summary>
+        static void LogStart()
+        {
+            try
+            {
+                var ms = (DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds;
+                var file = System.IO.Path.Combine(Core.Backup.DataDir, "shell-start.log");
+                var lines = System.IO.File.Exists(file) ? System.IO.File.ReadAllLines(file).ToList() : new System.Collections.Generic.List<string>();
+                lines.Add(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + Math.Round(ms) + " ms  uptime " + Math.Round(Environment.TickCount / 1000.0) + " s");
+                System.IO.File.WriteAllLines(file, lines.Skip(Math.Max(0, lines.Count - 20)));
+            }
+            catch { }
+        }
+
         public static void RunShell(Application app)
         {
             mutex = new Mutex(true, MutexName, out bool first);
@@ -170,7 +213,7 @@ namespace WinMorph.Shell
 
             var theme = ShellThemes.For(CurrentPreset ?? "");
             // a look of an older version (or none): nothing to draw, and the taskbar must not stay taken
-            if (theme == null) { GiveBackTaskbar(); app.Shutdown(0); return; }
+            if (theme == null) { earlyDone = true; GiveBackTaskbar(); app.Shutdown(0); return; }
 
             var exit = new EventWaitHandle(false, EventResetMode.AutoReset, ExitName);
             var switching = new EventWaitHandle(false, EventResetMode.ManualReset, SwitchName);
@@ -221,6 +264,8 @@ namespace WinMorph.Shell
             CustomLock.Closed += () => lockShown.Reset();
 
             host = new ShellHost(theme);
+            earlyDone = true;   // the host keeps the taskbar hidden from here on
+            LogStart();
             // after a restart the shell brings the look's live desktop along (its own Run entry may come later or be off)
             if (!string.IsNullOrEmpty(Live.LiveWall.Spec) && !Live.LiveWall.IsRunning) Live.LiveWall.Start();
             System.Threading.Tasks.Task.Run(() => { try { Core.Applier.InstallLockSaver(); } catch { } });

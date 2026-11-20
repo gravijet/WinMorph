@@ -25,14 +25,12 @@ namespace WinMorph.Shell
         static bool De => Core.Loc.De;
         static string L(string de, string en) => De ? de : en;
 
-        /// <summary>The animated background for the lock screen (the live wallpaper, or Matrix for the hacker look).</summary>
-        static string LiveSpec(Core.Preset p)
-        {
-            var spec = Live.LiveWall.Spec;
-            if (spec == "scene:matrix-hud") return "scene:matrix";   // the lock screen has its own clock and status
-            if (!string.IsNullOrEmpty(spec)) return spec;
-            return p.Id == "terminal" ? "scene:matrix" : null;
-        }
+        /// <summary>
+        /// The animated background of a look's lock screen: digital rain for the hacker look. The others use
+        /// their still wallpaper (their live desktops carry a clock of their own, the lock screen has one).
+        /// Always the look's own, never whatever live desktop happens to run.
+        /// </summary>
+        static string LiveSpec(Core.Preset p) => p.Id == "terminal" ? "scene:matrix" : null;
 
         static bool lockOnExit, closing;
 
@@ -115,6 +113,17 @@ namespace WinMorph.Shell
             Tick(() => time.Text = DateTime.Now.ToString(term ? "HH:mm:ss" : "HH:mm"));
             g.Children.Add(time);
             return g;
+        }
+
+        /// <summary>A short "no" shake: a few swings that settle.</summary>
+        static void Shake(UIElement el, double amp = 12)
+        {
+            var tt = el.RenderTransform as TranslateTransform ?? new TranslateTransform();
+            el.RenderTransform = tt;
+            var shake = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(380) };
+            foreach (var (ms, k) in new[] { (0, 0.0), (60, -1.0), (125, 0.85), (190, -0.6), (255, 0.35), (320, -0.15), (380, 0.0) })
+                shake.KeyFrames.Add(new EasingDoubleKeyFrame(k * amp, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(ms)), new SineEase()));
+            tt.BeginAnimation(TranslateTransform.XProperty, shake);
         }
 
         static string StatusLine()
@@ -224,7 +233,7 @@ namespace WinMorph.Shell
         static UIElement Build(ShellTheme t, Core.Preset p, ImageSource wall, string live = null, bool still = false, LockAuth auth = null)
         {
             var root = BuildDesign(t, p, wall, live, still, auth);
-            if (auth != null && auth.Prompt == null && root is Grid g)
+            if (auth != null && auth.Prompt == null && auth.Render == null && root is Grid g)
             {
                 // looks without their own password line get a simple one at the bottom
                 auth.Terminal = false; auth.Accent = t.Accent;
@@ -250,21 +259,92 @@ namespace WinMorph.Shell
                 case LockKind.Seven:
                 {
                     root.Children.Add(bg);
-                    var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                    var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 0, 40) };
                     var frame = new Border { Width = 150, Height = 150, CornerRadius = new CornerRadius(10), Background = V((0, C(0xFFFFFF, 140)), (1, C(0xFFFFFF, 60))), BorderBrush = B(0xFFFFFF, 200), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Center, Padding = new Thickness(9), Effect = new DropShadowEffect { BlurRadius = 20, ShadowDepth = 2, Opacity = 0.5 } };
                     frame.Child = Avatar(130, t.Accent, Core.Applier.Mix(t.Accent, Colors.Black, 0.4), 4);
                     sp.Children.Add(frame);
-                    sp.Children.Add(Text(ShellActions.UserName, 26, C(0xFFFFFF)));
-                    ((TextBlock)sp.Children[1]).Margin = new Thickness(0, 14, 0, 2);
-                    ((TextBlock)sp.Children[1]).Effect = new DropShadowEffect { BlurRadius = 6, ShadowDepth = 1, Opacity = 0.7 };
-                    sp.Children.Add(Text(L("Gesperrt", "Locked"), 15, C(0xFFFFFF, 210)));
-                    var clock = Text("", 14, C(0xFFFFFF, 200));
-                    Tick(() => clock.Text = DateTime.Now.ToString("HH:mm") + " · " + hint);
-                    sp.Children.Add(clock);
+                    var name = Text(ShellActions.UserName, 26, C(0xFFFFFF));
+                    name.Margin = new Thickness(0, 14, 0, 4);
+                    name.Effect = new DropShadowEffect { BlurRadius = 6, ShadowDepth = 1, Opacity = 0.7 };
+                    sp.Children.Add(name);
+                    var state = Text(L("Gesperrt", "Locked"), 15, C(0xFFFFFF, 220));
+                    state.Effect = new DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.6 };
+                    sp.Children.Add(state);
+
+                    // the Windows 7 sign-in line: white password box and the round blue arrow
+                    var pwText = new TextBlock { FontSize = 13, Foreground = B(0x1E1E1E), VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Segoe UI") };
+                    var placeholder = new TextBlock { Text = L("Kennwort", "Password"), FontSize = 13, FontStyle = FontStyles.Italic, Foreground = B(0x8D8D8D), VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Segoe UI") };
+                    var fieldGrid = new Grid();
+                    fieldGrid.Children.Add(placeholder); fieldGrid.Children.Add(pwText);
+                    var field = new Border
+                    {
+                        Width = 226, Height = 28, CornerRadius = new CornerRadius(2), Padding = new Thickness(7, 0, 7, 0), Child = fieldGrid,
+                        Background = V((0, C(0xFFFFFF)), (1, C(0xF4F7FB))), BorderBrush = B(0x5F7FA6), BorderThickness = new Thickness(1),
+                        Effect = new DropShadowEffect { BlurRadius = 6, ShadowDepth = 0, Color = C(0xBFE3FF), Opacity = 0.9 },
+                    };
+                    var arrowGlyph = new TextBlock { Text = "", FontFamily = new FontFamily(IconFont), FontSize = 13, Foreground = B(0xFFFFFF), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                    var arrow = new Grid { Width = 30, Height = 30, Margin = new Thickness(8, 0, 0, 0) };
+                    arrow.Children.Add(new System.Windows.Shapes.Ellipse { Fill = new RadialGradientBrush(C(0x6FB5F2), C(0x1E5BAA)) { GradientOrigin = new Point(0.5, 0.25), Center = new Point(0.5, 0.4), RadiusX = 0.7, RadiusY = 0.7 }, Stroke = B(0x0E3A75), StrokeThickness = 1 });
+                    arrow.Children.Add(new System.Windows.Shapes.Ellipse { Margin = new Thickness(4, 2, 4, 14), Fill = V((0, C(0xFFFFFF, 150)), (1, C(0xFFFFFF, 10))) });
+                    arrow.Children.Add(arrowGlyph);
+                    var pwRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(38, 12, 0, 0), Opacity = 0, Visibility = Visibility.Collapsed };
+                    pwRow.Children.Add(field); pwRow.Children.Add(arrow);
+                    var rowMove = new TranslateTransform(); pwRow.RenderTransform = rowMove;
+                    sp.Children.Add(pwRow);
+                    var note = Text("", 13, C(0xFFFFFF, 225));
+                    note.Margin = new Thickness(0, 12, 0, 0); note.TextWrapping = TextWrapping.Wrap; note.MaxWidth = 460;
+                    note.Effect = new DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.7 };
+                    sp.Children.Add(note);
                     root.Children.Add(sp);
                     var brand = Text(p.Name, 26, C(0xFFFFFF, 220), FontWeights.Light);
                     brand.VerticalAlignment = VerticalAlignment.Bottom; brand.Margin = new Thickness(0, 0, 0, 40);
                     root.Children.Add(brand);
+
+                    if (auth == null)
+                    {
+                        Tick(() => note.Text = DateTime.Now.ToString("HH:mm") + "  ·  " + hint);
+                        break;
+                    }
+                    auth.Terminal = false; auth.Accent = t.Accent;
+                    bool shown = false;
+                    auth.Render = () =>
+                    {
+                        if (auth.Unlocked) return;
+                        if (auth.Typing != shown)
+                        {
+                            shown = auth.Typing;
+                            if (shown)
+                            {
+                                pwRow.Visibility = Visibility.Visible;
+                                pwRow.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+                                rowMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(8, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+                            }
+                            else { pwRow.BeginAnimation(UIElement.OpacityProperty, null); pwRow.Opacity = 0; pwRow.Visibility = Visibility.Collapsed; }
+                        }
+                        placeholder.Visibility = auth.Length == 0 ? Visibility.Visible : Visibility.Hidden;
+                        pwText.Text = new string('●', Math.Min(auth.Length, 24)) + (auth.Blink && auth.Length > 0 ? "|" : "");
+                        if (auth.Note != null) { note.Text = auth.Note; note.Foreground = B(auth.NoteBad ? C(0xFFD6D6) : C(0xFFFFFF, 225)); }
+                        else if (shown) { note.Text = L("Enter: Entsperren   ·   F1: Windows Hello   ·   F2: Windows-Anmeldung", "Enter: unlock   ·   F1: Windows Hello   ·   F2: Windows sign-in"); note.Foreground = B(C(0xFFFFFF, 170)); }
+                        else { note.Text = DateTime.Now.ToString("HH:mm") + "  ·  " + hint; note.Foreground = B(C(0xFFFFFF, 200)); }
+                    };
+                    auth.OnDenied = () =>
+                    {
+                        auth.Render();
+                        field.BorderBrush = B(0xC42B1C);
+                        Shake(pwRow);
+                        var back = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
+                        back.Tick += (o, e) => { back.Stop(); field.BorderBrush = B(0x5F7FA6); };
+                        back.Start();
+                    };
+                    auth.OnGranted = () =>
+                    {
+                        // like Windows 7: just "Welcome"
+                        pwRow.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(150)));
+                        note.Text = "";
+                        state.Text = L("Willkommen", "Welcome");
+                        state.FontSize = 22;
+                    };
+                    Tick(auth.Tick);
                     break;
                 }
                 case LockKind.Terminal:
@@ -380,20 +460,106 @@ namespace WinMorph.Shell
                 case LockKind.Zen:
                 {
                     root.Children.Add(bg);
+                    var ink = C(0x4A3F30); var umber = C(0x6B5B45); var shu = C(0xB5452B);
                     var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
                     var circle = new Border { Width = 160, Height = 160, CornerRadius = new CornerRadius(80), BorderBrush = B(0x6B5B45, 160), BorderThickness = new Thickness(2), HorizontalAlignment = HorizontalAlignment.Center };
                     var sc = new ScaleTransform(1, 1);
                     circle.RenderTransform = sc; circle.RenderTransformOrigin = new Point(0.5, 0.5);
                     var breathe = new DoubleAnimation(0.8, 1.15, TimeSpan.FromSeconds(4)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() };
-                    sc.BeginAnimation(ScaleTransform.ScaleXProperty, breathe); sc.BeginAnimation(ScaleTransform.ScaleYProperty, breathe);
+                    if (!still) { sc.BeginAnimation(ScaleTransform.ScaleXProperty, breathe); sc.BeginAnimation(ScaleTransform.ScaleYProperty, breathe); }
                     sp.Children.Add(circle);
-                    var word = Text(L("atme ein · atme aus", "breathe in · breathe out"), 20, C(0x6B5B45), FontWeights.Light);
-                    word.Margin = new Thickness(0, 40, 0, 6);
-                    sp.Children.Add(word);
-                    var time = Text("", 54, C(0x4A3F30), FontWeights.Light);
+                    var word = Text(L("atme ein · atme aus", "breathe in · breathe out"), 20, umber, FontWeights.Light);
+                    var time = Text("", 54, ink, FontWeights.Light);
                     Tick(() => time.Text = DateTime.Now.ToString("HH:mm"));
+                    // the breathing words and the password share one place: one fades out while the other comes in
+                    var place = new Grid { Margin = new Thickness(0, 40, 0, 6), HorizontalAlignment = HorizontalAlignment.Center, MinWidth = 340 };
+                    place.Children.Add(word);
+                    sp.Children.Add(place);
                     sp.Children.Add(time);
                     root.Children.Add(sp);
+                    if (auth == null) break;
+
+                    // the password: small ink stones laid on a brush line
+                    var stage = new Grid { Opacity = 0, IsHitTestVisible = false };
+                    var stones = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Height = 18, Margin = new Thickness(0, 0, 0, 9) };
+                    var hold = Text(L("Passwort", "Password"), 15, C(0x9C8E79), FontWeights.Light);
+                    hold.VerticalAlignment = VerticalAlignment.Bottom; hold.Margin = new Thickness(0, 0, 0, 9);
+                    var stroke = new System.Windows.Shapes.Path
+                    {
+                        Data = Geometry.Parse("M0,3 C40,0.6 120,0.2 160,1.4 C200,2.4 280,1.2 320,3.4 C280,4.6 200,4.2 160,4.6 C120,5 40,5.4 0,3 Z"),
+                        Fill = B(umber), Opacity = 0.75, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Width = 320, Height = 6, Stretch = Stretch.Fill,
+                    };
+                    var lineBox = new Grid { Height = 40 };
+                    lineBox.Children.Add(hold); lineBox.Children.Add(stones); lineBox.Children.Add(stroke);
+                    var note = Text("", 13, C(0x8A7A62), FontWeights.Normal);
+                    note.Margin = new Thickness(0, 10, 0, 0);
+                    var stack = new StackPanel();
+                    stack.Children.Add(lineBox); stack.Children.Add(note);
+                    stage.Children.Add(stack);
+                    var stageMove = new TranslateTransform(); stage.RenderTransform = stageMove;
+                    place.Children.Add(stage);
+
+                    auth.Terminal = false; auth.Accent = umber;
+                    bool shown = false;
+                    var soft = new CubicEase { EasingMode = EasingMode.EaseOut };
+                    auth.Render = () =>
+                    {
+                        if (auth.Unlocked) return;
+                        if (auth.Typing != shown)
+                        {
+                            shown = auth.Typing;
+                            word.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(shown ? 0 : 1, TimeSpan.FromMilliseconds(shown ? 220 : 400)));
+                            stage.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(shown ? 1 : 0, TimeSpan.FromMilliseconds(shown ? 420 : 220)) { BeginTime = TimeSpan.FromMilliseconds(shown ? 120 : 0) });
+                            stageMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(shown ? 10 : 0, shown ? 0 : 6, TimeSpan.FromMilliseconds(520)) { EasingFunction = soft });
+                            if (!shown) stones.Children.Clear();
+                        }
+                        // one stone per character: a new one drops onto the line, a deleted one is taken away
+                        while (stones.Children.Count > auth.Length) stones.Children.RemoveAt(stones.Children.Count - 1);
+                        while (stones.Children.Count < Math.Min(auth.Length, 24))
+                        {
+                            int i = stones.Children.Count;
+                            double d = 9 + (i * 7 % 5);
+                            var stone = new System.Windows.Shapes.Ellipse { Width = d * 1.18, Height = d, Fill = B(ink), Margin = new Thickness(4, 0, 4, 0), VerticalAlignment = VerticalAlignment.Bottom, RenderTransformOrigin = new Point(0.5, 1) };
+                            var st = new ScaleTransform(0.2, 0.2); var tr = new TranslateTransform(0, -14);
+                            var tg = new TransformGroup(); tg.Children.Add(st); tg.Children.Add(tr);
+                            stone.RenderTransform = tg;
+                            stones.Children.Add(stone);
+                            var drop = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.5 };
+                            st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(260)) { EasingFunction = drop });
+                            st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(260)) { EasingFunction = drop });
+                            tr.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(300)) { EasingFunction = new BounceEase { Bounces = 1, Bounciness = 4, EasingMode = EasingMode.EaseOut } });
+                        }
+                        hold.Visibility = auth.Length == 0 ? Visibility.Visible : Visibility.Hidden;
+                        note.Text = auth.Note ?? L("Enter · entsperren      F1 · Windows Hello", "Enter · unlock      F1 · Windows Hello");
+                        note.Foreground = B(auth.Note != null && auth.NoteBad ? shu : C(0x8A7A62));
+                    };
+                    auth.OnDenied = () =>
+                    {
+                        // the stones roll off the line, the line flushes vermilion and calms down again
+                        foreach (var el in stones.Children.Cast<UIElement>().ToList())
+                        {
+                            var tr = new TranslateTransform(); el.RenderTransform = tr;
+                            tr.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, 26, TimeSpan.FromMilliseconds(380)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
+                            el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(380)));
+                        }
+                        var clear = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+                        clear.Tick += (o, e) => { clear.Stop(); stones.Children.Clear(); auth.Render(); };
+                        clear.Start();
+                        var red = new SolidColorBrush(shu); stroke.Fill = red;
+                        red.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(umber, TimeSpan.FromMilliseconds(1400)) { BeginTime = TimeSpan.FromMilliseconds(500) });
+                        Shake(stage, 7);
+                        hold.Visibility = Visibility.Hidden;
+                        note.Text = auth.Note; note.Foreground = B(shu);
+                    };
+                    auth.OnGranted = () =>
+                    {
+                        // the breath completes: the circle opens wide and fades into the desktop
+                        note.Text = L("Willkommen zurück", "Welcome back"); note.Foreground = B(umber);
+                        sc.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(2.2, TimeSpan.FromMilliseconds(450)) { EasingFunction = soft });
+                        sc.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(2.2, TimeSpan.FromMilliseconds(450)) { EasingFunction = soft });
+                        circle.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(450)));
+                    };
+                    Tick(auth.Tick);
                     break;
                 }
                 default:

@@ -11,8 +11,10 @@ namespace WinMorph
     {
         protected override void OnStartup(StartupEventArgs e)
         {
-            base.OnStartup(e);
             var a = e.Args;
+            // design shell after sign-in: the Windows taskbar disappears in the first moment, long before the look is drawn
+            if (a.Length >= 1 && a[0] == "--shell") Shell.ShellControl.EarlyStart();
+            base.OnStartup(e);
             int language = Array.IndexOf(a, "--lang");
             if (language >= 0 && language + 1 < a.Length) Loc.De = a[language + 1] == "de";
             Shell.RenderGuard.Start();
@@ -53,6 +55,23 @@ namespace WinMorph
                     tm.Start();
                     return;
                 }
+                if (a.Length >= 3 && a[0] == "--own-app")
+                {
+                    // --own-app <look> <tasks|run|files> [folder]: opens one of the look's own apps for a few seconds (for testing)
+                    ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                    var th = Shell.ShellThemes.For(a[1]);
+                    var tr = new Shell.WindowTracker(th, styleFrames: false);
+                    Shell.ShellActions.Own = th;
+                    Shell.ShellActions.Windows = () => tr.ByRecentUse();
+                    if (a[2] == "tasks" && a[1] == "win7" && a.Length > 3) Shell.SevenTasks.Open(int.Parse(a[3]));
+                    else if (a[2] == "tasks") Shell.ShellActions.TaskManager();
+                    else if (a[2] == "run") Shell.ShellActions.RunDialog();
+                    else Shell.ShellActions.Files(a.Length > 3 ? a[3] : null);
+                    var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(a.Length > 4 ? int.Parse(a[4]) : 7) };
+                    tm.Tick += (s2, e2) => { tm.Stop(); tr.Dispose(); Shutdown(0); };
+                    tm.Start();
+                    return;
+                }
                 if (a.Length >= 1 && a[0] == "--undo") { History.UndoLast(); Shutdown(0); return; }
                 if (a.Length >= 3 && a[0] == "--lockscreen-preview")
                 {
@@ -65,7 +84,7 @@ namespace WinMorph
                 }
                 if (a.Length >= 3 && a[0] == "--lock-test")
                 {
-                    // --lock-test <png1> <png2>: pictures of the WinMorph lock (typing, wrong password); locks nothing
+                    // --lock-test <look> <prefix>: pictures of the WinMorph lock (idle, typing, wrong password); locks nothing
                     ShutdownMode = ShutdownMode.OnExplicitShutdown;
                     Shell.CustomLock.RenderTest(a[1], a[2], () => Shutdown(0));
                     return;

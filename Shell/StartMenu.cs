@@ -12,7 +12,7 @@ using static WinMorph.Shell.Ui;
 namespace WinMorph.Shell
 {
     /// <summary>The start menu window. One class, six very different layouts.</summary>
-    public sealed class StartMenu : Window
+    public sealed partial class StartMenu : Window
     {
         readonly ShellTheme t;
         Rect anchor;     // start button position in DIPs
@@ -38,6 +38,7 @@ namespace WinMorph.Shell
             switch (t.Menu)
             {
                 case MenuKind.Seven: Content = BuildSeven(); break;
+                case MenuKind.Zen: Content = BuildZen(); break;
                 default: Content = BuildPalette(); break;
             }
             Left = -20000; Top = -20000;
@@ -90,6 +91,7 @@ namespace WinMorph.Shell
             if (!(Content is FrameworkElement c)) return;
             var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
             c.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(fullScreen ? 160 : 120)));
+            if (t.Menu == MenuKind.Zen) { UnrollZen(); return; }
             if (fullScreen)
             {
                 var sc = new ScaleTransform(1.04, 1.04);
@@ -122,7 +124,7 @@ namespace WinMorph.Shell
                 return;
             }
             double w = ActualWidth, h = ActualHeight, x, y;
-            if (t.Menu == MenuKind.Palette)
+            if (t.Menu == MenuKind.Palette || t.Menu == MenuKind.Zen)
             {
                 x = monRect.Left + (monRect.Width - w) / 2;
                 y = t.Layout == BarLayout.TerminalTop ? work.Top + 40 : monRect.Top + monRect.Height * 0.22;
@@ -418,7 +420,8 @@ namespace WinMorph.Shell
             fill(null);
             WhenAppsReady(() => fill(searchBox.Text));
             outer.Child = sp;
-            return outer;
+            // room for the glow: the window is larger than the panel, so its corners stay round
+            return new Border { Child = outer, Padding = new Thickness(28), Background = Brushes.Transparent };
         }
 
 

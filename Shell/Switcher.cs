@@ -205,14 +205,14 @@ namespace WinMorph.Shell
                 var w = wins[i];
                 var cell = new Grid { Width = cw, Height = ch, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(i % cols * cw, i / cols * ch, 0, 0), Background = Brushes.Transparent };
                 var thumb = new Grid { Margin = new Thickness(pad, pad, pad, pad + 4) };
-                // minimised windows have no live picture: their icon stands in, large
+                // the icon waits underneath; the live picture (also of minimised windows: their last frame) covers it
                 thumb.Children.Add(new Border { Background = B(0x0A2440, 70), CornerRadius = new CornerRadius(3) });
                 thumb.Children.Add(Img(w.Icon, 48));
                 cell.Children.Add(thumb);
                 var badge = Img(w.Icon, 22);
                 badge.HorizontalAlignment = HorizontalAlignment.Right; badge.VerticalAlignment = VerticalAlignment.Bottom; badge.Margin = new Thickness(0, 0, 2, 0);
                 cell.Children.Add(badge);
-                if (!w.Minimized) thumbTargets.Add((w, thumb));
+                thumbTargets.Add((w, thumb));
                 Clickable(cell, i);
                 cells.Add(cell); area.Children.Add(cell);
             }
@@ -370,9 +370,10 @@ namespace WinMorph.Shell
                 shown = i;
                 pic?.Dispose(); pic = null;
                 roomIcon.Source = wins[i].Icon;
-                if (!wins[i].Minimized) { var lt = new LiveThumb(this, wins[i].Hwnd, room); if (lt.Ok) pic = lt; }
+                // what runs in the app, minimised ones included (DWM keeps their last frame); the icon only if there is no picture
+                var lt = new LiveThumb(this, wins[i].Hwnd, room); if (lt.Ok) pic = lt;
                 pic?.Place(frameRect, 0);
-                roomIcon.Visibility = pic != null ? Visibility.Hidden : Visibility.Visible;   // a minimised window: its icon waits in the room
+                roomIcon.Visibility = pic != null ? Visibility.Hidden : Visibility.Visible;
                 title.Text = wins[i].Title;
                 app.Text = wins[i].AppName;
                 Animate(title, OpacityProperty, 1, 420, Soft, from: 0);
@@ -502,7 +503,7 @@ namespace WinMorph.Shell
             right.Children.Add(label);
             var pane = new Grid { Width = 440, Height = 276, Margin = new Thickness(0, 6, 0, 0) };
             pane.Children.Add(new Border { BorderBrush = B(A(acc, 120)), BorderThickness = new Thickness(1), Background = B(A(acc, 10)) });
-            var noPic = Tx(L("[ minimiert – keine vorschau ]", "[ minimised – no preview ]"), dim, 13);
+            var noPic = Tx(L("[ keine vorschau ]", "[ no preview ]"), dim, 13);
             noPic.HorizontalAlignment = HorizontalAlignment.Center; noPic.VerticalAlignment = VerticalAlignment.Center;
             pane.Children.Add(noPic);
             var target = new Border { Margin = new Thickness(6) };
@@ -534,8 +535,8 @@ namespace WinMorph.Shell
                 var w = wins[i];
                 label.Text = "preview :: " + (w.ExePath != null ? System.IO.Path.GetFileName(w.ExePath).ToLowerInvariant() : "?");
                 meta.Text = "hwnd 0x" + w.Hwnd.ToInt64().ToString("X8") + (w.Minimized ? L("  · minimiert", "  · minimised") : "");
-                noPic.Visibility = w.Minimized ? Visibility.Visible : Visibility.Collapsed;
                 ShowSelectedThumb(target);
+                noPic.Visibility = selThumb == null ? Visibility.Visible : Visibility.Collapsed;
             };
             return outer;
         }

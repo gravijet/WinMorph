@@ -46,6 +46,20 @@ namespace WinMorph.Core
                 Now = winL ? L("erst WinMorph-Sperrbildschirm, dann Windows-Sperre", "WinMorph lock screen first, then the Windows lock") : L("Windows sperrt direkt", "Windows locks directly"),
             });
 
+            // window frames and pointers are drawn by the running shell only (nothing stored): they end with it
+            bool running = WinMorph.Shell.ShellControl.IsRunning && shell != null;
+            list.Add(new Change
+            {
+                Group = "shell", Title = L("Fensterrahmen", "Window frames"), Active = running,
+                Before = L("Windows-Farben", "Windows colours"), Now = running ? L("Titelleisten im Stil von ", "title bars styled as ") + look : L("Windows-Farben", "Windows colours"),
+            });
+            bool pointers = running && (shell == "win7" || shell == "terminal");
+            list.Add(new Change
+            {
+                Group = "shell", Title = L("Mauszeiger", "Mouse pointers"), Active = pointers,
+                Before = L("dein Zeigerschema", "your pointer scheme"), Now = pointers ? (shell == "win7" ? L("Aero-Zeiger (nur solange der Look läuft)", "Aero pointers (only while the look runs)") : L("Hacker-Zeiger (nur solange der Look läuft)", "hacker pointers (only while the look runs)")) : L("dein Zeigerschema", "your pointer scheme"),
+            });
+
             bool task = Autostart.Exists;
             list.Add(new Change
             {

@@ -16,19 +16,41 @@ namespace WinMorph.Shell
             try { Process.Start(new ProcessStartInfo(target, args ?? "") { UseShellExecute = true }); } catch { }
         }
 
-        public static void Folder(Environment.SpecialFolder f) => Run("explorer.exe", "\"" + Environment.GetFolderPath(f) + "\"");
-        public static void Downloads() => Run("explorer.exe", "shell:Downloads");
-        public static void ThisPC() => Run("explorer.exe", "shell:MyComputerFolder");
+        /// <summary>Set by the shell for looks with their own apps (Windows 7, Hacker): task manager, run box, file manager.</summary>
+        internal static ShellTheme Own;
+        /// <summary>The open windows (from the shell's window tracker), for the Windows 7 task manager.</summary>
+        internal static Func<System.Collections.Generic.List<WinInfo>> Windows;
+        static bool Seven => Own?.Id == "win7";
+        static bool Hacker => Own?.Id == "terminal";
+
+        public static void Folder(Environment.SpecialFolder f) => Files(Environment.GetFolderPath(f));
+        public static void Downloads() { if (Own != null) Files(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")); else Run("explorer.exe", "shell:Downloads"); }
+        public static void ThisPC() { if (Seven) SevenFiles.Open(SevenFiles.ComputerPath); else Run("explorer.exe", "shell:MyComputerFolder"); }
         public static void ControlPanel() => Run("control.exe");
         public static void Settings() => Run("ms-settings:");
-        public static void RunDialog() => W32.SendKeys(LWIN, (byte)'R');
+        public static void RunDialog()
+        {
+            if (Seven) SevenRun.Open();
+            else if (Hacker) HackerPanel.Toggle("run", Own, new Rect(0, 0, 0, 0));
+            else W32.SendKeys(LWIN, (byte)'R');
+        }
         public static void Search() => W32.SendKeys(LWIN, (byte)'S');
         public static void QuickSettings() => W32.SendKeys(LWIN, (byte)'A');
         public static void Notifications() => W32.SendKeys(LWIN, (byte)'N');
         public static void ShowDesktop() => W32.SendKeys(LWIN, (byte)'D');
         public static void TaskView() => W32.SendKeys(LWIN, 0x09);
-        public static void TaskManager() => Run("taskmgr.exe");
-        public static void Files(string path = null) => Run("explorer.exe", path == null ? null : "\"" + path + "\"");
+        public static void TaskManager()
+        {
+            if (Seven) SevenTasks.Open();
+            else if (Hacker) HackerTasks.Open(Own);
+            else Run("taskmgr.exe");
+        }
+        public static void Files(string path = null)
+        {
+            if (Seven) SevenFiles.Open(path);
+            else if (Hacker) HackerFiles.Open(Own, path);
+            else Run("explorer.exe", path == null ? null : "\"" + path + "\"");
+        }
         public static void WinMorphApp() => Run(Process.GetCurrentProcess().MainModule.FileName);
         public static void WebSearch(string q) => Run("https://www.bing.com/search?q=" + Uri.EscapeDataString(q));
         /// <summary>Always ChatGPT: with a question it opens chatgpt.com with the prompt filled in.</summary>

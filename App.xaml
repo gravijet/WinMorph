@@ -3,25 +3,26 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
-        <!-- WinMorph app: a stage. Light stage floor, velvet curtain, cue lights. -->
-        <FontFamily x:Key="Display">pack://application:,,,/Fonts/#Big Shoulders Display Thin</FontFamily>
-        <FontFamily x:Key="Body">pack://application:,,,/Fonts/#Hanken Grotesk</FontFamily>
+        <!-- WinMorph app: a screen-print studio. Every look is a print, applying it pulls one pass per part. -->
+        <FontFamily x:Key="Display">pack://application:,,,/Fonts/#Bricolage Grotesque 96pt</FontFamily>
+        <FontFamily x:Key="Body">pack://application:,,,/Fonts/#Instrument Sans</FontFamily>
         <FontFamily x:Key="Mono">Cascadia Mono, Consolas</FontFamily>
 
-        <Color x:Key="SamtColor">#A3133F</Color>
-        <SolidColorBrush x:Key="Floor" Color="#F3F4F7"/>
+        <!-- "Druckerei" inks -->
+        <Color x:Key="MagentaColor">#D6006F</Color>
+        <SolidColorBrush x:Key="Table" Color="#ECEEF2"/>
         <SolidColorBrush x:Key="Paper" Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="Ink" Color="#15161A"/>
-        <SolidColorBrush x:Key="Sub" Color="#56585D"/>
-        <SolidColorBrush x:Key="Faint" Color="#6D6E73"/>
-        <SolidColorBrush x:Key="Line" Color="#E2E4EA"/>
-        <SolidColorBrush x:Key="Samt" Color="#A3133F"/>
-        <SolidColorBrush x:Key="SamtDeep" Color="#6E0A29"/>
-        <SolidColorBrush x:Key="SamtSoft" Color="#FBE3EA"/>
-        <SolidColorBrush x:Key="Cue" Color="#FF8F1F"/>
-        <SolidColorBrush x:Key="Go" Color="#12A150"/>
-        <SolidColorBrush x:Key="GoSoft" Color="#DDF5E6"/>
-        <SolidColorBrush x:Key="GoInk" Color="#0B6B35"/>
+        <SolidColorBrush x:Key="Ink" Color="#16171B"/>
+        <SolidColorBrush x:Key="Sub" Color="#55585F"/>
+        <SolidColorBrush x:Key="Faint" Color="#6B6E75"/>
+        <SolidColorBrush x:Key="Rule" Color="#DEE1E7"/>
+        <SolidColorBrush x:Key="Magenta" Color="#D6006F"/>
+        <SolidColorBrush x:Key="MagentaDeep" Color="#A10054"/>
+        <SolidColorBrush x:Key="MagentaSoft" Color="#FCE4F0"/>
+        <SolidColorBrush x:Key="Yellow" Color="#FFC21A"/>
+        <SolidColorBrush x:Key="Go" Color="#0E9F55"/>
+        <SolidColorBrush x:Key="GoSoft" Color="#DDF4E7"/>
+        <SolidColorBrush x:Key="GoInk" Color="#0A6B3A"/>
         <SolidColorBrush x:Key="Stop" Color="#D93A3F"/>
 
         <Style TargetType="TextBlock">
@@ -30,12 +31,12 @@
             <Setter Property="FontSize" Value="14"/>
         </Style>
 
-        <!-- keyboard focus: a velvet ring -->
+        <!-- keyboard focus: a magenta registration ring -->
         <Style x:Key="Focus">
             <Setter Property="Control.Template">
                 <Setter.Value>
                     <ControlTemplate>
-                        <Border Margin="-4" CornerRadius="12" BorderThickness="2" BorderBrush="{StaticResource Samt}"/>
+                        <Border Margin="-4" CornerRadius="10" BorderThickness="2" BorderBrush="{StaticResource Magenta}"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -45,13 +46,13 @@
         <Style x:Key="Btn" TargetType="Button">
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontFamily" Value="{StaticResource Body}"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontSize" Value="15"/>
             <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Background" Value="{StaticResource Samt}"/>
+            <Setter Property="Background" Value="{StaticResource Magenta}"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="Padding" Value="22,0"/>
-            <Setter Property="Height" Value="50"/>
+            <Setter Property="Height" Value="52"/>
             <Setter Property="FocusVisualStyle" Value="{StaticResource Focus}"/>
             <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
             <Setter Property="RenderTransform"><Setter.Value><ScaleTransform/></Setter.Value></Setter>
@@ -59,27 +60,26 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Grid>
-                            <Border x:Name="b" CornerRadius="10" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1.5"/>
-                            <Border x:Name="sheen" CornerRadius="10" Background="White" Opacity="0"/>
+                            <Border x:Name="b" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1.5"/>
+                            <Border x:Name="sheen" CornerRadius="8" Background="White" Opacity="0"/>
                             <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}"/>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="sheen" Storyboard.TargetProperty="Opacity" To="0.14" Duration="0:0:0.16"/></Storyboard></BeginStoryboard></Trigger.EnterActions>
+                                <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="sheen" Storyboard.TargetProperty="Opacity" To="0.13" Duration="0:0:0.14"/></Storyboard></BeginStoryboard></Trigger.EnterActions>
                                 <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="sheen" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.2"/></Storyboard></BeginStoryboard></Trigger.ExitActions>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Trigger.EnterActions><BeginStoryboard><Storyboard>
-                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="0.97" Duration="0:0:0.09"/>
-                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="0.97" Duration="0:0:0.09"/>
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="0.97" Duration="0:0:0.08"/>
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="0.97" Duration="0:0:0.08"/>
                                 </Storyboard></BeginStoryboard></Trigger.EnterActions>
                                 <Trigger.ExitActions><BeginStoryboard><Storyboard>
-                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1" Duration="0:0:0.22"><DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.6"/></DoubleAnimation.EasingFunction></DoubleAnimation>
-                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1" Duration="0:0:0.22"><DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.6"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleX" To="1" Duration="0:0:0.22"><DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.5"/></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.ScaleY" To="1" Duration="0:0:0.22"><DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.5"/></DoubleAnimation.EasingFunction></DoubleAnimation>
                                 </Storyboard></BeginStoryboard></Trigger.ExitActions>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="b" Property="Opacity" Value="0.45"/>
                                 <Setter Property="Cursor" Value="Arrow"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -90,28 +90,30 @@
         <Style x:Key="Outline" TargetType="Button" BasedOn="{StaticResource Btn}">
             <Setter Property="Background" Value="{StaticResource Paper}"/>
             <Setter Property="Foreground" Value="{StaticResource Ink}"/>
-            <Setter Property="BorderBrush" Value="#C9CCD4"/>
+            <Setter Property="BorderBrush" Value="#C5C9D2"/>
             <Setter Property="Height" Value="44"/>
             <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Padding" Value="18,0"/>
         </Style>
 
-        <!-- page tabs in the top bar -->
+        <!-- page tabs: folder tabs of a job folder -->
         <Style x:Key="Tab" TargetType="RadioButton">
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontFamily" Value="{StaticResource Body}"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="15"/>
             <Setter Property="Foreground" Value="{StaticResource Sub}"/>
             <Setter Property="FocusVisualStyle" Value="{StaticResource Focus}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border Background="Transparent" Padding="4,0" Height="64">
+                        <Border x:Name="b" Background="Transparent" CornerRadius="10,10,0,0" Padding="18,0" Height="46" VerticalAlignment="Bottom">
                             <ContentPresenter VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="{StaticResource Ink}"/></Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource Paper}"/>
+                            </Trigger>
                             <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource Ink}"/></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -119,17 +121,27 @@
             </Setter>
         </Style>
 
-        <!-- a look tile: Background = the look's colour field -->
-        <Style x:Key="Tile" TargetType="RadioButton">
+        <!-- a screen (look tile): Background = the look's ink field, BorderBrush = ring when chosen -->
+        <Style x:Key="Screen" TargetType="RadioButton">
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FocusVisualStyle" Value="{StaticResource Focus}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
                         <Grid>
-                            <Border x:Name="b" CornerRadius="14" Background="{TemplateBinding Background}"/>
-                            <Border x:Name="ring" CornerRadius="14" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="0"/>
-                            <ContentPresenter/>
+                            <!-- the aluminium frame of a silk screen -->
+                            <Border CornerRadius="6" Padding="6">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#D9DCE2" Offset="0"/>
+                                        <GradientStop Color="#B3B8C1" Offset="0.5"/>
+                                        <GradientStop Color="#C9CDD4" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Border CornerRadius="2" Background="{TemplateBinding Background}"/>
+                            </Border>
+                            <Border x:Name="ring" CornerRadius="8" Margin="-4" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="0"/>
+                            <ContentPresenter Margin="6"/>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True"><Setter TargetName="ring" Property="BorderThickness" Value="3"/></Trigger>
@@ -148,7 +160,7 @@
                     <ControlTemplate TargetType="CheckBox">
                         <StackPanel Orientation="Horizontal" Background="Transparent">
                             <Grid Width="40" Height="22" VerticalAlignment="Center">
-                                <Border x:Name="track" CornerRadius="11" Background="#C9CCD4"/>
+                                <Border x:Name="track" CornerRadius="11" Background="#C5C9D2"/>
                                 <Ellipse x:Name="knob" Width="16" Height="16" Fill="White" HorizontalAlignment="Left" Margin="3,0,0,0">
                                     <Ellipse.RenderTransform><TranslateTransform/></Ellipse.RenderTransform>
                                 </Ellipse>
@@ -157,7 +169,7 @@
                         </StackPanel>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="track" Property="Background" Value="{StaticResource Samt}"/>
+                                <Setter TargetName="track" Property="Background" Value="{StaticResource Magenta}"/>
                                 <Trigger.EnterActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="knob" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)" To="18" Duration="0:0:0.2"><DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.5"/></DoubleAnimation.EasingFunction></DoubleAnimation></Storyboard></BeginStoryboard></Trigger.EnterActions>
                                 <Trigger.ExitActions><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetName="knob" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)" To="0" Duration="0:0:0.2"><DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction></DoubleAnimation></Storyboard></BeginStoryboard></Trigger.ExitActions>
                             </Trigger>

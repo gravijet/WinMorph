@@ -45,7 +45,11 @@ namespace WinMorph.Core
                         bool machine = parts[1].StartsWith("HKLM", StringComparison.OrdinalIgnoreCase);
                         if (machineOnly && !machine) continue;
                         if (machine && !admin) { r.NeedsElevation = true; continue; }
-                        Reg.RestoreSnapshot(parts[1], parts[2], e.Value);
+                        // already the original: nothing to write (some values, like the widgets button, Windows
+                        // lets only itself write, so writing them again would fail for no reason)
+                        string now = null;
+                        try { now = Reg.Snapshot(parts[1], parts[2]); } catch { }
+                        if (now != e.Value) Reg.RestoreSnapshot(parts[1], parts[2], e.Value);
                         if (IsLate(parts[1])) late.Add(new[] { parts[1], parts[2], e.Value });
                         r.Restored++;
                     }

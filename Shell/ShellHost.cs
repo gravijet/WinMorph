@@ -59,6 +59,9 @@ namespace WinMorph.Shell
             if (preview) { BuildBars(); return; }
 
             ThemeToolTips();
+            ShellActions.Own = t.Id == "win7" || t.Id == "terminal" ? t : null;
+            ShellActions.Windows = () => tracker.ByRecentUse();
+            CursorSkin.Apply(t);
             origAutoHide = ShellControl.TakeTaskbar();
             Core.Applier.SetAutoHideRaw(true);
             HideNative();
@@ -213,9 +216,9 @@ namespace WinMorph.Shell
                 if (m.IsFullScreen) { content.Width = w; content.Height = h; root.Children.Add(content); }
                 else
                 {
-                    content.HorizontalAlignment = t.Menu == MenuKind.Palette || t.Layout == BarLayout.Floating ? HorizontalAlignment.Center : HorizontalAlignment.Left;
-                    content.VerticalAlignment = t.Menu == MenuKind.Palette ? VerticalAlignment.Top : (t.Layout == BarLayout.TerminalTop ? VerticalAlignment.Top : VerticalAlignment.Bottom);
-                    if (t.Menu == MenuKind.Palette) content.Margin = new Thickness(0, h * 0.2, 0, 0);
+                    content.HorizontalAlignment = t.Menu != MenuKind.Seven || t.Layout == BarLayout.Floating ? HorizontalAlignment.Center : HorizontalAlignment.Left;
+                    content.VerticalAlignment = t.Menu != MenuKind.Seven ? VerticalAlignment.Top : (t.Layout == BarLayout.TerminalTop ? VerticalAlignment.Top : VerticalAlignment.Bottom);
+                    if (t.Menu != MenuKind.Seven) content.Margin = new Thickness(0, h * 0.2, 0, 0);
                     desk.Children.Add(content);
                 }
             }
@@ -289,7 +292,9 @@ namespace WinMorph.Shell
             Zen.Shutdown();
             foreach (var b in bars) try { b.Close(); } catch { }
             tracker.Dispose();
+            ShellActions.Own = null; ShellActions.Windows = null;
             if (keepHidden) return;
+            CursorSkin.Reset();
             ShowNative();
             Core.Applier.SetAutoHideRaw(origAutoHide);
         }
@@ -345,6 +350,11 @@ namespace WinMorph.Shell
             {
                 otherKey = true;
                 if (vk == 0x58) { swallowedDuringWin = true; Ui(ShowQuickMenu); return true; }                 // Win+X
+                if (ShellActions.Own != null)
+                {
+                    if (vk == 0x45) { swallowedDuringWin = true; Ui(() => ShellActions.Files()); return true; }      // Win+E → the look's explorer
+                    if (vk == 0x52) { swallowedDuringWin = true; Ui(() => { console?.SafeHide(); ShellActions.RunDialog(); }); return true; } // Win+R → the look's run box
+                }
                 return false;
             }
             if (vk == 0x7B && down && alt && W32.KeyDown(0x11) && W32.KeyDown(0x10)) { Ui(ShellControl.EmergencyStop); return true; } // Ctrl+Alt+Shift+F12
@@ -363,6 +373,7 @@ namespace WinMorph.Shell
                 if (down && (vk == 0x27 || vk == 0x28)) { Ui(() => switcher?.Move(1)); return true; }
                 if (up && (vk == 0xA4 || vk == 0xA5 || vk == 0x12)) { switching = false; KeyHook.Tap(0xE8); Ui(CommitSwitcher); return false; }
             }
+            if (ShellActions.Own != null && vk == 0x1B && down && !alt && W32.KeyDown(0x11) && W32.KeyDown(0x10)) { Ui(ShellActions.TaskManager); return true; } // Ctrl+Shift+Esc → the look's task manager
             if (vk == 0x1B && down && !alt && W32.KeyDown(0x11) && !W32.KeyDown(0x10)) { Ui(() => ToggleMenu()); return true; } // Ctrl+Esc
             return false;
         }

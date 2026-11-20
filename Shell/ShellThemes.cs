@@ -49,7 +49,7 @@ namespace WinMorph.Shell
                 }
                 case "zen": return new ShellTheme
                 {
-                    Id = id, Name = "Zen", Layout = BarLayout.Floating, Btn = BtnStyle.Pill, Start = StartKind.Zen, Menu = MenuKind.Palette, Lock = LockKind.Zen, Switch = SwitchKind.Shoji,
+                    Id = id, Name = "Zen", Layout = BarLayout.Floating, Btn = BtnStyle.Pill, Start = StartKind.Zen, Menu = MenuKind.Zen, Lock = LockKind.Zen, Switch = SwitchKind.Shoji,
                     BarHeight = 40, BarBg = S(0xF7F2E9, 225), BarFg = C(0x6B5B45), BarFgDim = C(0xA89A85), BtnFg = C(0x6B5B45), BtnHover = C(0x6B5B45, 25), BtnActive = C(0x6B5B45, 45),
                     Accent = C(0xA0805A), Font = "Segoe UI Light", FontSize = 13, Radius = 20, DockIcon = 24,
                     MenuBg = C(0xFBF8F2, 245), MenuFg = C(0x4A3F30), MenuSub = C(0x9C8E79), MenuHover = C(0xA0805A, 40), MenuRadius = 20, SearchHint = de ? "Atme ein. Tippe." : "Breathe. Type.",
