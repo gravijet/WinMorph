@@ -66,10 +66,10 @@ namespace WinMorph.Shell
         {
             WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; ShowInTaskbar = false; Topmost = true; ShowActivated = false;
             SizeToContent = SizeToContent.WidthAndHeight; UseLayoutRounding = true;
-            bool retro = t.Btn == BtnStyle.Bevel;
+            const bool retro = false;   // no retro look left
             bool term = t.Btn == BtnStyle.Text;   // hacker look: text only, square, no icons
             Color bg = retro ? C(0xC0C0C0) : Color.FromRgb(t.MenuBg.R, t.MenuBg.G, t.MenuBg.B);
-            if (t.Menu == MenuKind.Xp || (t.Menu == MenuKind.Seven && t.Id != "mint")) bg = C(0x1E3350);
+            if (t.Menu == MenuKind.Seven) bg = C(0x1E3350);
             Color fg = retro ? C(0x000000) : (bg.R + bg.G + bg.B > 380 ? C(0x1E1E1E) : C(0xF2F2F2));
             Background = B(bg);
             FontFamily = new FontFamily(t.Font);

@@ -41,6 +41,9 @@ namespace WinMorph.Core
 
                 var b2 = new Backup(file);
                 Check(b2.Count == 7, "backup reloads 7 entries (" + b2.Count + ")");
+                // the changes page sees what differs from the original …
+                var before = Changes.Read(b2).Find(c => c.Group == "legacy");
+                Check(before != null && before.Active && before.Values == 7 && before.Now.Contains("6"), "changes page: 6 of 7 values differ (" + before?.Now + ")");
                 // restore only the test entries
                 foreach (var e in b2.Entries)
                 {
@@ -58,6 +61,9 @@ namespace WinMorph.Core
                     Check(k.GetValue("absent") == null, "value that did not exist is removed");
                 }
                 Check(!Reg.KeyExists(key + @"\NewKey"), "key that did not exist is removed");
+                // … and proves the rollback: nothing differs any more
+                var after = Changes.Read(b2).Find(c => c.Group == "legacy");
+                Check(after != null && !after.Active, "changes page: all values back to the original after the rollback");
                 Check(b2.GetValue("SPI:MenuShowDelay") == "400", "misc value stored");
 
                 // the undo step records what is set now, for every entry of the original backup
@@ -65,9 +71,16 @@ namespace WinMorph.Core
                 Applier.CaptureCurrent(step, b2);
                 Check(step.Has("REG\t" + key + "\tdw") && step.Has("KEY\t" + key + @"\NewKey"), "undo step captures the current values");
 
-                // looks: nothing but WinMorph's own design unless the user switches more on
-                Check(Presets.Parts("selftest-unknown") == Area.Design && (Area.Design & Area.Settings) == Area.None, "default parts change no Windows settings");
-                Check(Presets.Find("macos-dark")?.Id == "macos" && Presets.Find("synapse")?.Id == "nexus", "removed looks map to their successors");
+                // looks: exactly Windows 7, Zen and Hacker, each with its own bar, Alt+Tab and lock screen
+                Check(string.Join(",", Presets.All.ConvertAll(x => x.Id)) == "win7,zen,terminal", "three looks: win7, zen, terminal");
+                var themes = Presets.All.ConvertAll(x => WinMorph.Shell.ShellThemes.For(x.Id));
+                Check(themes.TrueForAll(x => x != null) && new System.Collections.Generic.HashSet<WinMorph.Shell.SwitchKind>(themes.ConvertAll(x => x.Switch)).Count == 3
+                    && new System.Collections.Generic.HashSet<WinMorph.Shell.LockKind>(themes.ConvertAll(x => x.Lock)).Count == 3, "every look has its own Alt+Tab and lock screen");
+                Check(Presets.Find("macos") == null && WinMorph.Shell.ShellThemes.For("win11") == null && WinMorph.Shell.ShellThemes.ForLock("nexus")?.Id == "win7", "looks of older versions are ignored safely");
+                // a backup of today's looks holds no Windows settings; one of older versions does (then Explorer reloads them)
+                var design = new Backup(file + ".design");
+                design.Reg(@"HKCU\Control Panel\Desktop", "WallpaperStyle"); design.Reg(Applier.Cdm, "RotatingLockScreenEnabled"); design.Reg(WinMorph.Shell.ShellControl.SettingsKey, "ShellPreset"); design.Value("WALL", "");
+                Check(!Restorer.HasLegacySettings(design) && Restorer.HasLegacySettings(b2), "design looks change no Windows settings; old settings are recognised");
 
                 Check(new RestoreResult().Complete && !new RestoreResult { Failed = 1 }.Complete
                     && !new RestoreResult { NeedsElevation = true }.Complete, "failed or unelevated restores must keep their backup");
@@ -100,8 +113,6 @@ namespace WinMorph.Core
                 // Zen sounds: valid looping WAV
                 var wav = WinMorph.Shell.Zen.Wav(true);
                 Check(wav.Length == 44 + 12 * 22050 * 2 && wav[0] == 'R' && wav[8] == 'W', "Zen rain sound is a valid WAV (" + wav.Length + " bytes)");
-                var games = WinMorph.Shell.Gaming.Games();
-                log.AppendLine("     games: " + games.Count + "  " + string.Join(", ", games.ConvertAll(g => g.Source + ":" + g.Name + (g.Image != null ? "[img]" : ""))));
 
                 // read-only system checks
                 var m = Native.GetNcm();

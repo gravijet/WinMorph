@@ -27,10 +27,8 @@ namespace WinMorph.Shell
         public static void Notifications() => W32.SendKeys(LWIN, (byte)'N');
         public static void ShowDesktop() => W32.SendKeys(LWIN, (byte)'D');
         public static void TaskView() => W32.SendKeys(LWIN, 0x09);
-        /// <summary>Set while the hacker look runs: it has its own task manager and file manager.</summary>
-        internal static ShellTheme Own;
-        public static void TaskManager() { if (Own != null) HackerTasks.Open(Own); else Run("taskmgr.exe"); }
-        public static void Files(string path = null) { if (Own != null) HackerFiles.Open(Own, path); else Run("explorer.exe", path == null ? null : "\"" + path + "\""); }
+        public static void TaskManager() => Run("taskmgr.exe");
+        public static void Files(string path = null) => Run("explorer.exe", path == null ? null : "\"" + path + "\"");
         public static void WinMorphApp() => Run(Process.GetCurrentProcess().MainModule.FileName);
         public static void WebSearch(string q) => Run("https://www.bing.com/search?q=" + Uri.EscapeDataString(q));
         /// <summary>Always ChatGPT: with a question it opens chatgpt.com with the prompt filled in.</summary>
@@ -47,17 +45,6 @@ namespace WinMorph.Shell
             if (Audio.Available) { if (dir == 0) Audio.Muted = !Audio.Muted; else Audio.Change(dir * 10); return; }
             byte vk = dir > 0 ? (byte)0xAF : dir < 0 ? (byte)0xAE : (byte)0xAD;
             for (int i = 0; i < (dir == 0 ? 1 : 5); i++) KeyHook.Tap(vk);
-        }
-
-        public static void SetDark(bool dark)
-        {
-            const string k = @"HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
-            using (var key = Core.Reg.Create(k))
-            {
-                key.SetValue("AppsUseLightTheme", dark ? 0 : 1, Microsoft.Win32.RegistryValueKind.DWord);
-                key.SetValue("SystemUsesLightTheme", dark ? 0 : 1, Microsoft.Win32.RegistryValueKind.DWord);
-            }
-            Core.Native.Broadcast("ImmersiveColorSet");
         }
 
         public static void Restore() => Run(Process.GetCurrentProcess().MainModule.FileName, "--restore-ui");

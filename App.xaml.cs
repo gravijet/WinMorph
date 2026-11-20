@@ -46,8 +46,10 @@ namespace WinMorph
                     var tr = new Shell.WindowTracker(th, styleFrames: false);
                     var sw = new Shell.Switcher(th, tr.ByRecentUse(), 1);
                     sw.Show();
-                    var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
-                    tm.Tick += (s2, e2) => { tm.Stop(); sw.Close(); tr.Dispose(); Shutdown(0); };
+                    // it moves on to the next window every 1.5 s, so the motion can be watched
+                    int ticks = 0;
+                    var tm = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+                    tm.Tick += (s2, e2) => { if (++ticks >= 5) { tm.Stop(); sw.Close(); tr.Dispose(); Shutdown(0); } else sw.Move(1); };
                     tm.Start();
                     return;
                 }
@@ -76,13 +78,13 @@ namespace WinMorph
                     Shutdown(f != null ? 0 : 2);
                     return;
                 }
-                if (a.Length >= 3 && a[0] == "--lockscreen") { Shutdown(Applier.ApplyLockScreen(a[1], a[2])); return; }
-                if (a.Length >= 4 && a[0] == "--lock-setup")
+                if (a.Length >= 3 && a[0] == "--lock-setup")
                 {
-                    // elevated, one prompt: --lock-setup <user sid | -> <sign-in picture | -> <backup file>
+                    // elevated, one prompt: --lock-setup <user sid | -> <backup file>
+                    // lets Win+L show the WinMorph lock screen and removes an all-users picture of older versions
                     int rc = 0;
                     if (a[1] != "-") rc |= LockGuard.SetupElevated(a[1]);
-                    rc |= a[2] != "-" ? Applier.ApplyLockScreen(a[2], a[3]) : Applier.ClearLockScreen(a[3]);
+                    rc |= Applier.ClearLockScreen(a[2]);
                     Shutdown(rc);
                     return;
                 }
@@ -98,35 +100,8 @@ namespace WinMorph
                     var p = Presets.Find(a[1]);
                     if (p == null) { Shutdown(2); return; }
                     var b = new Backup(Backup.DefaultFile) { Mirror = Backup.NewStep() };
-                    var o = ApplyOptions.For(p, Presets.Parts(p.Id));
-                    new Applier(b, Loc.De).Apply(p, o);
+                    new Applier(b, Loc.De).Apply(p, ApplyOptions.For(p));
                     Shutdown(0);
-                    return;
-                }
-                if (a.Length >= 3 && a[0] == "--app-preview")
-                {
-                    // --app-preview <tasks|files|games> <png>: screenshot of an own app window (docs/testing)
-                    ShutdownMode = ShutdownMode.OnExplicitShutdown;
-                    var th = Shell.ShellThemes.For(a[1] == "games" ? "gaming" : "terminal");
-                    if (a[1] == "tasks") Shell.HackerTasks.Open(th);
-                    else if (a[1] == "files") Shell.HackerFiles.Open(th, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-                    else Shell.Gaming.Library(th);
-                    var shot = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-                    shot.Tick += (s2, e2) =>
-                    {
-                        shot.Stop();
-                        var win = System.Linq.Enumerable.Last(System.Linq.Enumerable.Cast<Window>(Windows));
-                        var root = (FrameworkElement)win.Content;
-                        var bmp = new RenderTargetBitmap((int)root.ActualWidth * 2, (int)root.ActualHeight * 2, 192, 192, PixelFormats.Pbgra32);
-                        var bg = new DrawingVisual();
-                        using (var dc = bg.RenderOpen()) dc.DrawRectangle(win.Background, null, new Rect(0, 0, root.ActualWidth, root.ActualHeight));
-                        bmp.Render(bg); bmp.Render(root);
-                        var enc = new PngBitmapEncoder();
-                        enc.Frames.Add(BitmapFrame.Create(bmp));
-                        using (var fs = File.Create(a[2])) enc.Save(fs);
-                        Shutdown(0);
-                    };
-                    shot.Start();
                     return;
                 }
                 if (a.Length >= 3 && a[0] == "--shell-preview")
@@ -211,10 +186,31 @@ namespace WinMorph
                 try { File.AppendAllText(Path.Combine(Backup.DataDir, "ui-errors.log"), DateTime.Now + " " + ev.Exception + Environment.NewLine); } catch { }
                 ev.Handled = true;
             };
+            SelfHeal();
             var w = new MainWindow();
             MainWindow = w;
             if (a.Length >= 2 && a[0] == "--screenshot") w.ScreenshotMode(a[1], a.Length > 2 ? a[2] : null, a.Length > 3 && a[3] == "de");
             w.Show();
+        }
+
+        /// <summary>
+        /// Opening the app repairs what a crash or an old version may have left: a chosen look whose shell
+        /// does not run is started again; a taskbar that is still taken without a look is given back.
+        /// </summary>
+        static void SelfHeal()
+        {
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    using (var k = Reg.Open(Shell.ShellControl.SettingsKey, true)) { k?.DeleteValue("MacDark", false); k?.DeleteSubKeyTree("Parts", false); }
+                    if (Shell.ShellControl.IsRunning) return;
+                    var look = Shell.ShellControl.CurrentPreset;
+                    if (look != null && Shell.ShellThemes.For(look) != null) Shell.ShellControl.Start();
+                    else if (Shell.ShellControl.TaskbarTaken || Shell.ShellControl.NativeHidden) Shell.ShellControl.Release();
+                }
+                catch (Exception ex) { try { File.AppendAllText(Path.Combine(Backup.DataDir, "cli-errors.log"), DateTime.Now + " self-heal " + ex + Environment.NewLine); } catch { } }
+            });
         }
 
         static void MakeIcon(string path)

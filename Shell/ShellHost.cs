@@ -59,7 +59,7 @@ namespace WinMorph.Shell
             if (preview) { BuildBars(); return; }
 
             ThemeToolTips();
-            origAutoHide = OriginalAutoHide();
+            origAutoHide = ShellControl.TakeTaskbar();
             Core.Applier.SetAutoHideRaw(true);
             HideNative();
 
@@ -70,7 +70,6 @@ namespace WinMorph.Shell
             Microsoft.Win32.SystemEvents.SessionSwitch += OnSessionSwitch;
             foreach (var r in refreshers) r();
             foreach (var c in clockUpdaters) c();
-            audioOk = Hacker && Audio.Available;
             keys = new KeyHook(OnKey);
             keys.Start();
             // Win+L → WinMorph lock screen (Windows would lock before the hook can stop it)
@@ -89,46 +88,12 @@ namespace WinMorph.Shell
                 RefreshLockRedirect();
             }, Dispatcher.CurrentDispatcher);
             AppCatalog.PinsChanged += () => { foreach (var r in refreshers) r(); };
-            Gaming.RestorePerf();   // left over from a crash
-            if (t.Id == "zen" || t.Id == "gaming") Notify.Use(t);
-            if (Hacker)
-            {
-                ShellActions.Own = t;
-                Notify.Start(t);
-                lastNet = NetState();
-                System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += OnNetChanged;
-            }
+            Notify.Use(t);   // the look's own notices (Zen focus timer, terminal timer); Windows notifications stay as they are
             // build the start menu in the background so the first open is instant
             AppCatalog.Loaded += () => Dispatcher.CurrentDispatcher.BeginInvoke(new Action(WarmMenu), DispatcherPriority.ApplicationIdle);
         }
 
         bool Hacker => t.Start == StartKind.Terminal;
-
-        // ---------- own notices for Wi-Fi changes (hacker look) ----------
-        string lastNet;
-        DispatcherTimer netTimer;
-        static string NetState()
-        {
-            try { var n = Wlan.Current; if (n != null) return "wifi:" + n.Ssid; } catch { }
-            return System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable() ? "online" : "offline";
-        }
-        void OnNetChanged(object sender, EventArgs e) => Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
-        {
-            // Windows fires this several times per change: look once things have settled
-            netTimer?.Stop();
-            netTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
-            netTimer.Tick += (s2, e2) =>
-            {
-                netTimer.Stop();
-                var now = NetState();
-                if (now == lastNet) return;
-                lastNet = now;
-                if (now.StartsWith("wifi:")) Notify.Show("wifi", (De ? "verbunden mit " : "connected to ") + now.Substring(5));
-                else if (now == "offline") Notify.Show("net", De ? "verbindung getrennt – offline" : "disconnected – offline");
-                else Notify.Show("net", De ? "online" : "online");
-            };
-            netTimer.Start();
-        }));
 
         /// <summary>Tooltips in the colours and font of the look instead of the white Windows ones.</summary>
         void ThemeToolTips()
@@ -146,7 +111,7 @@ namespace WinMorph.Shell
             border.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(Control.BorderBrushProperty));
             border.SetValue(Border.BorderThicknessProperty, new Thickness(1));
             border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
-            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(Hacker || t.Btn == BtnStyle.Bevel ? 0 : 6));
+            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(Hacker ? 0 : 6));
             var cp = new FrameworkElementFactory(typeof(ContentPresenter));
             cp.SetValue(TextElement.FontFamilyProperty, new FontFamily(t.Font));
             cp.SetValue(TextElement.ForegroundProperty, B(t.MenuFg));
@@ -248,8 +213,8 @@ namespace WinMorph.Shell
                 if (m.IsFullScreen) { content.Width = w; content.Height = h; root.Children.Add(content); }
                 else
                 {
-                    content.HorizontalAlignment = t.Menu == MenuKind.Palette || t.Layout == BarLayout.Floating || t.Menu == MenuKind.Grid ? HorizontalAlignment.Center : HorizontalAlignment.Left;
-                    content.VerticalAlignment = t.Menu == MenuKind.Palette ? VerticalAlignment.Top : (t.Layout == BarLayout.TerminalTop || t.Layout == BarLayout.GnomeTopLeftDock ? VerticalAlignment.Top : VerticalAlignment.Bottom);
+                    content.HorizontalAlignment = t.Menu == MenuKind.Palette || t.Layout == BarLayout.Floating ? HorizontalAlignment.Center : HorizontalAlignment.Left;
+                    content.VerticalAlignment = t.Menu == MenuKind.Palette ? VerticalAlignment.Top : (t.Layout == BarLayout.TerminalTop ? VerticalAlignment.Top : VerticalAlignment.Bottom);
                     if (t.Menu == MenuKind.Palette) content.Margin = new Thickness(0, h * 0.2, 0, 0);
                     desk.Children.Add(content);
                 }
@@ -272,16 +237,8 @@ namespace WinMorph.Shell
         }
 
         // ---------------- native taskbar ----------------
-        static IEnumerable<IntPtr> NativeBars()
-        {
-            var main = W32.FindWindow("Shell_TrayWnd", null);
-            if (main != IntPtr.Zero) yield return main;
-            IntPtr h = IntPtr.Zero;
-            while ((h = W32.FindWindowEx(IntPtr.Zero, h, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero) yield return h;
-        }
-
-        static void HideNative() { foreach (var h in NativeBars()) if (W32.IsWindowVisible(h)) W32.ShowWindow(h, W32.SW_HIDE); }
-        static void ShowNative() { foreach (var h in NativeBars()) W32.ShowWindow(h, W32.SW_SHOWNA); }
+        static void HideNative() => ShellControl.HideNative();
+        static void ShowNative() => ShellControl.ShowNative();
 
         void TogglePeek()
         {
@@ -296,16 +253,6 @@ namespace WinMorph.Shell
                 peekTimer.Start();
             }
             else { peekTimer?.Stop(); Core.Applier.SetAutoHideRaw(true); HideNative(); }
-        }
-
-        /// <summary>The auto-hide setting from before the shell ever ran (kept in the registry).</summary>
-        static bool OriginalAutoHide()
-        {
-            var v = Core.Reg.Get(ShellControl.SettingsKey, "OrigAutoHide");
-            if (v is int i) return i == 1;
-            bool cur = Core.Applier.GetAutoHide();
-            using (var k = Core.Reg.Create(ShellControl.SettingsKey)) k.SetValue("OrigAutoHide", cur ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord);
-            return cur;
         }
 
         /// <summary>After unlocking (or a remote session) Windows shows its taskbar again – hide it at once.</summary>
@@ -339,11 +286,7 @@ namespace WinMorph.Shell
             try { console?.Close(); } catch { }
             HackerPanel.CloseAll();
             Notify.Stop();
-            ShellActions.Own = null;
             Zen.Shutdown();
-            Gaming.Shutdown();
-            System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged -= OnNetChanged;
-            netTimer?.Stop();
             foreach (var b in bars) try { b.Close(); } catch { }
             tracker.Dispose();
             if (keepHidden) return;
@@ -402,23 +345,7 @@ namespace WinMorph.Shell
             {
                 otherKey = true;
                 if (vk == 0x58) { swallowedDuringWin = true; Ui(ShowQuickMenu); return true; }                 // Win+X
-                if (vk == 0x43 || vk == 0x86) { swallowedDuringWin = true; Ui(OpenAi); return true; }        // Win+C / Copilot key
-                if (t.Id == "gaming" && vk == 0x46 && W32.KeyDown(0x10)) { swallowedDuringWin = true; Ui(() => Gaming.ToggleOverlay(t)); return true; }   // Win+Shift+F → overlay
-                if (Hacker)
-                {
-                    if (vk == 0x0D) { swallowedDuringWin = true; Ui(HackerConsole.OpenTerminal); return true; }                        // Win+Enter → terminal
-                    if (vk == 0x45) { swallowedDuringWin = true; Ui(() => ShellActions.Files()); return true; }                                             // Win+E → own file manager
-                    if (vk == 0x52) { swallowedDuringWin = true; Ui(() => { console?.SafeHide(); HackerPanel.Toggle("run", t, new Rect(0, 0, 0, 0)); }); return true; } // Win+R → own run box
-                    if (vk >= 0x31 && vk <= 0x39) { int n = (int)vk - 0x31; swallowedDuringWin = true; Ui(() => FocusNth(n)); return true; } // Win+1..9
-                    if (vk == 0x51 && W32.KeyDown(0x10)) { swallowedDuringWin = true; Ui(() => { var fg = W32.GetForegroundWindow(); if (fg != IntPtr.Zero) W32.Close(fg); }); return true; } // Win+Shift+Q
-                }
                 return false;
-            }
-            if (vk == 0x86 && down) { Ui(OpenAi); return true; }                                             // Copilot key (F23)
-            if (Hacker && audioOk && (vk == 0xAD || vk == 0xAE || vk == 0xAF))                                // volume keys → own display
-            {
-                if (down) Ui(() => { if (vk == 0xAD) Audio.Muted = !Audio.Muted; else Audio.Change(vk == 0xAF ? 2 : -2); Osd.Volume(t, Audio.Level, Audio.Muted); });
-                return true;
             }
             if (vk == 0x7B && down && alt && W32.KeyDown(0x11) && W32.KeyDown(0x10)) { Ui(ShellControl.EmergencyStop); return true; } // Ctrl+Alt+Shift+F12
 
@@ -436,12 +363,10 @@ namespace WinMorph.Shell
                 if (down && (vk == 0x27 || vk == 0x28)) { Ui(() => switcher?.Move(1)); return true; }
                 if (up && (vk == 0xA4 || vk == 0xA5 || vk == 0x12)) { switching = false; KeyHook.Tap(0xE8); Ui(CommitSwitcher); return false; }
             }
-            if (Hacker && vk == 0x1B && down && !alt && W32.KeyDown(0x11) && W32.KeyDown(0x10)) { Ui(ShellActions.TaskManager); return true; } // Ctrl+Shift+Esc → own task manager
             if (vk == 0x1B && down && !alt && W32.KeyDown(0x11) && !W32.KeyDown(0x10)) { Ui(() => ToggleMenu()); return true; } // Ctrl+Esc
             return false;
         }
 
-        bool audioOk;
         static bool LockSaverReady => ShellActions.SaverReady();
 
         /// <summary>
@@ -469,11 +394,7 @@ namespace WinMorph.Shell
         volatile bool lockRedirect;
         void RefreshLockRedirect() => lockRedirect = LockSaverReady && Core.LockGuard.Armed;
 
-        void FocusNth(int n)
-        {
-            var list = tracker.Windows;
-            if (n < list.Count) W32.Activate(list[n].Hwnd);
-        }
+        DispatcherTimer switcherDelay;
 
         void OpenSwitcher(bool back)
         {
@@ -481,21 +402,27 @@ namespace WinMorph.Shell
             var list = tracker.ByRecentUse();
             if (list.Count == 0) { switching = false; return; }
             int start = list.Count > 1 ? (back ? list.Count - 1 : 1) : 0;
-            switcher?.Close();
-            switcher = new Switcher(t, list, start);
-            switcher.Show();
-            if (!switching) CommitSwitcher(); // Alt was already released
+            CancelSwitcher();
+            var sw = new Switcher(t, list, start);
+            sw.Picked += () => { switching = false; CommitSwitcher(); };
+            switcher = sw;
+            if (!switching) { CommitSwitcher(); return; }   // Alt was already released
+            // a quick Alt+Tab tap switches at once, like Windows: the switcher only appears when Alt is held
+            switcherDelay = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+            switcherDelay.Tick += (s, e) => { switcherDelay.Stop(); if (switching && switcher == sw) sw.Show(); };
+            switcherDelay.Start();
         }
 
         void CommitSwitcher()
         {
+            switcherDelay?.Stop();
             var w = switcher?.Selected;
             try { switcher?.Close(); } catch { }
             switcher = null;
             if (w != null) W32.Activate(w.Hwnd);
         }
 
-        void CancelSwitcher() { try { switcher?.Close(); } catch { } switcher = null; }
+        void CancelSwitcher() { switcherDelay?.Stop(); try { switcher?.Close(); } catch { } switcher = null; }
 
         void ShowQuickMenu()
         {
@@ -503,14 +430,6 @@ namespace WinMorph.Shell
             Rect anchor = startAnchor != null && startBar != null && startAnchor.IsLoaded ? startBar.ScreenRectOf(startAnchor) : new Rect(0, 0, 0, 0);
             var q = new QuickMenu(t, anchor, startBar?.Edge ?? Edge.Bottom);
             q.Show();
-        }
-
-        /// <summary>Win+C and the Copilot key always go to ChatGPT.</summary>
-        void OpenAi()
-        {
-            if (Hacker) ToggleMenu(null, "? ");
-            else if (t.Menu == MenuKind.Palette || t.Menu == MenuKind.Hub) ToggleMenu(null, Core.Loc.De ? "frag " : "ask ");
-            else ShellActions.AskAi(null);
         }
 
         // ---------------- start menu ----------------
@@ -545,13 +464,8 @@ namespace WinMorph.Shell
             switch (t.Layout)
             {
                 case BarLayout.Bottom: ClassicBar(); break;
-                case BarLayout.MacTopDock: TopBar(gnome: false); BuildDock(Edge.Bottom, floating: true); break;
-                case BarLayout.GnomeTopLeftDock: TopBar(gnome: true); BuildDock(Edge.Left, floating: false); break;
-                case BarLayout.GnomeTopBottomDock: TopBar(gnome: true); BuildDock(Edge.Bottom, floating: true); break;
                 case BarLayout.Floating: FloatingBar(); break;
                 case BarLayout.TerminalTop: TerminalBar(); break;
-                case BarLayout.AiOnly: AiOnlyBar(); break;
-                case BarLayout.Waybar: WaybarBar(); break;
             }
         }
 
@@ -560,12 +474,12 @@ namespace WinMorph.Shell
             if (preview) { previewBars.Add((edge, thickness, content, bg)); return null; }
             uint abgr = 0;
             var w = new BarWindow(edge, thickness, blur, abgr, building) { Content = new Border { Background = bg, Child = content } };
-            TextOptions.SetTextFormattingMode(w, t.Btn == BtnStyle.Bevel ? TextFormattingMode.Display : TextFormattingMode.Ideal);
+            TextOptions.SetTextFormattingMode(w, TextFormattingMode.Ideal);
             bars.Add(w);
             return w;
         }
 
-        // ---------- Windows-style bottom bar (95, XP, 7, Vista, 8, 10, Mint, ChromeOS, Gaming) ----------
+        // ---------- Windows 7 bottom bar ----------
         void ClassicBar()
         {
             var dock = new DockPanel { LastChildFill = true };
@@ -609,7 +523,6 @@ namespace WinMorph.Shell
                 };
                 fillQl();
                 if (!preview) AppCatalog.Loaded += fillQl;
-                if (t.Btn == BtnStyle.Bevel) ql.Children.Insert(0, new Border { Width = 2, Height = 20, BorderBrush = B(0x808080), BorderThickness = new Thickness(1, 0, 0, 0), Background = B(0xFFFFFF), Margin = new Thickness(0, 0, 4, 0) });
                 DockPanel.SetDock(ql, Dock.Left);
                 dock.Children.Add(ql);
             }
@@ -620,10 +533,8 @@ namespace WinMorph.Shell
 
             Brush bg = t.BarBg;
             UIElement content = dock;
-            if (t.Btn == BtnStyle.Bevel)
-                content = new Border { BorderBrush = B(0xFFFFFF), BorderThickness = new Thickness(0, 1, 0, 0), Child = new Border { BorderBrush = B(0xDFDFDF), BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(2, 1, 2, 1), Child = dock } };
-            else if (t.BarLine.A > 0)
-                content = new Border { BorderBrush = B(t.BarLine), BorderThickness = new Thickness(0, t.Id == "gaming" ? 2 : 1, 0, 0), Child = dock };
+            if (t.BarLine.A > 0)
+                content = new Border { BorderBrush = B(t.BarLine), BorderThickness = new Thickness(0, 1, 0, 0), Child = dock };
             if (t.Id == "win7")
             {
                 // glossy highlight on the upper half
@@ -635,106 +546,7 @@ namespace WinMorph.Shell
             startBar = NewBar(Edge.Bottom, t.BarHeight, t.Blur, content, bg);
         }
 
-        // ---------- top bar (macOS menu bar / GNOME panel) ----------
-        void TopBar(bool gnome)
-        {
-            var g = new Grid();
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            var left = new StackPanel { Orientation = Orientation.Horizontal };
-            var start = StartButton();
-            left.Children.Add(start);
-            if (!gnome)
-            {
-                var appName = T("", t, 13, t.BarFg, FontWeights.Bold);
-                appName.Margin = new Thickness(10, 0, 14, 0);
-                left.Children.Add(appName);
-                var menus = new StackPanel { Orientation = Orientation.Horizontal };
-                string[] items = De ? new[] { "Ablage", "Bearbeiten", "Darstellung", "Fenster", "Hilfe" } : new[] { "File", "Edit", "View", "Window", "Help" };
-                // These open the focused app's own menu bar via Alt, like the macOS menu bar.
-                foreach (var it in items)
-                {
-                    var b = Click(T(it, t, 13, t.BarFg), () => { var fg = tracker.Foreground; if (fg != IntPtr.Zero) { W32.Activate(fg); W32.SendKeys(0x12); } }, t.BtnHover, radius: new CornerRadius(4), pad: new Thickness(8, 1, 8, 1));
-                    menus.Children.Add(b);
-                }
-                left.Children.Add(menus);
-                refreshers.Add(() =>
-                {
-                    var w = tracker.Windows.FirstOrDefault(x => x.Hwnd == tracker.Foreground);
-                    appName.Text = w != null ? w.AppName : (De ? "Finder" : "Finder");
-                });
-            }
-            g.Children.Add(left);
-
-            var clockText = T("", t, 13, t.BarFg, gnome ? FontWeights.SemiBold : FontWeights.Normal);
-            var clockBtn = Click(clockText, ShellActions.Notifications, t.BtnHover, radius: new CornerRadius(12), pad: new Thickness(12, 1, 12, 1));
-            clockUpdaters.Add(() =>
-            {
-                var now = DateTime.Now; var ci = De ? new CultureInfo("de-DE") : new CultureInfo("en-US");
-                clockText.Text = gnome ? now.ToString(De ? "d. MMM  HH:mm" : "MMM d  HH:mm", ci) : now.ToString(De ? "ddd d. MMM  HH:mm" : "ddd MMM d  h:mm tt", ci);
-            });
-
-            var right = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 6, 0) };
-            var sys = new StackPanel { Orientation = Orientation.Horizontal };
-            sys.Children.Add(Glyph("", 13, t.BarFg));
-            var vol = Glyph("", 13, t.BarFg); vol.Margin = new Thickness(10, 0, 0, 0); sys.Children.Add(vol);
-            if (gnome) { var pw = Glyph("", 13, t.BarFg); pw.Margin = new Thickness(10, 0, 0, 0); sys.Children.Add(pw); }
-            right.Children.Add(Click(sys, ShellActions.QuickSettings, t.BtnHover, radius: new CornerRadius(12), pad: new Thickness(10, 3, 10, 3)));
-
-            if (gnome)
-            {
-                Grid.SetColumn(clockBtn, 1);
-                g.Children.Add(clockBtn);
-            }
-            else right.Children.Add(clockBtn);
-            Grid.SetColumn(right, 2);
-            g.Children.Add(right);
-
-            var bar = NewBar(Edge.Top, t.BarHeight, t.Blur, g, t.BarBg);
-            startBar = bar;
-        }
-
-        // ---------- dock (macOS / GNOME) ----------
-        void BuildDock(Edge edge, bool floating)
-        {
-            bool vertical = edge == Edge.Left;
-            double icon = t.DockIcon;
-            var items = DockItems(vertical ? Orientation.Vertical : Orientation.Horizontal, icon);
-            FrameworkElement content;
-            if (floating)
-            {
-                bool dark = t.Id != "macos";
-                var pill = new Border
-                {
-                    CornerRadius = new CornerRadius(t.Radius), Padding = new Thickness(8, 5, 8, 5),
-                    Background = dark ? B(0x1E1E22, 175) : B(0xFFFFFF, 120), BorderBrush = B(0xFFFFFF, dark ? (byte)45 : (byte)150), BorderThickness = new Thickness(1),
-                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 6),
-                    Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 2, Opacity = 0.3 },
-                };
-                var row = new StackPanel { Orientation = Orientation.Horizontal };
-                if (t.Layout == BarLayout.MacTopDock) row.Children.Add(DockTile(null, "dots", De ? "Launchpad" : "Launchpad", false, false, () => ToggleMenu(), icon, C(0x7B6CF6)));
-                row.Children.Add(items);
-                row.Children.Add(new Border { Width = 1, Margin = new Thickness(6, 8, 6, 8), Background = B(dark ? 0xFFFFFFu : 0x000000u, 60) });
-                row.Children.Add(DockTile(W32.ShellItemIcon("::{645FF040-5081-101B-9F08-00AA002F954E}", 64), null, De ? "Papierkorb" : "Trash", false, false, () => ShellActions.Run("explorer.exe", "shell:RecycleBinFolder"), icon, Colors.Gray));
-                if (t.Layout != BarLayout.MacTopDock) row.Children.Insert(0, DockTile(null, "dots", De ? "Apps anzeigen" : "Show apps", false, false, () => ToggleMenu(), icon, C(0x4A4A4A)));
-                pill.Child = row;
-                content = pill;
-                NewBar(Edge.Bottom, icon + 26, false, content, Brushes.Transparent);
-            }
-            else
-            {
-                var panel = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 6, 0, 6) };
-                var showApps = DockTile(null, "dots", De ? "Apps anzeigen" : "Show apps", false, false, () => ToggleMenu(), icon, C(0x3A3A3A));
-                DockPanel.SetDock(showApps, System.Windows.Controls.Dock.Bottom);
-                panel.Children.Add(showApps);
-                DockPanel.SetDock(items, System.Windows.Controls.Dock.Top);
-                panel.Children.Add(items);
-                content = panel;
-                NewBar(Edge.Left, icon + 22, false, content, B(0x1D1D1D, 235));
-            }
-        }
 
         // ---------- floating pill (NovaOS, Zen) ----------
         void FloatingBar()
@@ -756,107 +568,7 @@ namespace WinMorph.Shell
             startBar = NewBar(Edge.Bottom, t.BarHeight + 18, false, pill, Brushes.Transparent);
         }
 
-        // ---------- Nexus AI: one floating command capsule, nothing else ----------
-        void AiOnlyBar()
-        {
-            var pill = new Border
-            {
-                CornerRadius = new CornerRadius(t.Radius), Height = t.BarHeight, Width = 1000, Padding = new Thickness(8, 0, 14, 0),
-                Background = t.BarBg, BorderBrush = new LinearGradientBrush(C(0x9B87FF), C(0x22D3EE), 0), BorderThickness = new Thickness(1.3),
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-                Effect = new DropShadowEffect { BlurRadius = 30, ShadowDepth = 0, Opacity = 0.65, Color = t.Accent },
-            };
-            var dock = new DockPanel();
-            var start = StartButton();
-            DockPanel.SetDock(start, System.Windows.Controls.Dock.Left);
-            dock.Children.Add(start);
-            var right = new StackPanel { Orientation = Orientation.Horizontal };
-            right.Children.Add(DockItems(Orientation.Horizontal, t.DockIcon, runningOnly: true));
-            right.Children.Add(new Border { Width = 1, Margin = new Thickness(8, 14, 8, 14), Background = B(A(t.BarFg, 50)) });
-            right.Children.Add(Tray());
-            DockPanel.SetDock(right, System.Windows.Controls.Dock.Right);
-            dock.Children.Add(right);
 
-            var box = new TextBox { Background = Brushes.Transparent, BorderThickness = new Thickness(0), Foreground = B(t.BarFg), CaretBrush = B(t.Accent), FontSize = 15, VerticalContentAlignment = VerticalAlignment.Center, FontFamily = new FontFamily(t.Font) };
-            var hint = new TextBlock { Text = t.SearchHint, Foreground = B(t.BarFgDim), FontSize = 15, IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(3, 0, 0, 0), FontFamily = new FontFamily(t.Font) };
-            var g = new Grid { Margin = new Thickness(6, 0, 6, 0) };
-            g.Children.Add(hint); g.Children.Add(box);
-            var prompt = new Border { Child = g, CornerRadius = new CornerRadius(20), Background = B(0xFFFFFF, 14), Margin = new Thickness(6, 9, 6, 9), Padding = new Thickness(12, 0, 12, 0), BorderBrush = B(0xFFFFFF, 26), BorderThickness = new Thickness(1) };
-            box.TextChanged += (s, e) =>
-            {
-                hint.Visibility = box.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
-                if (box.Text.Length > 0) { var text = box.Text; box.Text = ""; ToggleMenu(start, text); }
-            };
-            dock.Children.Add(prompt);
-            pill.Child = dock;
-            startBar = NewBar(Edge.Bottom, t.BarHeight + 22, false, pill, Brushes.Transparent);
-        }
-
-        // ---------- Arch Linux: floating Waybar ----------
-        void WaybarBar()
-        {
-            var g = new Grid();
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            var left = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 0, 0, 0) };
-            left.Children.Add(StartButton());
-            var ws = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-            left.Children.Add(ws);
-            refreshers.Add(() =>
-            {
-                ws.Children.Clear();
-                int n = 1;
-                foreach (var w in tracker.Windows)
-                {
-                    var win = w;
-                    bool active = w.Hwnd == tracker.Foreground && !w.Minimized;
-                    var tb = T((n++).ToString(), t, 12.5, active ? C(0x0B1016) : (w.Minimized ? t.BarFgDim : t.BarFg), active ? FontWeights.Bold : FontWeights.Normal);
-                    tb.HorizontalAlignment = HorizontalAlignment.Center;
-                    var b = Click(tb, () => ToggleWindow(win), A(t.Accent, 70), active ? B(t.Accent) : null, new CornerRadius(6));
-                    b.Width = 26; b.Height = 22; b.Margin = new Thickness(2, 0, 2, 0); b.ToolTip = w.Title;
-                    AttachExtras(b, () => new List<WinInfo> { win }, null, win);
-                    ws.Children.Add(b);
-                }
-            });
-            g.Children.Add(left);
-
-            var title = T("", t, 12.5, t.BarFg);
-            title.MaxWidth = 520;
-            Grid.SetColumn(title, 1);
-            refreshers.Add(() => { var w = tracker.Windows.FirstOrDefault(x => x.Hwnd == tracker.Foreground); title.Text = w?.Title ?? "~"; });
-            g.Children.Add(title);
-
-            var right = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 4, 0) };
-            FrameworkElement Module(TextBlock text, Action click, Color? color = null)
-            {
-                var b = Click(text, click, A(t.Accent, 60), B(0xFFFFFF, 12), new CornerRadius(7), new Thickness(9, 1, 9, 1));
-                b.Margin = new Thickness(3, 5, 3, 5);
-                if (color.HasValue) text.Foreground = B(color.Value);
-                return b;
-            }
-            var cpu = T("", t, 12); var mem = T("", t, 12); var clockText = T("", t, 12);
-            right.Children.Add(Module(cpu, ShellActions.TaskManager, C(0x89B4FA)));
-            right.Children.Add(Module(mem, ShellActions.TaskManager, C(0xA6E3A1)));
-            var net = new StackPanel { Orientation = Orientation.Horizontal };
-            net.Children.Add(Glyph("\uE701", 12, C(0xF9E2AF))); var vol = Glyph("\uE767", 12, C(0xF5C2E7)); vol.Margin = new Thickness(9, 0, 0, 0); net.Children.Add(vol);
-            var netBtn = Click(net, ShellActions.QuickSettings, A(t.Accent, 60), B(0xFFFFFF, 12), new CornerRadius(7), new Thickness(9, 1, 9, 1));
-            netBtn.Margin = new Thickness(3, 5, 3, 5);
-            right.Children.Add(netBtn);
-            right.Children.Add(Module(clockText, ShellActions.Notifications, t.Accent));
-            clockUpdaters.Add(() =>
-            {
-                cpu.Text = "cpu " + SysStats.Cpu().ToString("0") + "%";
-                mem.Text = "mem " + SysStats.Mem().ToString("0") + "%";
-                clockText.Text = DateTime.Now.ToString(De ? "ddd dd MMM  HH:mm" : "ddd MMM dd  HH:mm", De ? new CultureInfo("de-DE") : new CultureInfo("en-US"));
-            });
-            Grid.SetColumn(right, 2);
-            g.Children.Add(right);
-
-            var barBorder = new Border { Child = g, Margin = new Thickness(8, 6, 8, 2), CornerRadius = new CornerRadius(t.Radius), Background = t.BarBg, BorderBrush = B(A(t.Accent, 150)), BorderThickness = new Thickness(1) };
-            startBar = NewBar(Edge.Top, t.BarHeight + 10, false, barBorder, Brushes.Transparent);
-        }
 
         // ---------- terminal status line (hacker look) ----------
         void TerminalBar()
@@ -910,16 +622,13 @@ namespace WinMorph.Shell
                 {
                     bat.Text = "bat " + pct + "%" + (ac ? "+" : "");
                     bat.Foreground = B(pct < 20 && !ac ? C(0xFF4D4D) : t.BarFg);
-                    if (lastAc != null && ac != lastAc) Notify.Show("power", ac ? (De ? "netzteil angeschlossen · " : "charger connected · ") + pct + "%" : (De ? "akkubetrieb · " : "on battery · ") + pct + "%", null, 4);
-                    if (!ac && (pct == 20 || pct == 10 || pct == 5) && pct != lastWarn) { lastWarn = pct; Notify.Show("power", (De ? "akku niedrig: " : "battery low: ") + pct + "%", De ? "netzteil anschließen" : "plug in the charger", 10); }
-                    lastAc = ac;
                 }
             });
             dock.Children.Add(TaskButtons());
             startBar = NewBar(Edge.Top, t.BarHeight, false, new Border { BorderBrush = B(A(t.Accent, 120)), BorderThickness = new Thickness(0, 0, 0, 1), Child = dock }, t.BarBg);
         }
 
-        bool? lastAc; int lastWarn;
+
 
         void OpenPanel(string kind, FrameworkElement el)
         {
@@ -937,30 +646,6 @@ namespace WinMorph.Shell
             string startText = De ? "Start" : "Start";
             switch (t.Start)
             {
-                case StartKind.Classic:
-                {
-                    var sp = new StackPanel { Orientation = Orientation.Horizontal };
-                    sp.Children.Add(ClassicLogo(15));
-                    sp.Children.Add(new TextBlock { Text = startText, FontWeight = FontWeights.Bold, FontSize = 11.5, Foreground = B(0x000000), Margin = new Thickness(4, 0, 2, 0), VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Microsoft Sans Serif") });
-                    var bevel = new Bevel { Child = new Border { Padding = new Thickness(2, 0, 4, 0), Child = sp }, Margin = new Thickness(0, 1, 4, 1) };
-                    bevel.MouseLeftButtonDown += (s, e) => { bevel.Sunken = true; bevel.InvalidateVisual(); bevel.InvalidateArrange(); };
-                    bevel.MouseLeftButtonUp += (s, e) => { bevel.Sunken = false; bevel.InvalidateVisual(); bevel.InvalidateArrange(); ToggleMenu(self); };
-                    bevel.MouseLeave += (s, e) => { if (bevel.Sunken) { bevel.Sunken = false; bevel.InvalidateVisual(); } };
-                    el = bevel;
-                    break;
-                }
-                case StartKind.Xp:
-                {
-                    var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(10, 0, 22, 0) };
-                    sp.Children.Add(ClassicLogo(18));
-                    sp.Children.Add(new TextBlock { Text = De ? "start" : "start", Foreground = B(0xFFFFFF), FontSize = 18, FontWeight = FontWeights.Bold, FontStyle = FontStyles.Italic, FontFamily = new FontFamily("Trebuchet MS, Franklin Gothic Medium, Tahoma"), Margin = new Thickness(6, -2, 0, 0), VerticalAlignment = VerticalAlignment.Center, Effect = new DropShadowEffect { ShadowDepth = 1.5, BlurRadius = 2, Opacity = 0.7 } });
-                    var normal = V((0, C(0x5DBB4B)), (0.12, C(0x3E9E33)), (0.5, C(0x379131)), (0.88, C(0x2E7F28)), (1, C(0x1E5E18)));
-                    var b = Click(sp, () => ToggleMenu(self), C(0x4FB43F), normal, new CornerRadius(0, 12, 12, 0));
-                    b.Margin = new Thickness(0, 0, 10, 0);
-                    b.BorderBrush = B(0x1E5E18); b.BorderThickness = new Thickness(0, 0, 1, 0);
-                    el = b;
-                    break;
-                }
                 case StartKind.Orb:
                 {
                     var orb = new Grid { Width = 40, Height = 40 };
@@ -974,62 +659,6 @@ namespace WinMorph.Shell
                     el = b;
                     break;
                 }
-                case StartKind.Logo:
-                {
-                    var logo = Logo4(16, Colors.White, Colors.White, Colors.White, Colors.White);
-                    el = Click(logo, () => ToggleMenu(self), A(t.Accent, 200), pad: new Thickness(16, 0, 16, 0));
-                    break;
-                }
-                case StartKind.Mint:
-                {
-                    var sp = new StackPanel { Orientation = Orientation.Horizontal };
-                    sp.Children.Add(new Border { Width = 22, Height = 22, CornerRadius = new CornerRadius(5), Background = V((0, C(0xA6E26B)), (1, C(0x6FA33A))), Child = new TextBlock { Text = "m", Foreground = B(0xFFFFFF), FontWeight = FontWeights.Bold, FontSize = 15, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, -3, 0, 0) } });
-                    sp.Children.Add(T(De ? "Menü" : "Menu", t, 12.5));
-                    ((TextBlock)sp.Children[1]).Margin = new Thickness(8, 0, 0, 0);
-                    el = Click(sp, () => ToggleMenu(self), t.BtnHover, pad: new Thickness(10, 0, 12, 0));
-                    break;
-                }
-                case StartKind.Activities:
-                {
-                    var tb = T(De ? "Aktivitäten" : "Activities", t, 13, t.BarFg, FontWeights.SemiBold);
-                    el = Click(tb, () => ToggleMenu(self), t.BtnHover, radius: new CornerRadius(12), pad: new Thickness(12, 2, 12, 2));
-                    el.Margin = new Thickness(4, 0, 0, 0);
-                    break;
-                }
-                case StartKind.Launcher:
-                {
-                    var ring = new Border { Width = 18, Height = 18, CornerRadius = new CornerRadius(9), BorderBrush = B(0xFFFFFF), BorderThickness = new Thickness(2.5) };
-                    var b = Click(ring, () => ToggleMenu(self), C(0xFFFFFF, 30), radius: new CornerRadius(18), pad: new Thickness(10));
-                    b.Margin = new Thickness(8, 0, 0, 0);
-                    b.VerticalAlignment = VerticalAlignment.Center;
-                    el = b;
-                    break;
-                }
-                case StartKind.AiOrb:
-                {
-                    var orb = new Border { Width = 30, Height = 30, CornerRadius = new CornerRadius(15), Background = new RadialGradientBrush(C(0xB8F7FF), C(0x0077A8)) { GradientOrigin = new Point(0.35, 0.3) } };
-                    var glow = new DropShadowEffect { Color = t.Accent, BlurRadius = 16, ShadowDepth = 0, Opacity = 0.9 };
-                    orb.Effect = glow;
-                    var pulse = new DoubleAnimation(8, 26, TimeSpan.FromSeconds(1.6)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() };
-                    glow.BeginAnimation(DropShadowEffect.BlurRadiusProperty, pulse);
-                    var sp = new StackPanel { Orientation = Orientation.Horizontal };
-                    sp.Children.Add(orb);
-                    sp.Children.Add(T("Synapse", t, 13.5, t.BarFg, FontWeights.SemiBold));
-                    ((TextBlock)sp.Children[1]).Margin = new Thickness(9, 0, 4, 0);
-                    el = Click(sp, () => ToggleMenu(self), A(t.Accent, 35), radius: new CornerRadius(10), pad: new Thickness(6, 4, 8, 4));
-                    break;
-                }
-                case StartKind.Nova:
-                {
-                    var diamond = new Border { Width = 20, Height = 20, CornerRadius = new CornerRadius(5), Background = new LinearGradientBrush(C(0xC084FC), C(0x6D28D9), 45), RenderTransform = new RotateTransform(45), RenderTransformOrigin = new Point(0.5, 0.5) };
-                    diamond.Effect = new DropShadowEffect { Color = t.Accent, BlurRadius = 14, ShadowDepth = 0, Opacity = 0.9 };
-                    var sp = new StackPanel { Orientation = Orientation.Horizontal };
-                    sp.Children.Add(diamond);
-                    sp.Children.Add(T("nova", t, 15, C(0xEDE9FE), FontWeights.SemiBold));
-                    ((TextBlock)sp.Children[1]).Margin = new Thickness(12, 0, 2, 0);
-                    el = Click(sp, () => ToggleMenu(self), A(t.Accent, 45), radius: new CornerRadius(18), pad: new Thickness(10, 6, 12, 6));
-                    break;
-                }
                 case StartKind.Terminal:
                     el = Click(T(" [λ] menu ", t, 12.5, C(0x000000), FontWeights.Bold), () => ToggleMenu(self), C(0x7CFF9B), B(t.Accent), pad: new Thickness(4, 0, 4, 0));
                     break;
@@ -1039,38 +668,6 @@ namespace WinMorph.Shell
                     el = Click(ring, () => ToggleMenu(self), t.BtnHover, radius: new CornerRadius(14), pad: new Thickness(8));
                     break;
                 }
-                case StartKind.Gaming:
-                {
-                    var sp = new StackPanel { Orientation = Orientation.Horizontal };
-                    sp.Children.Add(Glyph("", 18, Colors.White));
-                    sp.Children.Add(T(De ? "SPIELEN" : "PLAY", t, 13, Colors.White, FontWeights.Bold));
-                    ((TextBlock)sp.Children[1]).Margin = new Thickness(8, 0, 0, 0);
-                    var b = Click(sp, () => ToggleMenu(self), Core.Applier.Mix(t.Accent, Colors.White, 0.2), B(t.Accent), pad: new Thickness(16, 0, 20, 0));
-                    b.RenderTransform = new SkewTransform(-14, 0);
-                    b.Margin = new Thickness(6, 0, 10, 0);
-                    el = b;
-                    break;
-                }
-                case StartKind.Nexus:
-                {
-                    var orb = new Border { Width = 26, Height = 26, CornerRadius = new CornerRadius(13), Background = new RadialGradientBrush(C(0xE9E3FF), C(0x4B2FD6)) { GradientOrigin = new Point(0.35, 0.3) } };
-                    var glow = new DropShadowEffect { Color = t.Accent, BlurRadius = 14, ShadowDepth = 0, Opacity = 1 };
-                    orb.Effect = glow;
-                    glow.BeginAnimation(DropShadowEffect.BlurRadiusProperty, new DoubleAnimation(8, 24, TimeSpan.FromSeconds(1.8)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
-                    el = Click(orb, () => ToggleMenu(self), A(t.Accent, 40), radius: new CornerRadius(20), pad: new Thickness(8));
-                    break;
-                }
-                case StartKind.Arch:
-                {
-                    var tri = new System.Windows.Shapes.Path { Data = Geometry.Parse("M 9,0 L 18,18 C 13,13 5,13 0,18 Z"), Fill = B(t.Accent), Width = 18, Height = 18, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center };
-                    var sp = new StackPanel { Orientation = Orientation.Horizontal };
-                    sp.Children.Add(tri);
-                    sp.Children.Add(T("arch", t, 13, t.BarFg, FontWeights.Bold));
-                    ((TextBlock)sp.Children[1]).Margin = new Thickness(7, 0, 0, 0);
-                    el = Click(sp, () => ToggleMenu(self), t.BtnHover, radius: new CornerRadius(7), pad: new Thickness(10, 3, 10, 3));
-                    break;
-                }
-                case StartKind.Apple:
                 default:
                 {
                     var dot = new Border { Width = 14, Height = 14, CornerRadius = new CornerRadius(7), Background = B(t.BarFg) };
@@ -1156,28 +753,6 @@ namespace WinMorph.Shell
             double h = t.BarHeight;
             switch (t.Btn)
             {
-                case BtnStyle.Bevel:
-                {
-                    var sp = new StackPanel { Orientation = Orientation.Horizontal };
-                    sp.Children.Add(Img(w.Icon, 16));
-                    sp.Children.Add(new TextBlock { Text = w.Title, FontSize = 11.5, FontWeight = active ? FontWeights.Bold : FontWeights.Normal, Foreground = B(0x000000), Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, FontFamily = new FontFamily("Microsoft Sans Serif") });
-                    var b = new Bevel { Sunken = active, Dither = active, Width = 160, Margin = new Thickness(0, 1, 3, 1), Child = sp, ToolTip = w.Title };
-                    b.MouseLeftButtonUp += (s, e) => ToggleWindow(w);
-                    b.MouseRightButtonUp += (s, e) => WindowMenu(w);
-                    return b;
-                }
-                case BtnStyle.Luna:
-                {
-                    var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6, 0, 6, 0) };
-                    sp.Children.Add(Img(w.Icon, 16));
-                    sp.Children.Add(new TextBlock { Text = w.Title, FontSize = 11.5, Foreground = B(0xFFFFFF), Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
-                    Brush bg = active ? V((0, C(0x1A49B5)), (0.15, C(0x1E52B7)), (1, C(0x2C66D6))) : V((0, C(0x4B92F8)), (0.1, C(0x3C81F3)), (0.9, C(0x3277EC)), (1, C(0x2463D5)));
-                    var b = Click(sp, () => ToggleWindow(w), C(0x5A9AF8), bg, new CornerRadius(3), onRight: () => WindowMenu(w));
-                    b.Width = 160; b.Margin = new Thickness(0, 4, 3, 3);
-                    b.BorderBrush = B(active ? 0x10388Fu : 0x1B52C9u); b.BorderThickness = new Thickness(1);
-                    b.ToolTip = w.Title;
-                    return b;
-                }
                 case BtnStyle.Glass:
                 {
                     var content = t.Labels ? (UIElement)LabelContent(w, 22, 12) : Img(w.Icon, 26);
@@ -1193,17 +768,6 @@ namespace WinMorph.Shell
                 {
                     var text = " " + index + ":" + Short(w.AppName ?? w.Title, 14) + (w.Minimized ? "-" : (active ? "*" : " ")) + " ";
                     var b = Click(T(text, t, 12.5, active ? C(0x000000) : t.BarFg, active ? FontWeights.Bold : FontWeights.Normal), () => ToggleWindow(w), t.BtnHover, active ? B(t.Accent) : null, onRight: () => WindowMenu(w));
-                    b.ToolTip = w.Title;
-                    return b;
-                }
-                case BtnStyle.Angular:
-                {
-                    var g = new Grid { Width = 54 };
-                    g.Children.Add(Img(w.Icon, 24));
-                    g.Children.Add(new Border { Height = 3, VerticalAlignment = VerticalAlignment.Bottom, Background = B(active ? t.Accent : A(t.Accent, 90)), Margin = new Thickness(active ? 4 : 16, 0, active ? 4 : 16, 0) });
-                    var b = Click(g, () => ToggleWindow(w), A(t.Accent, 60), active ? B(A(t.Accent, 70)) : null, onRight: () => WindowMenu(w));
-                    b.RenderTransform = new SkewTransform(-14, 0);
-                    b.Margin = new Thickness(2, 4, 2, 0);
                     b.ToolTip = w.Title;
                     return b;
                 }
@@ -1292,8 +856,7 @@ namespace WinMorph.Shell
             g.Children.Add(img);
             if (running)
             {
-                Color dotColor = t.Layout == BarLayout.GnomeTopLeftDock || t.Layout == BarLayout.GnomeTopBottomDock ? t.Accent : (t.Id == "macos" ? C(0x333333) : (t.Id == "zen" ? t.BarFg : C(0xFFFFFF)));
-                if (t.Layout == BarLayout.Floating && t.Id != "zen") dotColor = t.Accent;
+                Color dotColor = t.Id == "zen" ? t.BarFg : C(0xFFFFFF);
                 var dot = new Border
                 {
                     Width = vertical ? 4 : (active ? 14 : 5), Height = vertical ? (active ? 14 : 5) : 4, CornerRadius = new CornerRadius(2), Background = B(dotColor),
@@ -1303,8 +866,8 @@ namespace WinMorph.Shell
                 g.Children.Add(dot);
             }
             var b = new Border { Child = g, Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = name, CornerRadius = new CornerRadius(8) };
-            if (active && t.Layout != BarLayout.MacTopDock) b.Background = B(t.BtnActive.A > 0 ? A(t.BtnActive, t.BtnActive.A) : C(0xFFFFFF, 30));
-            bool magnify = t.Layout == BarLayout.MacTopDock;
+            if (active) b.Background = B(t.BtnActive.A > 0 ? A(t.BtnActive, t.BtnActive.A) : C(0xFFFFFF, 30));
+            const bool magnify = false;
             b.MouseEnter += (s, e) =>
             {
                 double to = magnify ? 1.35 : 1.0;
@@ -1316,7 +879,7 @@ namespace WinMorph.Shell
             {
                 scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(160)));
                 scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(160)));
-                if (!magnify) b.Background = active && t.Layout != BarLayout.MacTopDock ? B(t.BtnActive.A > 0 ? t.BtnActive : C(0xFFFFFF, 30)) : Brushes.Transparent;
+                if (!magnify) b.Background = active ? B(t.BtnActive.A > 0 ? t.BtnActive : C(0xFFFFFF, 30)) : Brushes.Transparent;
             };
             b.MouseLeftButtonUp += (s, e) => click();
             b.Margin = vertical ? new Thickness(4, 1, 4, 1) : new Thickness(1, 0, 1, 0);
@@ -1337,25 +900,12 @@ namespace WinMorph.Shell
             if (!preview) clockUpdaters.Add(() => { Zen.Tick(); timer.Text = Zen.TimerText; });
         }
 
-        // ---------- Gaming: live values, game library, performance mode ----------
-        void GamingTray(StackPanel sp, Color fg, Color hover)
-        {
-            Border Item(TextBlock tb, Action a, string tip) { var b = Click(tb, a, hover, pad: new Thickness(8, 0, 8, 0)); b.ToolTip = tip; sp.Children.Add(b); return b; }
-            TextBlock Txt(string s, Color c) => new TextBlock { Text = s, Foreground = B(c), FontFamily = new FontFamily(t.Font), FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
-            var stats = Txt(preview ? "CPU 9%   GPU 21%   RAM 48%   18 ms" : "", A(fg, 210));
-            Item(stats, () => Gaming.ToggleOverlay(t), De ? "Live-Werte · Klick oder Win+Umschalt+F: Overlay im Spiel" : "Live values · click or Win+Shift+F: in-game overlay");
-            Item(Txt(De ? "🎮 SPIELE" : "🎮 GAMES", fg), () => Gaming.Library(t), De ? "Spiele-Bibliothek (Steam, Epic)" : "Game library (Steam, Epic)");
-            var perf = Txt("⚡", Gaming.PerfOn ? t.Accent : A(fg, 150));
-            Item(perf, () => { Gaming.TogglePerf(); perf.Foreground = B(Gaming.PerfOn ? t.Accent : A(fg, 150)); }, De ? "Leistungsmodus an/aus (wird beim Beenden zurückgesetzt)" : "Performance mode on/off (reset when you stop)");
-            int tick = 0;
-            if (!preview) clockUpdaters.Add(() => { if (tick++ % 2 == 0) stats.Text = Gaming.Stats(); });
-        }
 
         FrameworkElement Tray()
         {
             var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Stretch };
-            Color fg = t.Btn == BtnStyle.Bevel ? C(0x000000) : t.BarFg;
-            Color hover = t.Btn == BtnStyle.Bevel ? C(0x000000, 20) : t.BtnHover;
+            Color fg = t.BarFg;
+            Color hover = t.BtnHover;
             FrameworkElement G(string glyph, Action a, string tip) { var b = Click(Glyph(glyph, 13, fg), a, hover, pad: new Thickness(6, 0, 6, 0), radius: new CornerRadius(t.Btn == BtnStyle.Pill ? 8 : 0)); b.ToolTip = tip; return b; }
             sp.Children.Add(G("", ShellActions.QuickSettings, De ? "Netzwerk" : "Network"));
             sp.Children.Add(G("", ShellActions.QuickSettings, De ? "Lautstärke" : "Volume"));
@@ -1370,7 +920,6 @@ namespace WinMorph.Shell
                 clockUpdaters.Add(() => { if (SysStats.Battery(out int pct, out bool ac)) bat.Text = (ac ? "\u26A1" : "") + pct + "%"; });
             }
             if (t.Id == "zen") ZenTray(sp, fg, hover);
-            if (t.Id == "gaming") GamingTray(sp, fg, hover);
             sp.Children.Add(clockBtn);
             clockUpdaters.Add(() =>
             {
@@ -1387,15 +936,6 @@ namespace WinMorph.Shell
 
             switch (t.Btn)
             {
-                case BtnStyle.Bevel:
-                    return new Bevel { Sunken = true, Child = sp, Margin = new Thickness(2, 1, 0, 1) };
-                case BtnStyle.Luna:
-                    return new Border
-                    {
-                        Child = sp, Padding = new Thickness(6, 0, 4, 0),
-                        Background = V((0, C(0x1BA0F0)), (0.08, C(0x18A5F2)), (0.5, C(0x0E8BE8)), (1, C(0x0A6DD3))),
-                        BorderBrush = B(0x0B4FB8), BorderThickness = new Thickness(1, 0, 0, 0),
-                    };
                 case BtnStyle.Pill when t.Layout == BarLayout.Bottom:
                     return new Border { Child = sp, Background = B(0xFFFFFF, 25), CornerRadius = new CornerRadius(16), Margin = new Thickness(0, 7, 8, 7), Padding = new Thickness(6, 0, 6, 0) };
                 default:

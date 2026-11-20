@@ -138,7 +138,6 @@ namespace WinMorph.Live
             {
                 case "hacker-desk": return new DeskScene { Accent = Shell.ShellThemes.HackerColor };
                 case "zen-desk": return new ZenScene();
-                case "gaming-desk": return new GameScene();
                 case "matrix": case "matrix-hud": return new MatrixScene { Accent = Shell.ShellThemes.HackerColor };
                 case "matrix-red": return new MatrixScene { Accent = Color.FromRgb(0xFF, 0x2A, 0x2A) };
                 case "matrix-cyan": return new MatrixScene { Accent = Color.FromRgb(0x00, 0xE5, 0xFF) };

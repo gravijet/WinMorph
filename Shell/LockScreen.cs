@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -247,104 +247,6 @@ namespace WinMorph.Shell
 
             switch (t.Lock)
             {
-                case LockKind.Classic:
-                {
-                    root.Children.Add(new Border { Background = B(0x008080) });
-                    var dlg = new Bevel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Width = 440 };
-                    var sp = new StackPanel();
-                    var title = new Border { Background = new LinearGradientBrush(C(0x000080), C(0x1084D0), 0), Padding = new Thickness(6, 3, 6, 3), Child = new TextBlock { Text = L("Willkommen bei ", "Welcome to ") + p.Name, Foreground = B(0xFFFFFF), FontWeight = FontWeights.Bold, FontSize = 12, FontFamily = new FontFamily("Microsoft Sans Serif") } };
-                    sp.Children.Add(title);
-                    var body = new StackPanel { Margin = new Thickness(18, 16, 18, 16) };
-                    var row = new StackPanel { Orientation = Orientation.Horizontal };
-                    row.Children.Add(ClassicLogo(36));
-                    row.Children.Add(new TextBlock { Text = L("Drücken Sie eine beliebige Taste,\num sich bei Windows anzumelden.", "Press any key\nto log on to Windows."), Margin = new Thickness(16, 0, 0, 0), FontSize = 12, FontFamily = new FontFamily("Microsoft Sans Serif"), Foreground = B(0x000000) });
-                    body.Children.Add(row);
-                    var clock = new TextBlock { FontSize = 12, FontFamily = new FontFamily("Microsoft Sans Serif"), Margin = new Thickness(0, 16, 0, 0), Foreground = B(0x000000) };
-                    body.Children.Add(new Bevel { Sunken = true, Fill = B(0xFFFFFF), Child = clock });
-                    Tick(() => clock.Text = " " + ShellActions.UserName + "   ·   " + DateTime.Now.ToString("HH:mm:ss") + " ");
-                    sp.Children.Add(body);
-                    dlg.Child = sp;
-                    root.Children.Add(dlg);
-                    break;
-                }
-                case LockKind.Xp:
-                {
-                    var g = new Grid { Background = B(0x5A7EDC) };
-                    g.RowDefinitions.Add(new RowDefinition { Height = new GridLength(78) });
-                    g.RowDefinitions.Add(new RowDefinition());
-                    g.RowDefinitions.Add(new RowDefinition { Height = new GridLength(84) });
-                    var top = new Border { Background = B(0x00309C), BorderBrush = new LinearGradientBrush(C(0x5A7EDC), C(0xF2A93B), 0) { GradientStops = { new GradientStop(C(0x5A7EDC), 0), new GradientStop(C(0xFFFFFF), 0.3), new GradientStop(C(0x5A7EDC), 1) } }, BorderThickness = new Thickness(0, 0, 0, 2) };
-                    var bottom = new Border { Background = B(0x00309C), BorderBrush = new LinearGradientBrush(C(0x5A7EDC), C(0xF2A93B), 0) { GradientStops = { new GradientStop(C(0x5A7EDC), 0), new GradientStop(C(0xF2A93B), 0.3), new GradientStop(C(0x5A7EDC), 1) } }, BorderThickness = new Thickness(0, 2, 0, 0) };
-                    Grid.SetRow(bottom, 2);
-                    var bottomContent = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(40, 0, 0, 0) };
-                    bottomContent.Children.Add(new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(5), Background = V((0, C(0xF26C4F)), (1, C(0xC2350A))), BorderBrush = B(0xFFFFFF), BorderThickness = new Thickness(1), Child = Glyph("", 15, Colors.White) });
-                    bottomContent.Children.Add(new TextBlock { Text = L("Computer ausschalten", "Turn off computer"), Foreground = B(0xFFFFFF), FontSize = 14, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Tahoma") });
-                    bottom.Child = bottomContent;
-                    g.Children.Add(top); g.Children.Add(bottom);
-                    var mid = new Grid { Background = new RadialGradientBrush(C(0x7C9AE6), C(0x5A7EDC)) { Center = new Point(0.2, 0.2), GradientOrigin = new Point(0.2, 0.2), RadiusX = 0.6, RadiusY = 0.7 } };
-                    Grid.SetRow(mid, 1);
-                    mid.ColumnDefinitions.Add(new ColumnDefinition());
-                    mid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2) });
-                    mid.ColumnDefinitions.Add(new ColumnDefinition());
-                    var left = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 50, 0) };
-                    var brand = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-                    brand.Children.Add(ClassicLogo(54));
-                    brand.Children.Add(new TextBlock { Text = p.Name, Foreground = B(0xFFFFFF), FontSize = 40, FontStyle = FontStyles.Italic, FontWeight = FontWeights.Bold, Margin = new Thickness(14, 0, 0, 0), FontFamily = new FontFamily("Franklin Gothic Medium, Trebuchet MS, Tahoma"), VerticalAlignment = VerticalAlignment.Center });
-                    left.Children.Add(brand);
-                    left.Children.Add(new TextBlock { Text = L("Klicken Sie auf Ihren Benutzernamen, um zu beginnen", "To begin, click your user name"), Foreground = B(0xFFFFFF), FontSize = 15, Margin = new Thickness(0, 18, 0, 0), HorizontalAlignment = HorizontalAlignment.Right, FontFamily = new FontFamily("Tahoma") });
-                    mid.Children.Add(left);
-                    var divider = new Border { Background = new LinearGradientBrush(C(0x5A7EDC), C(0xFFFFFF), 90) { GradientStops = { new GradientStop(C(0x5A7EDC), 0), new GradientStop(C(0xFFFFFF), 0.5), new GradientStop(C(0x5A7EDC), 1) } }, Margin = new Thickness(0, 60, 0, 60) };
-                    Grid.SetColumn(divider, 1); mid.Children.Add(divider);
-                    var userRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(50, 0, 0, 0) };
-                    var tile = Avatar(64, C(0xF7A84B), C(0xD35400), 6);
-                    tile.BorderBrush = B(0xFFC74A); tile.BorderThickness = new Thickness(3);
-                    userRow.Children.Add(tile);
-                    var name = new StackPanel { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-                    name.Children.Add(new TextBlock { Text = ShellActions.UserName, Foreground = B(0xFFFFFF), FontSize = 22, FontFamily = new FontFamily("Tahoma") });
-                    var clock = new TextBlock { Foreground = B(0xD8E4F8), FontSize = 13, FontFamily = new FontFamily("Tahoma") };
-                    Tick(() => clock.Text = DateTime.Now.ToString("HH:mm") + " · " + hint);
-                    name.Children.Add(clock);
-                    userRow.Children.Add(name);
-                    Grid.SetColumn(userRow, 2); mid.Children.Add(userRow);
-                    g.Children.Add(mid);
-                    root.Children.Add(g);
-                    break;
-                }
-                case LockKind.Mac:
-                {
-                    bg.Effect = new BlurEffect { Radius = 50, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Performance };
-                    ((FrameworkElement)bg).Margin = new Thickness(-60);
-                    root.Children.Add(bg);
-                    root.Children.Add(new Border { Background = B(0x000000, 40) });
-                    var top = new StackPanel { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 70, 0, 0) };
-                    var date = Text("", 24, C(0xFFFFFF), FontWeights.SemiBold);
-                    var time = Text("", 120, C(0xFFFFFF, 230), FontWeights.Bold);
-                    top.Children.Add(date); top.Children.Add(time);
-                    Tick(() => { date.Text = DateTime.Now.ToString(De ? "dddd, d. MMMM" : "dddd, MMMM d", Ci); time.Text = DateTime.Now.ToString("HH:mm"); });
-                    root.Children.Add(top);
-                    var bottom = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 90) };
-                    bottom.Children.Add(Avatar(72, C(0x8E8E93), C(0x5A5A5E), 36));
-                    bottom.Children.Add(Text(ShellActions.UserName, 16, C(0xFFFFFF), FontWeights.SemiBold));
-                    ((TextBlock)bottom.Children[1]).Margin = new Thickness(0, 10, 0, 4);
-                    bottom.Children.Add(Text(hint, 13, C(0xFFFFFF, 180)));
-                    root.Children.Add(bottom);
-                    break;
-                }
-                case LockKind.Gnome:
-                {
-                    root.Children.Add(bg);
-                    root.Children.Add(new Border { Background = B(0x000000, 110) });
-                    var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-                    var time = Text("", 110, C(0xFFFFFF), FontWeights.Bold, t.Id == "arch" ? "Cascadia Mono, Consolas" : null);
-                    var date = Text("", 26, C(0xFFFFFF, 220), FontWeights.SemiBold);
-                    sp.Children.Add(time); sp.Children.Add(date);
-                    Tick(() => { time.Text = DateTime.Now.ToString("HH:mm"); date.Text = DateTime.Now.ToString(De ? "dddd, d. MMMM" : "dddd, MMMM d", Ci); });
-                    root.Children.Add(sp);
-                    var h = Text(t.Id == "arch" ? "[ " + hint.ToLower() + " ]" : hint, 15, C(0xFFFFFF, 170), null, t.Id == "arch" ? "Cascadia Mono, Consolas" : null);
-                    h.VerticalAlignment = VerticalAlignment.Bottom; h.Margin = new Thickness(0, 0, 0, 60);
-                    root.Children.Add(h);
-                    break;
-                }
                 case LockKind.Seven:
                 {
                     root.Children.Add(bg);
@@ -475,32 +377,6 @@ namespace WinMorph.Shell
                     });
                     break;
                 }
-                case LockKind.Ai:
-                {
-                    root.Children.Add(bg);
-                    root.Children.Add(new Border { Background = B(0x000000, 120) });
-                    var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-                    var orb = new Border { Width = 170, Height = 170, CornerRadius = new CornerRadius(85), HorizontalAlignment = HorizontalAlignment.Center, Background = new RadialGradientBrush(Core.Applier.Mix(t.Accent, Colors.White, 0.7), Core.Applier.Mix(t.Accent, Colors.Black, 0.5)) { GradientOrigin = new Point(0.35, 0.3) } };
-                    var glow = new DropShadowEffect { Color = t.Accent, BlurRadius = 40, ShadowDepth = 0, Opacity = 1 };
-                    orb.Effect = glow;
-                    glow.BeginAnimation(DropShadowEffect.BlurRadiusProperty, new DoubleAnimation(20, 90, TimeSpan.FromSeconds(2.2)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() });
-                    var sc = new ScaleTransform(1, 1);
-                    orb.RenderTransform = sc; orb.RenderTransformOrigin = new Point(0.5, 0.5);
-                    var pulse = new DoubleAnimation(0.94, 1.04, TimeSpan.FromSeconds(2.2)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() };
-                    sc.BeginAnimation(ScaleTransform.ScaleXProperty, pulse); sc.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
-                    sp.Children.Add(orb);
-                    var greet = Text(Greeting() + ", " + FirstName, 46, C(0xFFFFFF), FontWeights.SemiBold);
-                    greet.Margin = new Thickness(0, 46, 0, 6);
-                    sp.Children.Add(greet);
-                    var time = Text("", 22, C(0xFFFFFF, 190));
-                    Tick(() => time.Text = DateTime.Now.ToString(De ? "HH:mm · dddd, d. MMMM" : "HH:mm · dddd, MMMM d", Ci));
-                    sp.Children.Add(time);
-                    var h = Text(L("Ich bin bereit, wenn du es bist. Drücke eine Taste.", "Ready when you are. Press any key."), 15, A(Core.Applier.Mix(t.Accent, Colors.White, 0.5), 230));
-                    h.Margin = new Thickness(0, 30, 0, 0);
-                    sp.Children.Add(h);
-                    root.Children.Add(sp);
-                    break;
-                }
                 case LockKind.Zen:
                 {
                     root.Children.Add(bg);
@@ -517,18 +393,6 @@ namespace WinMorph.Shell
                     var time = Text("", 54, C(0x4A3F30), FontWeights.Light);
                     Tick(() => time.Text = DateTime.Now.ToString("HH:mm"));
                     sp.Children.Add(time);
-                    root.Children.Add(sp);
-                    break;
-                }
-                case LockKind.Gaming:
-                {
-                    root.Children.Add(bg);
-                    var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center, RenderTransform = new SkewTransform(-10, 0), RenderTransformOrigin = new Point(0.5, 0.5) };
-                    var time = Text("", 170, C(0xFFFFFF), FontWeights.Bold, "Bahnschrift");
-                    time.Effect = new DropShadowEffect { Color = t.Accent, BlurRadius = 30, ShadowDepth = 0, Opacity = 0.9 };
-                    sp.Children.Add(time);
-                    sp.Children.Add(Text(L("DRÜCKE EINE TASTE", "PRESS ANY KEY"), 26, t.Accent, FontWeights.Bold, "Bahnschrift"));
-                    Tick(() => time.Text = DateTime.Now.ToString("HH:mm"));
                     root.Children.Add(sp);
                     break;
                 }

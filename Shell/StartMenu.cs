@@ -30,19 +30,14 @@ namespace WinMorph.Shell
             AllowsTransparency = true; Background = Brushes.Transparent; UseLayoutRounding = true;
             SizeToContent = SizeToContent.WidthAndHeight;
             FontFamily = new FontFamily(t.Font);
-            TextOptions.SetTextFormattingMode(this, t.Btn == BtnStyle.Bevel ? TextFormattingMode.Display : TextFormattingMode.Ideal);
+            TextOptions.SetTextFormattingMode(this, TextFormattingMode.Ideal);
             Deactivated += (s, e) => SafeClose();
             KeyDown += (s, e) => { if (e.Key == Key.Escape) SafeClose(); };
             pendingSearch = initialSearch;
 
             switch (t.Menu)
             {
-                case MenuKind.Classic: Content = BuildClassic(); break;
-                case MenuKind.Xp: Content = BuildXp(); break;
                 case MenuKind.Seven: Content = BuildSeven(); break;
-                case MenuKind.Ten: Content = BuildTen(); break;
-                case MenuKind.Grid: Content = BuildGrid(); break;
-                case MenuKind.Hub: Content = BuildHub(); break;
                 default: Content = BuildPalette(); break;
             }
             Left = -20000; Top = -20000;
@@ -92,7 +87,7 @@ namespace WinMorph.Shell
 
         void Animate()
         {
-            if (!(Content is FrameworkElement c) || t.Menu == MenuKind.Classic) return;
+            if (!(Content is FrameworkElement c)) return;
             var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
             c.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(fullScreen ? 160 : 120)));
             if (fullScreen)
@@ -130,18 +125,17 @@ namespace WinMorph.Shell
             if (t.Menu == MenuKind.Palette)
             {
                 x = monRect.Left + (monRect.Width - w) / 2;
-                y = t.Layout == BarLayout.TerminalTop || t.Layout == BarLayout.Waybar ? work.Top + 40 : monRect.Top + monRect.Height * 0.22;
+                y = t.Layout == BarLayout.TerminalTop ? work.Top + 40 : monRect.Top + monRect.Height * 0.22;
             }
-            else if (t.Layout == BarLayout.Floating || t.CenterTasks && t.Menu == MenuKind.Grid)
+            else if (t.Layout == BarLayout.Floating)
             {
-                x = t.Start == StartKind.Launcher ? anchor.Left : monRect.Left + (monRect.Width - w) / 2;
+                x = monRect.Left + (monRect.Width - w) / 2;
                 y = work.Bottom - h - 10;
             }
             else
             {
                 x = anchor.Left;
                 y = edge == Edge.Top ? anchor.Bottom : anchor.Top - h;
-                if (t.Start == StartKind.Launcher) y -= 8;
             }
             Left = Math.Max(work.Left, Math.Min(x, work.Right - w));
             Top = Math.Max(work.Top, Math.Min(y, work.Bottom - h));
@@ -231,147 +225,9 @@ namespace WinMorph.Shell
             AppCatalog.Loaded += h;
         }
 
-        // ================= Windows 95 =================
-        UIElement BuildClassic()
-        {
-            var root = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom };
-            var main = new Bevel();
-            var dock = new DockPanel();
-            var banner = new Border { Width = 22, Background = V((0, C(0x000080)), (1, C(0x1084D0))) };
-            var bannerText = new TextBlock { Text = t.Name, Foreground = B(0xFFFFFF), FontWeight = FontWeights.Bold, FontSize = 17, FontFamily = new FontFamily("Arial"), VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 6) };
-            bannerText.LayoutTransform = new RotateTransform(-90);
-            banner.Child = bannerText;
-            dock.Children.Add(banner);
-            DockPanel.SetDock(banner, Dock.Left);
-
-            var items = new StackPanel { Width = 190 };
-            Color fg = C(0x000000), hov = C(0x000080), hovFg = C(0xFFFFFF);
-            Bevel sub = null;
-            resetView = () => { if (sub != null) { root.Children.Remove(sub); sub = null; } };
-            Action showPrograms = () =>
-            {
-                if (sub != null) { root.Children.Remove(sub); sub = null; return; }
-                sub = new Bevel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(-3, 0, 0, 0) };
-                var list = new StackPanel { Width = 240 };
-                foreach (var a in Apps()) list.Children.Add(AppRow(a, 16, fg, hov, 11.5, hovFg, 22));
-                if (AppCatalog.Apps.Count == 0) list.Children.Add(new TextBlock { Text = L("Wird geladen …", "Loading …"), Margin = new Thickness(8) });
-                sub.Child = Scroll(list, 560);
-                root.Children.Add(sub);
-            };
-            items.Children.Add(Row(FolderIcon(Environment.SpecialFolder.Programs), L("Programme", "Programs") + "   ▸", showPrograms, 24, fg, hov, 12, hoverFg: hovFg, height: 34));
-            items.Children.Add(Row(FolderIcon(Environment.SpecialFolder.MyDocuments), L("Dokumente", "Documents"), () => Do(() => ShellActions.Folder(Environment.SpecialFolder.MyDocuments)), 24, fg, hov, 12, hoverFg: hovFg, height: 34));
-            items.Children.Add(Row(null, L("Einstellungen", "Settings"), () => Do(ShellActions.Settings), 24, fg, hov, 12, hoverFg: hovFg, glyph: "", height: 34));
-            items.Children.Add(Row(SysIcon("control.exe"), L("Systemsteuerung", "Control Panel"), () => Do(ShellActions.ControlPanel), 24, fg, hov, 12, hoverFg: hovFg, height: 34));
-            items.Children.Add(Row(null, L("Suchen", "Find"), () => Do(ShellActions.Search), 24, fg, hov, 12, hoverFg: hovFg, glyph: "", height: 34));
-            items.Children.Add(Row(SysIcon("cmd.exe"), L("Ausführen …", "Run …"), () => Do(ShellActions.RunDialog), 24, fg, hov, 12, hoverFg: hovFg, height: 34));
-            items.Children.Add(new Border { Height = 2, Margin = new Thickness(2, 3, 2, 3), BorderBrush = B(0x808080), BorderThickness = new Thickness(0, 1, 0, 0), Background = B(0xFFFFFF) });
-            items.Children.Add(Row(null, L("Abmelden …", "Log Off …"), () => Do(ShellActions.SignOut), 24, fg, hov, 12, hoverFg: hovFg, glyph: "", height: 34));
-            items.Children.Add(Row(null, L("Beenden …", "Shut Down …"), () => Do(ShellActions.Shutdown), 24, fg, hov, 12, hoverFg: hovFg, glyph: "", height: 34));
-            dock.Children.Add(items);
-            main.Child = dock;
-            root.Children.Insert(0, main);
-            TextElement_SetFont(root, "Microsoft Sans Serif");
-            return root;
-        }
 
         static void TextElement_SetFont(DependencyObject d, string font) => TextElement.SetFontFamily(d, new FontFamily(font));
 
-        // ================= Windows XP =================
-        UIElement BuildXp()
-        {
-            var outer = new Border { CornerRadius = new CornerRadius(7, 7, 0, 0), Background = B(0x1C5CD6), Padding = new Thickness(0), Width = 410, BorderBrush = B(0x0B3CB0), BorderThickness = new Thickness(1) };
-            outer.Effect = new DropShadowEffect { BlurRadius = 10, ShadowDepth = 3, Opacity = 0.45 };
-            var dock = new DockPanel();
-
-            // header
-            var header = new Border { Height = 58, CornerRadius = new CornerRadius(6, 6, 0, 0), Background = new LinearGradientBrush(C(0x1C5CD6), C(0x4B92F0), 90) };
-            var hp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0) };
-            hp.Children.Add(new Border { Width = 44, Height = 44, CornerRadius = new CornerRadius(4), BorderBrush = B(0xFFFFFF, 220), BorderThickness = new Thickness(2), Background = V((0, C(0xF7A84B)), (1, C(0xD35400))), Child = new TextBlock { Text = ShellActions.UserName.Substring(0, 1).ToUpper(), FontSize = 22, FontWeight = FontWeights.Bold, Foreground = B(0xFFFFFF), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } });
-            hp.Children.Add(new TextBlock { Text = ShellActions.UserName, Foreground = B(0xFFFFFF), FontSize = 15, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0), Effect = new DropShadowEffect { ShadowDepth = 1, BlurRadius = 1, Opacity = 0.6 } });
-            header.Child = hp;
-            DockPanel.SetDock(header, Dock.Top);
-            dock.Children.Add(header);
-            dock.Children.Add(new Border { Height = 2, Background = new LinearGradientBrush(C(0x1C5CD6), C(0xF7A84B), 0) { GradientStops = { new GradientStop(C(0x1C5CD6), 0), new GradientStop(C(0xF7A84B), 0.5), new GradientStop(C(0x1C5CD6), 1) } } });
-            DockPanel.SetDock(dock.Children[1], Dock.Top);
-
-            // footer
-            var footer = new Border { Height = 42, Background = new LinearGradientBrush(C(0x1C5CD6), C(0x3E86EE), 90) };
-            var fp = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 8, 0) };
-            FrameworkElement FootBtn(string glyph, uint color, string text, Action a)
-            {
-                var sp = new StackPanel { Orientation = Orientation.Horizontal };
-                sp.Children.Add(new Border { Width = 24, Height = 24, CornerRadius = new CornerRadius(4), Background = V((0, Ui.C(color)), (1, Ui.C(color, 200))), BorderBrush = B(0xFFFFFF, 160), BorderThickness = new Thickness(1), Child = Glyph(glyph, 13, Colors.White) });
-                sp.Children.Add(new TextBlock { Text = text, Foreground = B(0xFFFFFF), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0), FontSize = 11.5 });
-                return Click(sp, () => Do(a), C(0xFFFFFF, 40), radius: new CornerRadius(3), pad: new Thickness(6, 3, 8, 3));
-            }
-            fp.Children.Add(FootBtn("", 0xE8A33C, L("Abmelden", "Log Off"), ShellActions.SignOut));
-            fp.Children.Add(FootBtn("", 0xD8401C, L("Ausschalten", "Turn Off Computer"), ShellActions.Shutdown));
-            footer.Child = fp;
-            DockPanel.SetDock(footer, Dock.Bottom);
-            dock.Children.Add(footer);
-
-            // body
-            var body = new Grid { Background = B(0xFFFFFF) };
-            body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(215) });
-            body.ColumnDefinitions.Add(new ColumnDefinition());
-            var left = new DockPanel { Margin = new Thickness(0, 6, 0, 6) };
-            var right = new StackPanel { Background = B(0xD3E5FA), Margin = new Thickness(0) };
-            var rightBorder = new Border { Child = right, BorderBrush = B(0x95BDEE), BorderThickness = new Thickness(1, 0, 0, 0), Padding = new Thickness(4, 6, 4, 6), Background = B(0xD3E5FA) };
-            Grid.SetColumn(rightBorder, 1);
-            body.Children.Add(left);
-            body.Children.Add(rightBorder);
-
-            Color fg = C(0x000000), hov = C(0x316AC5), hovFg = C(0xFFFFFF);
-            var listHost = new ContentControl();
-            Action showPinned = null, showAll = null;
-            var allBtn = new Border();
-            showPinned = () =>
-            {
-                var sp = new StackPanel();
-                var pins = AppCatalog.Pinned();
-                for (int i = 0; i < pins.Count; i++)
-                {
-                    var a = pins[i];
-                    sp.Children.Add(Row(a.Icon, a.Name, () => Launch(a), 30, fg, hov, 12, i < 2 ? FontWeights.Bold : FontWeights.Normal, hovFg, height: 40, sub: i == 0 ? L("Dateien und Ordner", "Files and folders") : i == 1 ? "Internet" : null));
-                    if (i == 1) sp.Children.Add(Separator(C(0xD6D6D6), 8));
-                }
-                listHost.Content = sp;
-                allBtn.Child = AllProgramsButton(L("Alle Programme", "All Programs"), true, showAll);
-            };
-            showAll = () =>
-            {
-                var sp = new StackPanel();
-                foreach (var a in Apps()) sp.Children.Add(AppRow(a, 16, fg, hov, 11.5, hovFg, 24));
-                listHost.Content = Scroll(sp, 380);
-                allBtn.Child = AllProgramsButton(L("Zurück", "Back"), false, showPinned);
-            };
-            showPinned();
-            resetView = () => showPinned();
-            WhenAppsReady(() => showPinned());
-            DockPanel.SetDock(allBtn, Dock.Bottom);
-            left.Children.Add(allBtn);
-            left.Children.Add(new Border { Height = 1, Background = B(0xD6D6D6), Margin = new Thickness(8, 2, 8, 2) });
-            DockPanel.SetDock(left.Children[1], Dock.Bottom);
-            left.Children.Add(listHost);
-
-            Color rfg = C(0x00136B);
-            void R(string glyph, string text, Action a, bool bold = true, ImageSource ico = null) => right.Children.Add(Row(ico, text, () => Do(a), 24, rfg, hov, 12, bold ? FontWeights.Bold : FontWeights.Normal, hovFg, glyph, 32));
-            R("", L("Eigene Dateien", "My Documents"), () => ShellActions.Folder(Environment.SpecialFolder.MyDocuments), ico: FolderIcon(Environment.SpecialFolder.MyDocuments));
-            R("", L("Eigene Bilder", "My Pictures"), () => ShellActions.Folder(Environment.SpecialFolder.MyPictures), ico: FolderIcon(Environment.SpecialFolder.MyPictures));
-            R("", L("Eigene Musik", "My Music"), () => ShellActions.Folder(Environment.SpecialFolder.MyMusic), ico: FolderIcon(Environment.SpecialFolder.MyMusic));
-            R("", L("Arbeitsplatz", "My Computer"), ShellActions.ThisPC, ico: ThisPcIcon());
-            right.Children.Add(Separator(C(0x95BDEE), 8));
-            R("", L("Systemsteuerung", "Control Panel"), ShellActions.ControlPanel, false, ico: SysIcon("control.exe"));
-            R("", L("Einstellungen", "Settings"), ShellActions.Settings, false);
-            R("", L("Suchen", "Search"), ShellActions.Search, false);
-            R("", L("Ausführen …", "Run …"), ShellActions.RunDialog, false, ico: SysIcon("cmd.exe"));
-            R("", "WinMorph", ShellActions.WinMorphApp, false);
-
-            dock.Children.Add(body);
-            outer.Child = dock;
-            TextElement_SetFont(outer, "Tahoma");
-            return outer;
-        }
 
         FrameworkElement AllProgramsButton(string text, bool forward, Action a)
         {
@@ -487,157 +343,7 @@ namespace WinMorph.Shell
             cm.IsOpen = true;
         }
 
-        // ================= Windows 8 / 10 / Gaming =================
-        UIElement BuildTen()
-        {
-            fullScreen = t.MenuFullScreen;
-            var outer = new Border { Background = B(t.MenuBg), Width = fullScreen ? double.NaN : 660, Height = fullScreen ? double.NaN : 560 };
-            if (!fullScreen) outer.Effect = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 2, Opacity = 0.5 };
-            // no coloured frame around the menu (window borders stay neutral)
-            var grid = new Grid { Margin = fullScreen ? new Thickness(60, 50, 60, 50) : new Thickness(0) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(48) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(fullScreen ? 320 : 250) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition());
 
-            // icon strip
-            var strip = new DockPanel { Background = fullScreen ? Brushes.Transparent : B(0x000000, 40) };
-            var stripBottom = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom };
-            FrameworkElement S(string glyph, string tip, Action a) { var b = Click(Glyph(glyph, 16, t.MenuFg), () => Do(a), t.MenuHover, pad: new Thickness(0, 12, 0, 12)); b.ToolTip = tip; return b; }
-            var userTile = Click(new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Background = B(t.Accent), Child = new TextBlock { Text = ShellActions.UserName.Substring(0, 1).ToUpper(), Foreground = B(0xFFFFFF), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = 13 } }, () => Do(() => ShellActions.Folder(Environment.SpecialFolder.UserProfile)), t.MenuHover, pad: new Thickness(0, 8, 0, 8));
-            userTile.ToolTip = ShellActions.UserName;
-            stripBottom.Children.Add(userTile);
-            stripBottom.Children.Add(S("", L("Dokumente", "Documents"), () => ShellActions.Folder(Environment.SpecialFolder.MyDocuments)));
-            stripBottom.Children.Add(S("", L("Bilder", "Pictures"), () => ShellActions.Folder(Environment.SpecialFolder.MyPictures)));
-            stripBottom.Children.Add(S("", L("Einstellungen", "Settings"), ShellActions.Settings));
-            var pw = Click(Glyph("", 16, t.MenuFg), PowerMenu, t.MenuHover, pad: new Thickness(0, 12, 0, 12));
-            stripBottom.Children.Add(pw);
-            strip.Children.Add(stripBottom);
-            grid.Children.Add(strip);
-
-            // app list
-            var listCol = new DockPanel { Margin = new Thickness(6, 10, 6, 6) };
-            Grid.SetColumn(listCol, 1);
-            Search(t.SearchHint ?? L("Apps durchsuchen", "Search apps"), t.MenuFg, B(0xFFFFFF, 18), 13, new CornerRadius(t.Id == "gaming" ? 0 : 2), new Thickness(8, 6, 8, 6));
-            searchHost.Margin = new Thickness(4, 0, 4, 8);
-            DockPanel.SetDock(searchHost, Dock.Top);
-            listCol.Children.Add(searchHost);
-            var listHost = new ContentControl();
-            listCol.Children.Add(listHost);
-            Action<string> fill = q =>
-            {
-                var sp = new StackPanel();
-                char last = '\0';
-                foreach (var a in Apps(q))
-                {
-                    char first = char.ToUpper(a.Name[0]);
-                    if (string.IsNullOrWhiteSpace(q) && first != last)
-                    {
-                        last = first;
-                        sp.Children.Add(new TextBlock { Text = char.IsLetter(first) ? first.ToString() : "#", Foreground = B(t.MenuFg), FontSize = 13, FontWeight = FontWeights.SemiBold, Margin = new Thickness(10, 10, 0, 4) });
-                    }
-                    sp.Children.Add(AppRow(a, 26, t.MenuFg, t.MenuHover, 12.5, null, 36));
-                }
-                if (!string.IsNullOrWhiteSpace(q))
-                    foreach (var it in Intents.For(q, 0)) { var x = it; sp.Children.Add(Row(x.Icon, x.Title, () => Do(x.Run), 26, t.MenuFg, t.MenuHover, 12.5, glyph: x.Glyph, height: 36)); }
-                listHost.Content = Scroll(sp, fullScreen ? 2000 : 470);
-            };
-            OnSearch(fill);
-            fill(null);
-            WhenAppsReady(() => fill(searchBox.Text));
-            grid.Children.Add(listCol);
-
-            // tiles
-            var tilesCol = new StackPanel { Margin = new Thickness(14, 14, 14, 10) };
-            Grid.SetColumn(tilesCol, 2);
-            tilesCol.Children.Add(new TextBlock { Text = t.Id == "gaming" ? L("SCHNELLSTART", "QUICK LAUNCH") : L("Häufig verwendet", "Frequently used"), Foreground = B(t.MenuFg), FontSize = 12.5, FontWeight = FontWeights.SemiBold, Margin = new Thickness(2, 0, 0, 8) });
-            var tiles = new WrapPanel();
-            double ts = fullScreen ? 132 : 104;
-            Action fillTiles = () =>
-            {
-                tiles.Children.Clear();
-                foreach (var a in AppCatalog.Pinned().Concat(AppCatalog.Apps.Take(fullScreen ? 10 : 4)))
-                {
-                    var app = a;
-                    var g = new Grid { Width = ts, Height = ts };
-                    g.Children.Add(new Image { Source = app.Icon, Width = ts * 0.36, Height = ts * 0.36, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 0, 12) });
-                    g.Children.Add(new TextBlock { Text = app.Name, Foreground = B(0xFFFFFF), FontSize = 11, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(7, 0, 7, 6), TextTrimming = TextTrimming.CharacterEllipsis });
-                    var tileColor = t.Id == "gaming" ? A(t.Accent, 200) : Core.Applier.Mix(t.Accent, Colors.White, tiles.Children.Count % 3 * 0.12);
-                    var tile = Click(g, () => Launch(app), Core.Applier.Mix(tileColor, Colors.White, 0.15), B(tileColor), new CornerRadius(t.Id == "gaming" ? 0 : 0));
-                    tile.Margin = new Thickness(0, 0, 6, 6);
-                    if (t.Id == "gaming") tile.RenderTransform = new SkewTransform(-6, 0);
-                    tiles.Children.Add(tile);
-                }
-            };
-            fillTiles();
-            WhenAppsReady(fillTiles);
-            tilesCol.Children.Add(tiles);
-            grid.Children.Add(tilesCol);
-
-            outer.Child = grid;
-            if (fullScreen) outer.MouseLeftButtonUp += (s, e) => { if (e.OriginalSource == outer) SafeClose(); };
-            return outer;
-        }
-
-        // ================= Launchpad / GNOME / ChromeOS / Nova =================
-        UIElement BuildGrid()
-        {
-            fullScreen = t.MenuFullScreen;
-            var outer = new Border
-            {
-                Background = B(t.MenuBg), CornerRadius = new CornerRadius(fullScreen ? 0 : t.MenuRadius),
-                Width = fullScreen ? double.NaN : 760, Height = fullScreen ? double.NaN : 560,
-                BorderBrush = t.Id == "nova" ? B(A(t.Accent, 150)) : null, BorderThickness = new Thickness(t.Id == "nova" ? 1 : 0),
-            };
-            if (!fullScreen) outer.Effect = new DropShadowEffect { BlurRadius = 30, ShadowDepth = 4, Opacity = 0.45, Color = t.Id == "nova" ? t.Accent : Colors.Black };
-            var dock = new DockPanel { Margin = fullScreen ? new Thickness(120, 70, 120, 60) : new Thickness(28, 24, 28, 20) };
-            Search(t.SearchHint ?? L("Suchen", "Search"), t.MenuFg, B(0xFFFFFF, 30), fullScreen ? 15 : 14, new CornerRadius(20), new Thickness(16, 8, 16, 8), C(0xFFFFFF, 50));
-            searchHost.Width = fullScreen ? 340 : double.NaN;
-            searchHost.HorizontalAlignment = fullScreen ? HorizontalAlignment.Center : HorizontalAlignment.Stretch;
-            searchHost.Margin = new Thickness(0, 0, 0, fullScreen ? 40 : 20);
-            DockPanel.SetDock(searchHost, Dock.Top);
-            dock.Children.Add(searchHost);
-
-            var wrap = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center };
-            double tileW = fullScreen ? 130 : 108, iconS = fullScreen ? 64 : 48;
-            Action<string> fill = q =>
-            {
-                wrap.Children.Clear();
-                foreach (var a in Apps(q))
-                {
-                    var app = a;
-                    var sp = new StackPanel { Width = tileW };
-                    sp.Children.Add(new Image { Source = app.Icon, Width = iconS, Height = iconS, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) });
-                    sp.Children.Add(new TextBlock { Text = app.Name, Foreground = B(t.MenuFg), FontSize = 12, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(4, 0, 4, 4) });
-                    var tile = Click(sp, () => Launch(app), t.MenuHover, radius: new CornerRadius(12), pad: new Thickness(2, 4, 2, 6));
-                    tile.Margin = new Thickness(4, 2, 4, 12);
-                    wrap.Children.Add(tile);
-                }
-                if (!string.IsNullOrWhiteSpace(q))
-                    foreach (var it in Intents.For(q, 0))
-                    {
-                        var x = it;
-                        var sp2 = new StackPanel { Width = tileW };
-                        if (x.Icon != null) sp2.Children.Add(new Image { Source = x.Icon, Width = iconS, Height = iconS, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6) });
-                        else { var gl = Glyph(x.Glyph, iconS * 0.6, t.MenuFg); gl.Height = iconS; gl.Margin = new Thickness(0, 6, 0, 6); sp2.Children.Add(gl); }
-                        sp2.Children.Add(new TextBlock { Text = x.Title, Foreground = B(t.MenuFg), FontSize = 12, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxHeight = 34, Margin = new Thickness(4, 0, 4, 4) });
-                        var tile2 = Click(sp2, () => Do(x.Run), t.MenuHover, radius: new CornerRadius(12), pad: new Thickness(2, 4, 2, 6));
-                        tile2.Margin = new Thickness(4, 2, 4, 12);
-                        wrap.Children.Add(tile2);
-                    }
-                if (wrap.Children.Count == 0) wrap.Children.Add(new TextBlock { Text = AppCatalog.Apps.Count == 0 ? L("Apps werden geladen …", "Loading apps …") : L("Nichts gefunden", "Nothing found"), Foreground = B(t.MenuSub), FontSize = 14, Margin = new Thickness(20) });
-            };
-            OnSearch(fill);
-            fill(null);
-            WhenAppsReady(() => fill(searchBox.Text));
-            var scroll = Scroll(wrap, 5000);
-            dock.Children.Add(scroll);
-            outer.Child = dock;
-            if (fullScreen)
-            {
-                outer.MouseLeftButtonUp += (s, e) => { if (e.OriginalSource == outer || e.OriginalSource == dock || e.OriginalSource == wrap) SafeClose(); };
-            }
-            return outer;
-        }
 
         // ================= Command palette (Terminal / Zen / Arch) =================
         UIElement BuildPalette()
@@ -715,106 +421,6 @@ namespace WinMorph.Shell
             return outer;
         }
 
-        // ================= AI hub (Nexus AI) =================
-        UIElement BuildHub()
-        {
-            fullScreen = true;
-            var outer = new Border { Background = B(t.MenuBg) };
-            var col = new StackPanel { Width = 780, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 110, 0, 0) };
-
-            var orb = new Border { Width = 74, Height = 74, CornerRadius = new CornerRadius(37), HorizontalAlignment = HorizontalAlignment.Center, Background = new RadialGradientBrush(C(0xE9E3FF), C(0x4B2FD6)) { GradientOrigin = new Point(0.35, 0.3) } };
-            var glow = new DropShadowEffect { Color = t.Accent, BlurRadius = 30, ShadowDepth = 0, Opacity = 1 };
-            orb.Effect = glow;
-            glow.BeginAnimation(DropShadowEffect.BlurRadiusProperty, new System.Windows.Media.Animation.DoubleAnimation(14, 46, TimeSpan.FromSeconds(1.8)) { AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever });
-            col.Children.Add(orb);
-
-            int hour = DateTime.Now.Hour;
-            string greet = hour < 5 || hour >= 22 ? L("Gute Nacht", "Good night") : hour < 11 ? L("Guten Morgen", "Good morning") : hour < 17 ? L("Guten Tag", "Good afternoon") : L("Guten Abend", "Good evening");
-            var title = new TextBlock { Text = greet + ", " + ShellActions.UserName.Split(' ')[0], FontSize = 44, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 26, 0, 4), Foreground = new LinearGradientBrush(C(0xC4B5FD), C(0x67E8F9), 0) };
-            col.Children.Add(title);
-            col.Children.Add(new TextBlock { Text = L("Was möchtest du tun? Apps, Befehle oder Fragen – ich kümmere mich darum.", "What would you like to do? Apps, commands or questions – I'll handle it."), Foreground = B(t.MenuSub), FontSize = 15, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 28) });
-
-            Search(t.SearchHint, t.MenuFg, B(0xFFFFFF, 18), 21, new CornerRadius(30), new Thickness(26, 16, 26, 16), A(t.Accent, 200));
-            searchHost.Effect = new DropShadowEffect { Color = t.Accent, BlurRadius = 28, ShadowDepth = 0, Opacity = 0.55 };
-            col.Children.Add(searchHost);
-
-            var chips = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 18, 0, 0) };
-            void Chip(string text, string fillWith)
-            {
-                var c = Click(new TextBlock { Text = text, Foreground = B(t.MenuFg), FontSize = 13 }, () => { searchBox.Text = fillWith; searchBox.CaretIndex = fillWith.Length; searchBox.Focus(); }, A(t.Accent, 80), B(0xFFFFFF, 14), new CornerRadius(16), new Thickness(14, 7, 14, 7));
-                c.Margin = new Thickness(4); c.BorderBrush = B(0xFFFFFF, 30); c.BorderThickness = new Thickness(1);
-                chips.Children.Add(c);
-            }
-            Chip(L("✦ Frag ChatGPT …", "✦ Ask ChatGPT …"), L("frag ", "ask "));
-            Chip(L("Öffne …", "Open …"), L("öffne ", "open "));
-            Chip(L("Suche im Web …", "Search the web …"), L("suche ", "search "));
-            Chip(L("Dunkel", "Dark mode"), L("dunkel", "dark"));
-            Chip(L("Bildschirmfoto", "Screenshot"), "screenshot");
-            Chip(L("Sperren", "Lock"), L("sperren", "lock"));
-            col.Children.Add(chips);
-
-            var results = new StackPanel { Margin = new Thickness(0, 18, 0, 0) };
-            col.Children.Add(results);
-
-            var pinnedTitle = new TextBlock { Text = L("DEINE APPS", "YOUR APPS"), Foreground = B(t.MenuSub), FontSize = 11, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 34, 0, 10) };
-            var pinned = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center };
-            col.Children.Add(pinnedTitle);
-            col.Children.Add(pinned);
-            Action fillPinned = () =>
-            {
-                pinned.Children.Clear();
-                foreach (var a in AppCatalog.Pinned())
-                {
-                    var app = a;
-                    var sp = new StackPanel { Width = 88 };
-                    sp.Children.Add(new Image { Source = app.Icon, Width = 44, Height = 44, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 6) });
-                    sp.Children.Add(new TextBlock { Text = app.Name, Foreground = B(t.MenuFg), FontSize = 11.5, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
-                    var tile = Click(sp, () => Launch(app), A(t.Accent, 60), radius: new CornerRadius(16), pad: new Thickness(4, 6, 4, 8));
-                    tile.Margin = new Thickness(4);
-                    pinned.Children.Add(tile);
-                }
-            };
-            fillPinned();
-            WhenAppsReady(fillPinned);
-
-            int selected = 0;
-            var rows = new List<Border>();
-            var acts = new List<Action>();
-            Action<string> fill = q =>
-            {
-                results.Children.Clear(); rows.Clear(); acts.Clear(); selected = 0;
-                bool empty = string.IsNullOrWhiteSpace(q);
-                chips.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
-                pinnedTitle.Visibility = pinned.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
-                if (empty) return;
-                foreach (var it in Intents.For(q, 5))
-                {
-                    var x = it;
-                    var r = (Border)Row(x.Icon, x.Title, () => Do(x.Run), 28, t.MenuFg, A(t.Accent, 70), 15, glyph: x.Glyph, height: 50, sub: x.Sub);
-                    r.CornerRadius = new CornerRadius(14);
-                    results.Children.Add(r); rows.Add(r); acts.Add(x.Run);
-                }
-                if (rows.Count > 0) rows[0].Background = B(A(t.Accent, 70));
-            };
-            searchBox.TextChanged += (s, e) => fill(searchBox.Text);
-            searchBox.PreviewKeyDown += (s, e) =>
-            {
-                if (rows.Count == 0) return;
-                if (e.Key == Key.Down || e.Key == Key.Up)
-                {
-                    rows[selected].Background = Brushes.Transparent;
-                    selected = (selected + (e.Key == Key.Down ? 1 : rows.Count - 1)) % rows.Count;
-                    rows[selected].Background = B(A(t.Accent, 70));
-                    e.Handled = true;
-                }
-                else if (e.Key == Key.Enter) { e.Handled = true; var a = acts[selected]; Do(a); }
-            };
-            resetView = () => fill("");
-
-            outer.Child = col;
-            outer.MouseLeftButtonUp += (s, e) => { if (e.OriginalSource == outer || e.OriginalSource == col) SafeClose(); };
-            return outer;
-        }
 
         static IEnumerable<TextBlock> FindText(DependencyObject root)
         {

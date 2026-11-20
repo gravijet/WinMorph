@@ -32,14 +32,17 @@ namespace WinMorph.Core
         public static RestoreResult RestoreOriginal(bool restartExplorer = true)
         {
             var b = new Backup(Backup.DefaultFile);
-            if (!b.HasData) { WinMorph.Shell.ShellControl.Disable(); return new RestoreResult(); }
+            if (!b.HasData) { WinMorph.Shell.ShellControl.Disable(); WinMorph.Live.LiveWall.Stop(); return new RestoreResult(); }
             var r = Restorer.Run(b, restartExplorer: restartExplorer);
             if (r.NeedsElevation && Tools.RunElevated("--restore-hklm \"" + b.File + "\"")) r.NeedsElevation = false;
             WinMorph.Shell.ShellControl.Disable();
             WinMorph.Live.LiveWall.Stop();
             using (var k = Reg.Open(WinMorph.Shell.ShellControl.SettingsKey, true)) k?.DeleteValue("LiveWall", false);
             using (var k = Reg.Open(WinMorph.Shell.ShellControl.RunKey, true)) k?.DeleteValue(WinMorph.Live.LiveWall.RunValue, false);
-            if (r.Complete) { b.Retire(); Backup.ClearSteps(); }
+            // proof: every recorded value is compared with the original again
+            (r.Checked, r.Different) = Changes.Verify(b);
+            if (r.Complete && r.Different == 0) { b.Retire(); Backup.ClearSteps(); }
+            else if (r.Different > 0) r.Problems.Add(string.Format(Loc.De ? "{0} Werte weichen noch ab" : "{0} values still differ", r.Different));
             return r;
         }
 
@@ -80,13 +83,14 @@ namespace WinMorph.Core
         {
             bool de = Loc.De;
             if (undo && !CanUndo) { MessageBox.Show(de ? "Es gibt keinen früheren Look zum Zurückkehren." : "There is no earlier look to go back to.", "WinMorph"); return; }
-            if (!undo && !CanRestore && WinMorph.Shell.ShellControl.CurrentPreset == null) { MessageBox.Show(de ? "Windows ist bereits im Originalzustand." : "Windows is already in its original state.", "WinMorph"); return; }
+            if (!undo && !CanRestore && WinMorph.Shell.ShellControl.CurrentPreset == null && !WinMorph.Shell.ShellControl.TaskbarTaken) { MessageBox.Show(de ? "Windows ist bereits im Originalzustand." : "Windows is already in its original state.", "WinMorph"); return; }
             var q = undo ? (de ? "Zum vorherigen Look zurückkehren?" : "Go back to the previous look?")
                          : (de ? "Alles auf das Original-Windows zurücksetzen (Zustand vor WinMorph)?" : "Reset everything to the original Windows (before WinMorph)?");
             if (MessageBox.Show(q, "WinMorph", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             var r = undo ? UndoLast() : RestoreOriginal();
-            if (r != null && !r.Complete) { MessageBox.Show(Loc.Get("restore.incomplete"), "WinMorph"); return; }
-            MessageBox.Show(de ? "Fertig – " + (r?.Restored ?? 0) + " Werte wiederhergestellt." : "Done – " + (r?.Restored ?? 0) + " values restored.", "WinMorph");
+            if (r != null && (!r.Complete || r.Different > 0)) { MessageBox.Show(Loc.Get("restore.incomplete") + (r.Problems.Count > 0 ? Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine, r.Problems) : ""), "WinMorph"); return; }
+            MessageBox.Show(undo ? (de ? "Fertig – der vorherige Look ist zurück." : "Done – the previous look is back.")
+                                 : (de ? "Fertig – Windows ist wie vor WinMorph. " + r?.Checked + " Werte geprüft, alle wie vorher." : "Done – Windows is as it was before WinMorph. " + r?.Checked + " values checked, all as before."), "WinMorph");
         }
     }
 }

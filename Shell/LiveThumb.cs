@@ -10,12 +10,13 @@ namespace WinMorph.Shell
     internal sealed class LiveThumb : IDisposable
     {
         IntPtr thumb;
+        readonly IntPtr source;
         readonly Window host;
         readonly FrameworkElement target;
 
         public LiveThumb(Window host, IntPtr source, FrameworkElement target)
         {
-            this.host = host; this.target = target;
+            this.host = host; this.target = target; this.source = source;
             var h = new WindowInteropHelper(host).Handle;
             if (h != IntPtr.Zero && W32.DwmRegisterThumbnail(h, source, out thumb) == 0) Update();
             else thumb = IntPtr.Zero;
@@ -48,6 +49,49 @@ namespace WinMorph.Shell
             };
             W32.DwmUpdateThumbnailProperties(thumb, ref props);
         }
+
+        /// <summary>
+        /// Places the picture freely (DIP rectangle inside the host, fitted to its aspect ratio) and shows only
+        /// its middle part of width <paramref name="reveal"/> (0..1) – the gap between two sliding doors.
+        /// </summary>
+        public void Place(Rect r, double reveal = 1)
+        {
+            if (thumb == IntPtr.Zero) return;
+            var src = PresentationSource.FromVisual(host);
+            if (src == null) return;
+            double s = src.CompositionTarget.TransformToDevice.M11;
+            W32.DwmQueryThumbnailSourceSize(thumb, out var size);
+            if (size.cx <= 0 || size.cy <= 0) return;
+            // only the visible window: Windows 10/11 windows carry an invisible resize border around them
+            double sl = 0, st = 0, sr = size.cx, sb = size.cy;
+            if (GetWindowRect(source, out var wr) && DwmGetWindowAttribute(source, 9 /* EXTENDED_FRAME_BOUNDS */, out var fb, 16) == 0 && wr.Right > wr.Left)
+            {
+                double k0 = size.cx / (double)(wr.Right - wr.Left);
+                sl = Math.Max(0, (fb.Left - wr.Left) * k0); st = Math.Max(0, (fb.Top - wr.Top) * k0);
+                sr = Math.Min(size.cx, size.cx - (wr.Right - fb.Right) * k0); sb = Math.Min(size.cy, size.cy - (wr.Bottom - fb.Bottom) * k0);
+            }
+            double sw = sr - sl, sh = sb - st;
+            if (sw <= 1 || sh <= 1) return;
+            double k = Math.Min(r.Width / sw, r.Height / sh);
+            double dw = sw * k, dh = sh * k;
+            double x = r.X + (r.Width - dw) / 2, y = r.Y + (r.Height - dh) / 2;
+            // the gap between the doors, intersected with the picture
+            reveal = Math.Max(0, Math.Min(1, reveal));
+            double gapL = r.X + r.Width / 2 * (1 - reveal), gapR = r.Right - r.Width / 2 * (1 - reveal);
+            double vl = Math.Max(x, gapL), vr = Math.Min(x + dw, gapR);
+            bool visible = vr - vl > 0.5;
+            var props = new W32.DWM_THUMBNAIL_PROPERTIES
+            {
+                dwFlags = 0x1 | 0x2 | 0x4 | 0x8 | 0x10,
+                rcDestination = new W32.RECT { Left = (int)Math.Round(vl * s), Top = (int)Math.Round(y * s), Right = (int)Math.Round(vr * s), Bottom = (int)Math.Round((y + dh) * s) },
+                rcSource = new W32.RECT { Left = (int)Math.Round(sl + (vl - x) / k), Top = (int)Math.Round(st), Right = (int)Math.Round(sl + (vr - x) / k), Bottom = (int)Math.Round(sb) },
+                opacity = 255, fVisible = visible ? 1 : 0, fSourceClientAreaOnly = 0,
+            };
+            W32.DwmUpdateThumbnailProperties(thumb, ref props);
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out W32.RECT r);
+        [System.Runtime.InteropServices.DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int attr, out W32.RECT r, int size);
 
         public void Dispose()
         {

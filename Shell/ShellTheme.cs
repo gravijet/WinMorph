@@ -2,12 +2,12 @@ using System.Windows.Media;
 
 namespace WinMorph.Shell
 {
-    public enum BarLayout { Bottom, MacTopDock, GnomeTopLeftDock, GnomeTopBottomDock, Floating, TerminalTop, AiOnly, Waybar }
-    public enum BtnStyle { Bevel, Luna, Glass, Flat, Pill, Text, Angular }
-    public enum StartKind { Classic, Xp, Orb, Logo, Mint, Activities, Launcher, AiOrb, Nova, Terminal, Zen, Gaming, Apple, Nexus, Arch }
-    public enum MenuKind { Classic, Xp, Seven, Ten, Grid, Palette, Hub }
-    public enum LockKind { Modern, Mac, Gnome, Xp, Classic, Seven, Terminal, Ai, Zen, Gaming }
-    public enum SwitchKind { Classic, Thumbs, Mac, Text }
+    public enum BarLayout { Bottom, Floating, TerminalTop }
+    public enum BtnStyle { Glass, Pill, Text }
+    public enum StartKind { Orb, Terminal, Zen }
+    public enum MenuKind { Seven, Palette }
+    public enum LockKind { Seven, Terminal, Zen }
+    public enum SwitchKind { Aero, Shoji, Table }
 
     public sealed class FrameColors
     {
@@ -20,9 +20,9 @@ namespace WinMorph.Shell
     {
         public string Id, Name;
         public BarLayout Layout = BarLayout.Bottom;
-        public BtnStyle Btn = BtnStyle.Flat;
-        public StartKind Start = StartKind.Logo;
-        public MenuKind Menu = MenuKind.Ten;
+        public BtnStyle Btn = BtnStyle.Glass;
+        public StartKind Start = StartKind.Orb;
+        public MenuKind Menu = MenuKind.Seven;
         public bool MenuFullScreen;
 
         public double BarHeight = 40;          // DIP
@@ -43,7 +43,7 @@ namespace WinMorph.Shell
         public string SearchHint;
 
         public FrameColors Frame;
-        public LockKind Lock = LockKind.Modern;
-        public SwitchKind Switch = SwitchKind.Thumbs;
+        public LockKind Lock = LockKind.Seven;
+        public SwitchKind Switch = SwitchKind.Aero;
     }
 }

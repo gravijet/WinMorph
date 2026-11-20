@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace WinMorph.Core
@@ -7,6 +8,8 @@ namespace WinMorph.Core
     public sealed class RestoreResult
     {
         public int Restored, Failed;
+        /// <summary>After "restore original": values compared with the original, and how many still differ.</summary>
+        public int Checked, Different;
         public bool NeedsElevation;
         public bool Complete => Failed == 0 && !NeedsElevation;
         public List<string> Problems = new List<string>();
@@ -15,11 +18,17 @@ namespace WinMorph.Core
     /// <summary>Puts every recorded setting back to its original value.</summary>
     public static class Restorer
     {
-        /// <param name="reset">Before a new look: back to the original without restarting anything (the new look does that).</param>
+        /// <param name="reset">Before a new look: back to the original quickly. Pictures, Explorer and the
+        /// shell are left to the new look, which sets them again right after.</param>
         public static RestoreResult Run(Backup b, bool machineOnly = false, bool restartExplorer = true, bool reset = false)
         {
             var r = new RestoreResult();
-            if (!machineOnly) { WinMorph.Shell.ShellControl.Stop(); WinMorph.Live.LiveWall.Stop(); }
+            if (!machineOnly)
+            {
+                // switching looks: the old shell leaves the Windows taskbar hidden for the new one (no flicker)
+                if (reset) WinMorph.Shell.ShellControl.Stop(keepTaskbar: true); else WinMorph.Shell.ShellControl.Release();
+                WinMorph.Live.LiveWall.Stop();
+            }
             bool admin = Tools.IsAdmin;
             string autoHide = null;
             var keysToCheck = new List<KeyValuePair<string, string>>();
@@ -46,6 +55,7 @@ namespace WinMorph.Core
                     }
                     else if (parts[0] == "VAL" && !machineOnly)
                     {
+                        if (reset && (parts[1] == "WALL" || parts[1] == "LOCKIMG")) continue;   // the new look sets its own pictures
                         RestoreValue(parts[1], e.Value, ref autoHide);
                         r.Restored++;
                     }
@@ -53,7 +63,7 @@ namespace WinMorph.Core
                 catch (Exception ex) { r.Failed++; r.Problems.Add(e.Key.Replace('\t', ' ') + ": " + ex.Message); }
             }
 
-            // Keys that did not exist before are removed again (e.g. the classic context menu switch).
+            // Keys that did not exist before are removed again (e.g. the classic context menu switch of older versions).
             foreach (var k in keysToCheck)
             {
                 bool machine = k.Key.StartsWith("HKLM", StringComparison.OrdinalIgnoreCase);
@@ -72,24 +82,29 @@ namespace WinMorph.Core
 
             foreach (var l in late) try { Reg.RestoreSnapshot(l[0], l[1], l[2]); } catch { }
 
-            Native.SystemParametersInfo(Native.SPI_SETCURSORS, 0, IntPtr.Zero, Native.SPIF_UPDATE);
-            try
+            // Backups of older versions also hold Windows settings (colours, taskbar layout, cursors, fonts…):
+            // those need the system to be told and Explorer to reload them.
+            bool legacy = HasLegacySettings(b);
+            if (legacy)
             {
-                if (Reg.Get(@"HKCU\Software\Microsoft\Windows\DWM", "ColorizationColor") is int col && Native.DwmGetColorizationParameters(out var dp) == 0)
+                Native.SystemParametersInfo(Native.SPI_SETCURSORS, 0, IntPtr.Zero, Native.SPIF_UPDATE);
+                try
                 {
-                    dp.clrColor = unchecked((uint)col);
-                    dp.clrAfterGlow = unchecked((uint)col);
-                    Native.DwmSetColorizationParameters(ref dp, 0);
+                    if (Reg.Get(@"HKCU\Software\Microsoft\Windows\DWM", "ColorizationColor") is int col && Native.DwmGetColorizationParameters(out var dp) == 0)
+                    {
+                        dp.clrColor = unchecked((uint)col);
+                        dp.clrAfterGlow = unchecked((uint)col);
+                        Native.DwmSetColorizationParameters(ref dp, 0);
+                    }
                 }
+                catch { }
+                foreach (var area in new[] { "ImmersiveColorSet", "TraySettings", "WindowsThemeElement", "Policy" }) Native.Broadcast(area);
+                Native.Broadcast(null);
+                Native.SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);
             }
-            catch { }
-
-            foreach (var area in new[] { "ImmersiveColorSet", "TraySettings", "WindowsThemeElement", "Policy" }) Native.Broadcast(area);
-            Native.Broadcast(null);
-            Native.SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);
 
             if (reset) return r;
-            if (restartExplorer)
+            if (restartExplorer && legacy)
             {
                 Tools.RestartExplorer();
                 if (Tools.OpenShellRunning) { Tools.StopOpenShell(); Tools.StartOpenShell(); }
@@ -101,6 +116,23 @@ namespace WinMorph.Core
             if (!string.IsNullOrEmpty(WinMorph.Live.LiveWall.Spec)) WinMorph.Live.LiveWall.Start();
             return r;
         }
+
+        /// <summary>Registry places WinMorph itself writes today; anything else in a backup comes from an older version.</summary>
+        static readonly string[] DesignKeys =
+        {
+            @"HKCU\Software\WinMorph", @"HKCU\Software\Microsoft\Windows\CurrentVersion\Run", @"HKCU\Control Panel\Desktop", @"HKCU\Control Panel\Colors",
+            Applier.Serialize, Applier.Cdm, Applier.WallpapersKey, Applier.SpotlightKey, Applier.LockKey,
+        };
+
+        internal static bool HasLegacySettings(Backup b) => b.Entries.Any(e =>
+        {
+            var p = e.Key.Split('\t');
+            if (p[0] == "VAL") return p[1] != "WALL" && p[1] != "LOCKIMG";
+            if (p[0] == "KEY") return !p[1].Equals(Applier.LockKey, StringComparison.OrdinalIgnoreCase);
+            if (p[1].Equals(@"HKCU\Control Panel\Desktop", StringComparison.OrdinalIgnoreCase))
+                return !(p[2] == "WallpaperStyle" || p[2] == "TileWallpaper" || p[2] == "SCRNSAVE.EXE" || p[2] == "ScreenSaverIsSecure" || p[2] == "ScreenSaveTimeOut");
+            return !DesignKeys.Any(k => p[1].Equals(k, StringComparison.OrdinalIgnoreCase));
+        });
 
         static bool IsLate(string path) =>
             path.Equals(Applier.Cdm, StringComparison.OrdinalIgnoreCase) || path.Equals(Applier.WallpapersKey, StringComparison.OrdinalIgnoreCase) || path.Equals(Applier.SpotlightKey, StringComparison.OrdinalIgnoreCase);
@@ -128,10 +160,11 @@ namespace WinMorph.Core
                     Native.SystemParametersInfo(Native.SPI_SETICONTITLELOGFONT, (uint)Marshal.SizeOf(typeof(Native.LOGFONT)), ref f, Native.SPIF_UPDATE);
                     break;
                 case "LOCKIMG":
-                    LockImage.Set(value);
+                    if (System.IO.File.Exists(value) && !LockImage.Set(value)) throw new InvalidOperationException("lock screen picture");
                     break;
                 case "WALL":
-                    Native.SystemParametersInfo(Native.SPI_SETDESKWALLPAPER, 0, value ?? "", Native.SPIF_UPDATE);
+                    if (!Native.SystemParametersInfo(Native.SPI_SETDESKWALLPAPER, 0, value ?? "", Native.SPIF_UPDATE) && (string.IsNullOrEmpty(value) || System.IO.File.Exists(value)))
+                        throw new InvalidOperationException("wallpaper");
                     break;
                 case "AUTOHIDE":
                     autoHide = value;

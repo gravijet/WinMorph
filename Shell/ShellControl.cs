@@ -14,7 +14,7 @@ namespace WinMorph.Shell
         public const string SettingsKey = @"HKCU\Software\WinMorph";
         public const string RunKey = @"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
         public const string RunValue = "WinMorph Shell";
-        const string MutexName = "WinMorphShell_v1", ExitName = "WinMorphShellExit_v1";
+        const string MutexName = "WinMorphShell_v1", ExitName = "WinMorphShellExit_v1", SwitchName = "WinMorphShellSwitch_v1";
 
         static string Exe => Process.GetCurrentProcess().MainModule.FileName;
 
@@ -27,20 +27,88 @@ namespace WinMorph.Shell
             }
         }
 
-        public static void Stop()
+        /// <summary>Asks the shell to quit; a shell that does not answer within 4 s is ended.</summary>
+        /// <param name="keepTaskbar">A new look follows right away: the Windows taskbar stays hidden in between.</param>
+        public static void Stop(bool keepTaskbar = false)
         {
             try
             {
+                if (keepTaskbar && EventWaitHandle.TryOpenExisting(SwitchName, out var sw)) { sw.Set(); sw.Dispose(); }
                 if (EventWaitHandle.TryOpenExisting(ExitName, out var ev)) { ev.Set(); ev.Dispose(); }
             }
             catch { }
-            for (int i = 0; i < 60 && IsRunning; i++) Thread.Sleep(100);
+            for (int i = 0; i < 40 && IsRunning; i++) Thread.Sleep(100);
+            if (IsRunning && Core.Reg.Get(SettingsKey, "ShellPid") is int pid && pid != Process.GetCurrentProcess().Id)
+            {
+                try { using (var p = Process.GetProcessById(pid)) if (p.ProcessName.Equals("WinMorph", StringComparison.OrdinalIgnoreCase)) { p.Kill(); p.WaitForExit(3000); } } catch { }
+            }
         }
 
-        public static void Start()
+        // ---------------- the Windows taskbar ----------------
+        // The shell hides the Windows taskbar and switches it to auto-hide (so maximised windows use the
+        // whole screen). The original auto-hide state is kept in the registry until it is given back,
+        // so the taskbar comes back even when the shell process crashed, was killed or the PC restarted.
+        const string OrigAutoHideValue = "OrigAutoHide";
+
+        static System.Collections.Generic.IEnumerable<IntPtr> NativeBars()
+        {
+            var main = W32.FindWindow("Shell_TrayWnd", null);
+            if (main != IntPtr.Zero) yield return main;
+            IntPtr h = IntPtr.Zero;
+            while ((h = W32.FindWindowEx(IntPtr.Zero, h, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero) yield return h;
+        }
+
+        internal static void HideNative() { foreach (var h in NativeBars()) if (W32.IsWindowVisible(h)) W32.ShowWindow(h, W32.SW_HIDE); }
+        internal static void ShowNative() { foreach (var h in NativeBars()) if (!W32.IsWindowVisible(h)) W32.ShowWindow(h, W32.SW_SHOWNA); }
+
+        /// <summary>True when the Windows taskbar is hidden right now (by a running or crashed shell).</summary>
+        public static bool NativeHidden
+        {
+            get { foreach (var h in NativeBars()) if (!W32.IsWindowVisible(h)) return true; return false; }
+        }
+
+        /// <summary>Called by the shell before it hides the taskbar: remembers the user's auto-hide state once.</summary>
+        internal static bool TakeTaskbar()
+        {
+            if (Core.Reg.Get(SettingsKey, OrigAutoHideValue) is int i) return i == 1;
+            bool cur = Core.Applier.GetAutoHide();
+            using (var k = Core.Reg.Create(SettingsKey)) k.SetValue(OrigAutoHideValue, cur ? 1 : 0, RegistryValueKind.DWord);
+            return cur;
+        }
+
+        /// <summary>True while WinMorph still owes the user their taskbar (shell running or not cleaned up).</summary>
+        public static bool TaskbarTaken => Core.Reg.Get(SettingsKey, OrigAutoHideValue) is int;
+
+        /// <summary>
+        /// Gives everything back that only the shell process changes at run time: the Windows taskbar
+        /// (visible, original auto-hide), Win+L. Works from any process, also after a crash.
+        /// Stops the shell first.
+        /// </summary>
+        public static void Release()
         {
             Stop();
-            try { Process.Start(new ProcessStartInfo(Exe, "--shell") { UseShellExecute = false }); } catch { }
+            GiveBackTaskbar();
+        }
+
+        /// <summary>The part of <see cref="Release"/> that does not need the shell to be stopped first.</summary>
+        static void GiveBackTaskbar()
+        {
+            Core.LockGuard.Disarm();
+            if (Core.Reg.Get(SettingsKey, OrigAutoHideValue) is int orig)
+            {
+                Core.Applier.SetAutoHideRaw(orig == 1);
+                using (var k = Core.Reg.Open(SettingsKey, true)) k?.DeleteValue(OrigAutoHideValue, false);
+            }
+            ShowNative();
+        }
+
+        /// <summary>(Re)starts the shell and waits until it runs. Returns false if it did not come up.</summary>
+        public static bool Start()
+        {
+            Stop(keepTaskbar: true);
+            try { Process.Start(new ProcessStartInfo(Exe, "--shell") { UseShellExecute = false }); } catch { return false; }
+            for (int i = 0; i < 80 && !IsRunning; i++) Thread.Sleep(100);
+            return IsRunning;
         }
 
         /// <summary>Writes the chosen preset and the autostart entry.</summary>
@@ -52,9 +120,7 @@ namespace WinMorph.Shell
 
         public static void Disable()
         {
-            Stop();
-            Core.LockGuard.Disarm();
-            using (var k = Core.Reg.Open(SettingsKey, true)) k?.DeleteValue("OrigAutoHide", false);
+            Release();
             using (var k = Core.Reg.Open(SettingsKey, true)) k?.DeleteValue("ShellPreset", false);
             using (var k = Core.Reg.Open(RunKey, true)) k?.DeleteValue(RunValue, false);
         }
@@ -97,14 +163,18 @@ namespace WinMorph.Shell
         {
             mutex = new Mutex(true, MutexName, out bool first);
             if (!first) { app.Shutdown(0); return; }
+            using (var k = Core.Reg.Create(SettingsKey)) k.SetValue("ShellPid", Process.GetCurrentProcess().Id, RegistryValueKind.DWord);
             app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
             var theme = ShellThemes.For(CurrentPreset ?? "");
-            if (theme == null) { app.Shutdown(0); return; }
+            // a look of an older version (or none): nothing to draw, and the taskbar must not stay taken
+            if (theme == null) { GiveBackTaskbar(); app.Shutdown(0); return; }
 
             var exit = new EventWaitHandle(false, EventResetMode.AutoReset, ExitName);
+            var switching = new EventWaitHandle(false, EventResetMode.ManualReset, SwitchName);
+            switching.Reset();
             var ui = Dispatcher.CurrentDispatcher;
-            Action quit = () => { try { host?.Shutdown(); } catch { } host = null; app.Shutdown(0); };
+            Action quit = () => { try { host?.Shutdown(keepHidden: switching.WaitOne(0)); } catch { } host = null; app.Shutdown(0); };
 
             // Self-healing: on an error the shell rebuilds itself; after repeated errors it gives
             // the normal Windows taskbar back instead of leaving the user without one.

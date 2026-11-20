@@ -30,9 +30,9 @@ namespace WinMorph.Shell
             Deactivated += (s, e) => Done();
             KeyDown += (s, e) => { if (e.Key == Key.Escape) Done(); };
 
-            bool retro = t.Btn == BtnStyle.Bevel;
+            const bool retro = false;   // no retro look left
             bool term = t.Btn == BtnStyle.Text;
-            bool light = t.Menu == MenuKind.Xp || (t.Menu == MenuKind.Seven && t.Id != "mint");
+            bool light = t.Menu == MenuKind.Seven;
             Color bg = retro ? C(0xC0C0C0) : light ? C(0xFFFFFF) : Color.FromRgb(t.MenuBg.R, t.MenuBg.G, t.MenuBg.B);
             Color fg = retro || light ? C(0x000000) : t.MenuFg;
             Color hover = retro ? C(0x000080) : light ? C(0x316AC5) : A(t.Accent, 90);

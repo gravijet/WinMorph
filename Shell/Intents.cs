@@ -57,8 +57,6 @@ namespace WinMorph.Shell
             Cmd("", L("Energie sparen", "Sleep"), ShellActions.Sleep, "energie sparen", "schlaf", "sleep");
             Cmd("", L("Einstellungen öffnen", "Open Settings"), ShellActions.Settings, "einstellung", "settings");
             Cmd("", L("Dateien öffnen", "Open files"), () => ShellActions.Files(), "dateien", "explorer", "files", "ordner");
-            Cmd("", L("Dunkles Design einschalten", "Switch to dark mode"), () => ShellActions.SetDark(true), "dunkel", "dark", "nachtmodus");
-            Cmd("", L("Helles Design einschalten", "Switch to light mode"), () => ShellActions.SetDark(false), "hell", "light");
             Cmd("", L("Lauter", "Volume up"), () => ShellActions.Volume(+1), "lauter", "volume up", "louder");
             Cmd("", L("Leiser", "Volume down"), () => ShellActions.Volume(-1), "leiser", "volume down", "quieter");
             Cmd("", L("Ton aus/an", "Mute/unmute"), () => ShellActions.Volume(0), "stumm", "mute", "ton aus");

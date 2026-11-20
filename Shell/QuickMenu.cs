@@ -26,18 +26,18 @@ namespace WinMorph.Shell
             Deactivated += (s, e) => Done();
             KeyDown += (s, e) => { if (e.Key == Key.Escape) Done(); };
 
-            bool retro = t.Btn == BtnStyle.Bevel;
+            const bool retro = false;   // no retro look left
             Color bg = retro ? C(0xC0C0C0) : Core.Applier.Mix(Color.FromRgb(t.MenuBg.R, t.MenuBg.G, t.MenuBg.B), Colors.Black, 0.05);
-            Color fg = retro ? C(0x000000) : (t.Menu == MenuKind.Xp || t.Menu == MenuKind.Seven && t.Id != "mint" ? C(0x1E1E1E) : t.MenuFg);
-            if (t.Menu == MenuKind.Xp || (t.Menu == MenuKind.Seven && t.Id != "mint")) bg = C(0xFFFFFF);
-            Color hover = retro ? C(0x000080) : (t.Menu == MenuKind.Xp ? C(0x316AC5) : A(t.Accent, 90));
+            Color fg = retro ? C(0x000000) : (t.Menu == MenuKind.Seven ? C(0x1E1E1E) : t.MenuFg);
+            if (t.Menu == MenuKind.Seven) bg = C(0xFFFFFF);
+            Color hover = retro ? C(0x000080) : A(t.Accent, 90);
 
             var sp = new StackPanel { Margin = new Thickness(4) };
             void Item(string text, Action a)
             {
                 var tb = new TextBlock { Text = text, FontSize = 12.5, Foreground = B(fg), Margin = new Thickness(10, 0, 30, 0), VerticalAlignment = VerticalAlignment.Center };
                 var b = Click(tb, () => { Done(); a(); }, hover, radius: new CornerRadius(retro ? 0 : 4), pad: new Thickness(0, 6, 0, 6));
-                b.MouseEnter += (s, e) => tb.Foreground = B(retro || t.Menu == MenuKind.Xp ? C(0xFFFFFF) : fg);
+                b.MouseEnter += (s, e) => tb.Foreground = B(fg);
                 b.MouseLeave += (s, e) => tb.Foreground = B(fg);
                 sp.Children.Add(b);
             }
