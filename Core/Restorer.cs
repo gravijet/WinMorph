@@ -113,6 +113,7 @@ namespace WinMorph.Core
             // undoing one step can bring back a previous look that used the WinMorph shell
             var shellPreset = WinMorph.Shell.ShellControl.CurrentPreset;
             if (shellPreset != null && WinMorph.Shell.ShellThemes.For(shellPreset) != null) WinMorph.Shell.ShellControl.Start();
+            else Autostart.Remove();   // no look any more: nothing may start at the next sign-in
             if (!string.IsNullOrEmpty(WinMorph.Live.LiveWall.Spec)) WinMorph.Live.LiveWall.Start();
             return r;
         }

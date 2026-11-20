@@ -46,6 +46,13 @@ namespace WinMorph.Core
                 Now = winL ? L("erst WinMorph-Sperrbildschirm, dann Windows-Sperre", "WinMorph lock screen first, then the Windows lock") : L("Windows sperrt direkt", "Windows locks directly"),
             });
 
+            bool task = Autostart.Exists;
+            list.Add(new Change
+            {
+                Group = "shell", Title = L("Start bei der Anmeldung (Aufgabe)", "Start at sign-in (task)"), Active = task,
+                Before = L("keine Aufgabe", "no task"), Now = task ? L("Aufgabe „" + Autostart.TaskName + "“", "task “" + Autostart.TaskName + "”") : L("keine Aufgabe", "no task"),
+            });
+
             // ---- everything recorded in the backup ----
             var groups = new Dictionary<string, Change>();
             int legacyActive = 0, legacyTotal = 0;

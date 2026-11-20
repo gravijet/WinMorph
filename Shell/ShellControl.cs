@@ -116,6 +116,7 @@ namespace WinMorph.Shell
         {
             using (var k = Core.Reg.Create(SettingsKey)) k.SetValue("ShellPreset", presetId, RegistryValueKind.String);
             using (var k = Core.Reg.Create(RunKey)) k.SetValue(RunValue, "\"" + Exe + "\" --shell", RegistryValueKind.String);
+            Core.Autostart.Register(Exe);   // starts the shell right at sign-in; the Run entry is the fallback
         }
 
         public static void Disable()
@@ -123,6 +124,7 @@ namespace WinMorph.Shell
             Release();
             using (var k = Core.Reg.Open(SettingsKey, true)) k?.DeleteValue("ShellPreset", false);
             using (var k = Core.Reg.Open(RunKey, true)) k?.DeleteValue(RunValue, false);
+            Core.Autostart.Remove();
         }
 
         public static string CurrentPreset => Core.Reg.Get(SettingsKey, "ShellPreset") as string;
@@ -219,6 +221,8 @@ namespace WinMorph.Shell
             CustomLock.Closed += () => lockShown.Reset();
 
             host = new ShellHost(theme);
+            // after a restart the shell brings the look's live desktop along (its own Run entry may come later or be off)
+            if (!string.IsNullOrEmpty(Live.LiveWall.Spec) && !Live.LiveWall.IsRunning) Live.LiveWall.Start();
             System.Threading.Tasks.Task.Run(() => { try { Core.Applier.InstallLockSaver(); } catch { } });
             Core.Updater.RunInShell();
         }

@@ -25,7 +25,9 @@ Dazu in jedem Look: Fensterrahmen in den Farben des Looks, Desktop des Looks, Wi
 3. Sperrbildschirm: eigenes Sperrbild (ohne Windows-Blickpunkt-Werbung) und der WinMorph-Sperrbildschirm als Bildschirmschoner-Bild. Wann und ob der Bildschirmschoner startet, bleibt deine Einstellung.
 4. Design-Shell: blendet die Windows-Taskleiste aus und zeichnet Leiste, Startmenü, Alt+Tab und Rahmen.
 
-Explorer wird dabei nicht neu gestartet. Beim ersten Mal fragt WinMorph einmal nach Admin-Rechten, damit Win+L den Sperrbildschirm des Looks zeigen kann (ablehnen geht, dann sperrt Win+L direkt mit Windows).
+Explorer wird dabei nicht neu gestartet.
+
+**Nach einem Neustart** startet der Look sofort bei der Anmeldung: über eine geplante Aufgabe „WinMorph Shell“ (normale Priorität, vor den verzögerten Autostart-Programmen, von Windows bei einem Fehler automatisch neu gestartet, unabhängig vom Autostart-Schalter im Task-Manager). Der normale Autostart-Eintrag bleibt als zweiter Weg; ein zweiter Start beendet sich sofort. Beim Abmelden bleibt die Windows-Taskleiste versteckt, damit sie bei der nächsten Anmeldung nicht aufblitzt. Öffnest du die App, prüft sie Aufgabe und Shell und repariert beides bei Bedarf. Beim ersten Mal fragt WinMorph einmal nach Admin-Rechten, damit Win+L den Sperrbildschirm des Looks zeigen kann (ablehnen geht, dann sperrt Win+L direkt mit Windows).
 
 ## Änderungen und Zurücksetzen
 

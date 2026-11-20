@@ -204,9 +204,12 @@ namespace WinMorph
                 try
                 {
                     using (var k = Reg.Open(Shell.ShellControl.SettingsKey, true)) { k?.DeleteValue("MacDark", false); k?.DeleteSubKeyTree("Parts", false); }
-                    if (Shell.ShellControl.IsRunning) return;
                     var look = Shell.ShellControl.CurrentPreset;
-                    if (look != null && Shell.ShellThemes.For(look) != null) Shell.ShellControl.Start();
+                    bool known = look != null && Shell.ShellThemes.For(look) != null;
+                    // the sign-in start must always be there and point at this copy (also after an update or a move)
+                    if (known) Shell.ShellControl.Enable(look);
+                    if (Shell.ShellControl.IsRunning) return;
+                    if (known) Shell.ShellControl.Start();
                     else if (Shell.ShellControl.TaskbarTaken || Shell.ShellControl.NativeHidden) Shell.ShellControl.Release();
                 }
                 catch (Exception ex) { try { File.AppendAllText(Path.Combine(Backup.DataDir, "cli-errors.log"), DateTime.Now + " self-heal " + ex + Environment.NewLine); } catch { } }

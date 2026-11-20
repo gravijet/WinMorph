@@ -82,6 +82,12 @@ namespace WinMorph.Core
                 design.Reg(@"HKCU\Control Panel\Desktop", "WallpaperStyle"); design.Reg(Applier.Cdm, "RotatingLockScreenEnabled"); design.Reg(WinMorph.Shell.ShellControl.SettingsKey, "ShellPreset"); design.Value("WALL", "");
                 Check(!Restorer.HasLegacySettings(design) && Restorer.HasLegacySettings(b2), "design looks change no Windows settings; old settings are recognised");
 
+                // sign-in start: a well-formed task for this user, normal priority, restarted on failure, path escaped
+                var taskXml = new System.Xml.XmlDocument();
+                taskXml.LoadXml(Autostart.Xml(@"C:\Program Files\A&B\WinMorph.exe").Substring(Autostart.Xml("x").IndexOf("<Task", StringComparison.Ordinal)));
+                Check(taskXml.InnerXml.Contains("<Priority>4</Priority>") && taskXml.InnerXml.Contains("<LogonTrigger>") && taskXml.InnerXml.Contains("RestartOnFailure")
+                    && taskXml.DocumentElement["Actions"].InnerText.Contains(@"A&B\WinMorph.exe"), "sign-in task definition");
+
                 Check(new RestoreResult().Complete && !new RestoreResult { Failed = 1 }.Complete
                     && !new RestoreResult { NeedsElevation = true }.Complete, "failed or unelevated restores must keep their backup");
 
