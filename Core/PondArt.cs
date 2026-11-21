@@ -208,7 +208,7 @@ namespace WinMorph.Core
         /// <summary>Where the koi of the still wallpaper swim (relative position, heading, length relative to height, pattern).</summary>
         public static readonly (double x, double y, double angle, double len, int pattern)[] StillKoi =
         {
-            (0.32, 0.30, -18, 0.15, 0), (0.42, 0.22, 165, 0.12, 1), (0.62, 0.55, 210, 0.16, 2), (0.56, 0.68, 20, 0.11, 3), (0.24, 0.58, 95, 0.13, 0),
+            (0.30, 0.34, -18, 0.15, 0), (0.47, 0.44, 165, 0.12, 1), (0.62, 0.55, 210, 0.16, 2), (0.56, 0.68, 20, 0.11, 3), (0.24, 0.58, 95, 0.13, 0),
         };
 
         public static void Draw(DrawingContext dc, double W, double H)

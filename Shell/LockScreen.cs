@@ -578,105 +578,131 @@ namespace WinMorph.Shell
                 }
                 case LockKind.Zen:
                 {
+                    // the pond, a little misted; time and date, the account, a frosted password field
                     root.Children.Add(bg);
-                    var ink = C(0x4A3F30); var umber = C(0x6B5B45); var shu = C(0xB5452B);
-                    var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-                    var circle = new Border { Width = 160, Height = 160, CornerRadius = new CornerRadius(80), BorderBrush = B(0x6B5B45, 160), BorderThickness = new Thickness(2), HorizontalAlignment = HorizontalAlignment.Center };
-                    var sc = new ScaleTransform(1, 1);
-                    circle.RenderTransform = sc; circle.RenderTransformOrigin = new Point(0.5, 0.5);
-                    var breathe = new DoubleAnimation(0.8, 1.15, TimeSpan.FromSeconds(4)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase() };
-                    if (!still) { sc.BeginAnimation(ScaleTransform.ScaleXProperty, breathe); sc.BeginAnimation(ScaleTransform.ScaleYProperty, breathe); }
-                    sp.Children.Add(circle);
-                    var word = Text(L("atme ein · atme aus", "breathe in · breathe out"), 20, umber, FontWeights.Light);
-                    var time = Text("", 54, ink, FontWeights.Light);
-                    Tick(() => time.Text = DateTime.Now.ToString("HH:mm"));
-                    // the breathing words and the password share one place: one fades out while the other comes in
-                    var place = new Grid { Margin = new Thickness(0, 40, 0, 6), HorizontalAlignment = HorizontalAlignment.Center, MinWidth = 340 };
-                    place.Children.Add(word);
-                    sp.Children.Add(place);
-                    sp.Children.Add(time);
-                    root.Children.Add(sp);
+                    root.Children.Add(new Border { Background = new LinearGradientBrush(C(0x0B4F5C, 40), C(0x0B4F5C, 120), 90) });
+                    var rings = new Grid { IsHitTestVisible = false };
+                    root.Children.Add(rings);
+                    var white = C(0xFFFFFF);
+                    var shade = new DropShadowEffect { BlurRadius = 18, ShadowDepth = 0, Opacity = 0.45, Color = C(0x0B3440) };
+                    var top = new StackPanel { VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 90, 0, 0) };
+                    var time = new TextBlock { FontFamily = ZenStyle.Family, FontWeight = FontWeights.Light, FontSize = 128, Foreground = B(white), HorizontalAlignment = HorizontalAlignment.Center, Effect = shade };
+                    var date = new TextBlock { FontFamily = ZenStyle.Family, FontSize = 22, Foreground = B(C(0xFFFFFF, 235)), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, -8, 0, 0), Effect = shade };
+                    top.Children.Add(time); top.Children.Add(date);
+                    Tick(() => { time.Text = DateTime.Now.ToString("HH:mm"); date.Text = DateTime.Now.ToString(De ? "dddd, d. MMMM" : "dddd, MMMM d", Ci); });
+                    root.Children.Add(top);
+
+                    var mid = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 150) };
+                    var pic = AccountPicture.Get(192);
+                    var avatar = new Border { Width = 104, Height = 104, CornerRadius = new CornerRadius(52), BorderBrush = B(C(0xFFFFFF, 230)), BorderThickness = new Thickness(3), HorizontalAlignment = HorizontalAlignment.Center, Effect = shade };
+                    if (pic != null) avatar.Background = new ImageBrush(pic) { Stretch = Stretch.UniformToFill };
+                    else { avatar.Background = B(ZenStyle.Pond); avatar.Child = new TextBlock { Text = ShellActions.UserName.Substring(0, 1).ToUpper(), FontFamily = ZenStyle.Family, FontSize = 44, Foreground = B(white), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }; }
+                    mid.Children.Add(avatar);
+                    var name = new TextBlock { Text = ShellActions.UserName, FontFamily = ZenStyle.Family, FontSize = 24, FontWeight = FontWeights.SemiBold, Foreground = B(white), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 18), Effect = shade };
+                    mid.Children.Add(name);
+
+                    // the field: dots of pond green drop in, one per character
+                    var dots = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 0, 0) };
+                    var hold = new TextBlock { Text = L("Kennwort", "Password"), FontFamily = ZenStyle.Family, FontSize = 15, Foreground = B(ZenStyle.Ink2), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(22, 0, 0, 0) };
+                    var go = new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(18), Background = B(ZenStyle.Koi), Cursor = Cursors.Hand, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 0, 6, 0), RenderTransformOrigin = new Point(0.5, 0.5) };
+                    var goGlyph = new TextBlock { Text = "", FontFamily = new FontFamily(IconFont), FontSize = 14, Foreground = B(white), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, RenderTransformOrigin = new Point(0.5, 0.5) };
+                    go.Child = goGlyph;
+                    go.MouseLeftButtonUp += (o, e) => { e.Handled = true; auth?.Submit?.Invoke(); };
+                    var fieldGrid = new Grid();
+                    fieldGrid.Children.Add(hold); fieldGrid.Children.Add(dots); fieldGrid.Children.Add(go);
+                    var field = new Border { Width = 340, Height = 48, CornerRadius = new CornerRadius(24), Background = B(C(0xFFFFFF, 205)), BorderBrush = B(C(0xFFFFFF, 240)), BorderThickness = new Thickness(1.2), Child = fieldGrid, Effect = new DropShadowEffect { BlurRadius = 24, ShadowDepth = 6, Direction = 270, Opacity = 0.25, Color = C(0x0B3440) } };
+                    var fieldMove = new TranslateTransform();
+                    field.RenderTransform = fieldMove;
+                    var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+                    row.Children.Add(field);
+                    var hello = ZenStyle.Stone("", () => auth?.UseHello?.Invoke(), "Windows Hello", 48, C(0xFFFFFF, 205));
+                    hello.Margin = new Thickness(12, 0, 0, 0); hello.Visibility = Visibility.Collapsed;
+                    row.Children.Add(hello);
+                    mid.Children.Add(row);
+                    var note = new TextBlock { FontFamily = ZenStyle.Family, FontSize = 15, Foreground = B(white), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0), MinHeight = 22, Effect = shade };
+                    mid.Children.Add(note);
+                    root.Children.Add(mid);
+
+                    // stones at the lower right: switch user, power (with its three choices)
+                    var corner = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 40, 36) };
+                    var powerMenu = new StackPanel { Orientation = Orientation.Horizontal, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 8, 0) };
+                    void Choice(string g, string tip, Action a) { var st = ZenStyle.Stone(g, a, tip, 44, C(0xFFFFFF, 190)); st.Margin = new Thickness(0, 0, 8, 0); powerMenu.Children.Add(st); }
+                    Choice("", L("Energie sparen", "Sleep"), ShellActions.Sleep);
+                    Choice("", L("Neu starten", "Restart"), ShellActions.RestartNow);
+                    Choice("", L("Herunterfahren", "Shut down"), ShellActions.ShutdownNow);
+                    corner.Children.Add(powerMenu);
+                    var switchUser = ZenStyle.Stone("", () => auth?.UseWindows?.Invoke(), L("Benutzer wechseln", "Switch user"), 44, C(0xFFFFFF, 190));
+                    switchUser.Margin = new Thickness(0, 0, 8, 0);
+                    corner.Children.Add(switchUser);
+                    corner.Children.Add(ZenStyle.Stone("", () =>
+                    {
+                        bool open = powerMenu.Visibility != Visibility.Visible;
+                        powerMenu.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+                        if (open) ZenStyle.Ripple(powerMenu, new Point(1, 0.5), 320);
+                    }, L("Ein/Aus", "Power"), 44, C(0xFFFFFF, 190)));
+                    root.Children.Add(corner);
+                    // battery at the lower left, only on a laptop
+                    var b0 = Hardware.Battery();
+                    if (b0 != null)
+                    {
+                        var batRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(44, 0, 0, 46), Effect = shade };
+                        var bg2 = new TrayGlyph(TrayGlyph.Kind.Battery, false, white, 18) { Level = b0.Percent, Charging = b0.Plugged };
+                        var pct = new TextBlock { FontFamily = ZenStyle.Family, FontSize = 15, Foreground = B(white), Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+                        batRow.Children.Add(bg2); batRow.Children.Add(pct);
+                        Tick(() => { var b = Hardware.Battery(); if (b == null) return; bg2.Set(TrayGlyph.Kind.Battery, b.Percent, false, b.Plugged); pct.Text = b.Percent + " %"; });
+                        root.Children.Add(batRow);
+                    }
                     if (auth == null) break;
 
-                    // the password: small ink stones laid on a brush line
-                    var stage = new Grid { Opacity = 0, IsHitTestVisible = false };
-                    var stones = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Height = 18, Margin = new Thickness(0, 0, 0, 9) };
-                    var hold = Text(L("Passwort", "Password"), 15, C(0x9C8E79), FontWeights.Light);
-                    hold.VerticalAlignment = VerticalAlignment.Bottom; hold.Margin = new Thickness(0, 0, 0, 9);
-                    var stroke = new System.Windows.Shapes.Path
+                    auth.Terminal = false; auth.Accent = ZenStyle.Pond; auth.AlwaysOpen = true;
+                    var spin = new RotateTransform();
+                    goGlyph.RenderTransform = spin;
+                    bool busyShown = false;
+                    Point FieldCenter()
                     {
-                        Data = Geometry.Parse("M0,3 C40,0.6 120,0.2 160,1.4 C200,2.4 280,1.2 320,3.4 C280,4.6 200,4.2 160,4.6 C120,5 40,5.4 0,3 Z"),
-                        Fill = B(umber), Opacity = 0.75, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Width = 320, Height = 6, Stretch = Stretch.Fill,
-                    };
-                    var lineBox = new Grid { Height = 40 };
-                    lineBox.Children.Add(hold); lineBox.Children.Add(stones); lineBox.Children.Add(stroke);
-                    var note = Text("", 13, C(0x8A7A62), FontWeights.Normal);
-                    note.Margin = new Thickness(0, 10, 0, 0);
-                    var stack = new StackPanel();
-                    stack.Children.Add(lineBox); stack.Children.Add(note);
-                    stage.Children.Add(stack);
-                    var stageMove = new TranslateTransform(); stage.RenderTransform = stageMove;
-                    place.Children.Add(stage);
-
-                    auth.Terminal = false; auth.Accent = umber;
-                    bool shown = false;
-                    var soft = new CubicEase { EasingMode = EasingMode.EaseOut };
+                        try { return field.TranslatePoint(new Point(field.ActualWidth / 2, field.ActualHeight / 2), rings); } catch { return new Point(0, 0); }
+                    }
                     auth.Render = () =>
                     {
                         if (auth.Unlocked) return;
-                        if (auth.Typing != shown)
+                        if (auth.Busy != busyShown)
                         {
-                            shown = auth.Typing;
-                            word.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(shown ? 0 : 1, TimeSpan.FromMilliseconds(shown ? 220 : 400)));
-                            stage.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(shown ? 1 : 0, TimeSpan.FromMilliseconds(shown ? 420 : 220)) { BeginTime = TimeSpan.FromMilliseconds(shown ? 120 : 0) });
-                            stageMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(shown ? 10 : 0, shown ? 0 : 6, TimeSpan.FromMilliseconds(520)) { EasingFunction = soft });
-                            if (!shown) stones.Children.Clear();
+                            busyShown = auth.Busy;
+                            goGlyph.Text = busyShown ? "" : "";
+                            if (busyShown) spin.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, 360, TimeSpan.FromSeconds(1)) { RepeatBehavior = RepeatBehavior.Forever });
+                            else spin.BeginAnimation(RotateTransform.AngleProperty, null);
                         }
-                        // one stone per character: a new one drops onto the line, a deleted one is taken away
-                        while (stones.Children.Count > auth.Length) stones.Children.RemoveAt(stones.Children.Count - 1);
-                        while (stones.Children.Count < Math.Min(auth.Length, 24))
+                        // a new character drops in as a dot, and a ring of water spreads from the field
+                        int want = Math.Min(auth.Length, 22);
+                        if (dots.Children.Count < want) ZenStyle.Rings(rings, FieldCenter(), C(0xFFFFFF, 200), 1, 380);
+                        while (dots.Children.Count > want) dots.Children.RemoveAt(dots.Children.Count - 1);
+                        while (dots.Children.Count < want)
                         {
-                            int i = stones.Children.Count;
-                            double d = 9 + (i * 7 % 5);
-                            var stone = new System.Windows.Shapes.Ellipse { Width = d * 1.18, Height = d, Fill = B(ink), Margin = new Thickness(4, 0, 4, 0), VerticalAlignment = VerticalAlignment.Bottom, RenderTransformOrigin = new Point(0.5, 1) };
-                            var st = new ScaleTransform(0.2, 0.2); var tr = new TranslateTransform(0, -14);
-                            var tg = new TransformGroup(); tg.Children.Add(st); tg.Children.Add(tr);
-                            stone.RenderTransform = tg;
-                            stones.Children.Add(stone);
-                            var drop = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.5 };
-                            st.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(260)) { EasingFunction = drop });
-                            st.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(260)) { EasingFunction = drop });
-                            tr.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(300)) { EasingFunction = new BounceEase { Bounces = 1, Bounciness = 4, EasingMode = EasingMode.EaseOut } });
+                            var dot = new System.Windows.Shapes.Ellipse { Width = 10, Height = 10, Fill = B(ZenStyle.Pond), Margin = new Thickness(0, 0, 7, 0), RenderTransformOrigin = new Point(0.5, 0.5) };
+                            var sc = new ScaleTransform(0.2, 0.2); dot.RenderTransform = sc;
+                            dots.Children.Add(dot);
+                            var pop = new DoubleAnimation(1, TimeSpan.FromMilliseconds(240)) { EasingFunction = ZenStyle.Surface };
+                            sc.BeginAnimation(ScaleTransform.ScaleXProperty, pop); sc.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
                         }
                         hold.Visibility = auth.Length == 0 ? Visibility.Visible : Visibility.Hidden;
                         note.Text = auth.Note ?? "";
-                        note.Foreground = B(auth.Note != null && auth.NoteBad ? shu : C(0x8A7A62));
+                        note.Foreground = B(auth.Note != null && auth.NoteBad ? C(0xFFD1C9) : white);
+                        hello.Visibility = auth.HelloReady ? Visibility.Visible : Visibility.Collapsed;
                     };
                     auth.OnDenied = () =>
                     {
-                        // the stones roll off the line, the line flushes vermilion and calms down again
-                        foreach (var el in stones.Children.Cast<UIElement>().ToList())
-                        {
-                            var tr = new TranslateTransform(); el.RenderTransform = tr;
-                            tr.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, 26, TimeSpan.FromMilliseconds(380)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } });
-                            el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(380)));
-                        }
-                        var clear = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
-                        clear.Tick += (o, e) => { clear.Stop(); stones.Children.Clear(); auth.Render(); };
-                        clear.Start();
-                        var red = new SolidColorBrush(shu); stroke.Fill = red;
-                        red.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(umber, TimeSpan.FromMilliseconds(1400)) { BeginTime = TimeSpan.FromMilliseconds(500) });
-                        Shake(stage, 7);
-                        hold.Visibility = Visibility.Hidden;
-                        note.Text = auth.Note; note.Foreground = B(shu);
+                        auth.Render();
+                        ZenStyle.Rings(rings, FieldCenter(), ZenStyle.Momiji, 2, 420);
+                        var red = new SolidColorBrush(C(0xFFFFFF, 240));
+                        field.BorderBrush = red;
+                        red.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(1400), KeyFrames = { new LinearColorKeyFrame(ZenStyle.Momiji, KeyTime.FromPercent(0.1)), new EasingColorKeyFrame(C(0xFFFFFF, 240), KeyTime.FromPercent(1), ZenStyle.Settle) } });
+                        Shake(field, 9);
                     };
                     auth.OnGranted = () =>
                     {
-                        // the breath completes: the circle opens wide and fades into the desktop
-                        note.Text = L("Willkommen zurück", "Welcome back"); note.Foreground = B(umber);
-                        sc.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(2.2, TimeSpan.FromMilliseconds(450)) { EasingFunction = soft });
-                        sc.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(2.2, TimeSpan.FromMilliseconds(450)) { EasingFunction = soft });
-                        circle.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(450)));
+                        // one wide ring opens over the whole pond and everything clears
+                        ZenStyle.Rings(rings, FieldCenter(), C(0xFFFFFF, 230), 3, 900);
+                        foreach (var el in new UIElement[] { mid, top, corner }) el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(420)) { EasingFunction = ZenStyle.Settle });
                     };
                     Tick(auth.Tick);
                     break;
