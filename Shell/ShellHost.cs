@@ -394,6 +394,7 @@ namespace WinMorph.Shell
                 otherKey = true;
                 if (vk == 0x58) { swallowedDuringWin = true; Ui(ShowQuickMenu); return true; }                 // Win+X
                 if (Mac && (vk == 0x53 || vk == 0x20)) { swallowedDuringWin = true; Ui(() => MacSpotlight.Toggle()); return true; }   // Win+S, Win+Space → Spotlight
+                if (Mac && (vk == 0x41 || vk == 0x4E)) { swallowedDuringWin = true; Ui(() => MacPanels.Toggle(t, vk == 0x41 ? "cc" : "nc", new Rect(0, 0, 0, 0), null)); return true; }   // Win+A → Control Center, Win+N → Notification Center
                 if (ShellActions.Own != null)
                 {
                     if (vk == 0x45) { swallowedDuringWin = true; Ui(() => ShellActions.Files()); return true; }      // Win+E → the look's explorer
@@ -496,7 +497,7 @@ namespace WinMorph.Shell
         void ShowQuickMenu()
         {
             if (Hacker) { HackerPanel.Toggle("power", t, new Rect(0, 0, 0, 0)); return; }
-            if (Mac) { menuOpeners.FirstOrDefault()?.Invoke(); return; }   // the Apple menu
+            if (Mac) { appleMenu?.Invoke(); return; }   // the Apple menu
             Rect anchor = startAnchor != null && startBar != null && startAnchor.IsLoaded ? startBar.ScreenRectOf(startAnchor) : new Rect(0, 0, 0, 0);
             var q = new QuickMenu(t, anchor, startBar?.Edge ?? Edge.Bottom);
             q.Show();

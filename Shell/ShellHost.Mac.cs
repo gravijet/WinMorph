@@ -43,7 +43,7 @@ namespace WinMorph.Shell
         }
 
         // ================= menu bar =================
-        readonly List<Action> menuOpeners = new List<Action>();
+        Action appleMenu;   // the Apple menu of the main monitor (Win+X)
 
         FrameworkElement MenuBar()
         {
@@ -55,13 +55,14 @@ namespace WinMorph.Shell
             dock.Children.Add(left);
             var shade = new DropShadowEffect { BlurRadius = 6, ShadowDepth = 0, Opacity = menuFg == Colors.White ? 0.35 : 0.0, Color = Colors.Black };
             if (shade.Opacity > 0) { left.Effect = shade; right.Effect = shade.Clone(); }
-            menuOpeners.Clear();
+            var openers = new List<Action>();   // this monitor's menu titles, for the arrow keys
 
             // the Apple menu (the mark itself is only drawn by Apple's own font)
             FrameworkElement mark = MacStyle.HasAppleMark
                 ? (FrameworkElement)new TextBlock { Text = "", FontFamily = MacStyle.Font, FontSize = 15, Foreground = B(menuFg), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, -1, 0, 0) }
                 : Logo4(13, menuFg, menuFg, menuFg, menuFg);
-            left.Children.Add(MenuTitle(mark, "bar:apple", AppleMenu, 11));
+            left.Children.Add(MenuTitle(mark, "bar:apple", AppleMenu, openers, 11));
+            if (building == 0) appleMenu = openers[0];
 
             var appMenus = new StackPanel { Orientation = Orientation.Horizontal };
             left.Children.Add(appMenus);
@@ -74,15 +75,15 @@ namespace WinMorph.Shell
                 if (name == shown) return;
                 shown = name;
                 appMenus.Children.Clear();
-                while (menuOpeners.Count > 1) menuOpeners.RemoveAt(menuOpeners.Count - 1);
+                while (openers.Count > 1) openers.RemoveAt(openers.Count - 1);
                 var title = MacStyle.Text(name, 13, menuFg, FontWeights.Bold);
-                appMenus.Children.Add(MenuTitle(title, "bar:app", () => AppMenu(name)));
+                appMenus.Children.Add(MenuTitle(title, "bar:app", () => AppMenu(name), openers));
                 bool finder = name == "Finder";
                 foreach (var (text, key) in new[] { (L("Ablage", "File"), "file"), (L("Bearbeiten", "Edit"), "edit"), (L("Darstellung", "View"), "view"), (finder ? L("Gehe zu", "Go") : null, "go"), (L("Fenster", "Window"), "window"), (L("Hilfe", "Help"), "help") })
                 {
                     if (text == null) continue;
                     var k = key;
-                    appMenus.Children.Add(MenuTitle(MacStyle.Text(text, 13, menuFg), "bar:" + k, () => AppMenus(k, name)));
+                    appMenus.Children.Add(MenuTitle(MacStyle.Text(text, 13, menuFg), "bar:" + k, () => AppMenus(k, name), openers));
                 }
             }
             refreshers.Add(Rebuild);
@@ -141,7 +142,7 @@ namespace WinMorph.Shell
         int tickMenu;
         Color Highlight => menuFg == Colors.White ? C(0xFFFFFF, 60) : C(0x000000, 28);
 
-        Border MenuTitle(FrameworkElement content, string key, Func<List<Item>> items, double padX = 9)
+        Border MenuTitle(FrameworkElement content, string key, Func<List<Item>> items, List<Action> menuOpeners, double padX = 9)
         {
             var b = new Border { Child = content, Padding = new Thickness(padX, 0, padX, 0), Height = 22, CornerRadius = new CornerRadius(6), Background = Brushes.Transparent, VerticalAlignment = VerticalAlignment.Center };
             int index = menuOpeners.Count;
@@ -174,15 +175,7 @@ namespace WinMorph.Shell
             return tracker.Windows.FirstOrDefault(x => x.Hwnd == fg);
         }
 
-        string AppTitle(WinInfo w)
-        {
-            var own = MacApps.NameOf(w.Hwnd);
-            if (own != null) return own;
-            if (IsExplorer(w)) return "Finder";
-            var e = EntryFor(w);
-            var n = (e?.Name ?? w.AppName ?? w.Title ?? "").Trim();
-            return n.Length > 28 ? n.Substring(0, 28).TrimEnd() + "…" : n;
-        }
+        static string AppTitle(WinInfo w) => MacApps.AppName(w);
 
         static bool IsExplorer(WinInfo w) => w.ExePath != null && Path.GetFileName(w.ExePath).Equals("explorer.exe", StringComparison.OrdinalIgnoreCase);
 
@@ -446,6 +439,7 @@ namespace WinMorph.Shell
             pop.CustomPopupPlacementCallback = (popup, target, offset) => new[] { new CustomPopupPlacement(new Point((target.Width - popup.Width) / 2, -popup.Height + 4), PopupPrimaryAxis.Horizontal) };
             g.MouseEnter += (s, e) => { if (!preview && MacMenu.Current == null) pop.IsOpen = true; };
             g.MouseLeave += (s, e) => { pop.IsOpen = false; press.Visibility = Visibility.Hidden; };
+            g.Unloaded += (s, e) => pop.IsOpen = false;   // the Dock was rebuilt under the pointer
             g.MouseLeftButtonDown += (s, e) => { press.Visibility = Visibility.Visible; e.Handled = true; };
             g.MouseLeftButtonUp += (s, e) =>
             {

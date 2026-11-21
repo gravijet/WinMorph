@@ -543,6 +543,7 @@ namespace WinMorph.Shell
 
         // ---------------- volume display (top right, like Control Center's sound module) ----------------
         static Window hud;
+        public static Window Hud => hud;
         static Grid hudSlider;
         static FrameworkElement hudContent;
         static DispatcherTimer hudHide;

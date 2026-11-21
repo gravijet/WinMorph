@@ -37,6 +37,20 @@ namespace WinMorph.Shell
         public static string NameOf(IntPtr h) => own.TryGetValue(h, out var v) ? v.name : null;
         public static ImageSource IconOf(IntPtr h) => own.TryGetValue(h, out var v) ? MacStyle.Own(v.icon) : null;
 
+        /// <summary>The name macOS would show for a window's app: its Start menu name, Finder for Explorer.</summary>
+        public static string AppName(WinInfo w)
+        {
+            var mine = NameOf(w.Hwnd);
+            if (mine != null) return mine;
+            string exe = w.ExePath != null ? Path.GetFileName(w.ExePath) : "";
+            if (exe.Equals("explorer.exe", StringComparison.OrdinalIgnoreCase)) return "Finder";
+            if (exe.Equals("WindowsTerminal.exe", StringComparison.OrdinalIgnoreCase)) return "Terminal";
+            var e = (w.AppId != null ? AppCatalog.Apps.FirstOrDefault(a => string.Equals(a.ParsingPath, w.AppId, StringComparison.OrdinalIgnoreCase)) : null)
+                    ?? AppCatalog.Apps.FirstOrDefault(a => a.Matches(w));
+            var n = (e?.Name ?? w.AppName ?? w.Title ?? "").Trim();
+            return n.Length > 28 ? n.Substring(0, 28).TrimEnd() + "…" : n;
+        }
+
         [StructLayout(LayoutKind.Sequential)] struct SHQUERYRBINFO { public int cbSize; public long i64Size, i64NumItems; }
         [DllImport("shell32.dll", CharSet = CharSet.Unicode)] static extern int SHQueryRecycleBin(string root, ref SHQUERYRBINFO info);
         [DllImport("shell32.dll", CharSet = CharSet.Unicode)] internal static extern int SHEmptyRecycleBin(IntPtr hwnd, string root, int flags);

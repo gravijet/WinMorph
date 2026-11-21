@@ -62,7 +62,8 @@ namespace WinMorph.Shell
                 var h = new WindowInteropHelper(this).Handle;
                 int ex = W32.GetWindowLong(h, W32.GWL_EXSTYLE);
                 SetWindowLong(h, W32.GWL_EXSTYLE, ex | W32.WS_EX_TOOLWINDOW | W32.WS_EX_NOACTIVATE);
-                int corner = t.Switch == SwitchKind.Table || t.Switch == SwitchKind.Shoji ? 1 : 2;   // the pond covers the whole monitor   // 1 = square, 2 = round
+                int corner = t.Switch == SwitchKind.Table || t.Switch == SwitchKind.Shoji || t.Switch == SwitchKind.Mac ? 1 : 2;
+                if (t.Switch == SwitchKind.Mac) { int none = unchecked((int)0xFFFFFFFE); W32.DwmSetWindowAttribute(h, W32.DWMWA_BORDER_COLOR, ref none, 4); }   // the pond covers the whole monitor   // 1 = square, 2 = round
                 W32.DwmSetWindowAttribute(h, W32.DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, 4);
                 if (glass)
                 {
@@ -105,8 +106,8 @@ namespace WinMorph.Shell
             MacStyle.Prepare(this);
             double icon = wins.Count > 10 ? 76 : 100, cell = icon + 22;
             var grid = new Grid { Margin = new Thickness(12, 12, 12, 8) };
-            grid.RowDefinitions.Add(new RowDefinition());
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(24) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(cell) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
             var plates = new List<Border>();
             for (int i = 0; i < wins.Count; i++)
             {
@@ -132,7 +133,7 @@ namespace WinMorph.Shell
                 var w = wins[i];
                 var own = MacApps.NameOf(w.Hwnd);
                 var entry = AppCatalog.Apps.FirstOrDefault(a => a.Matches(w));
-                name.Text = own ?? (w.ExePath != null && System.IO.Path.GetFileName(w.ExePath).Equals("explorer.exe", StringComparison.OrdinalIgnoreCase) ? "Finder" : entry?.Name ?? w.AppName ?? w.Title);
+                name.Text = MacApps.AppName(w);
                 Grid.SetColumn(name, i);
                 Grid.SetColumnSpan(name, 1);
                 name.Width = Math.Max(cell, 220); name.Margin = new Thickness(-(Math.Max(cell, 220) - cell) / 2, 0, -(Math.Max(cell, 220) - cell) / 2, 0);

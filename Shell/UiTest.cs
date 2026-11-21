@@ -18,8 +18,39 @@ namespace WinMorph.Shell
         {
             var t = ShellThemes.For(look) ?? ShellThemes.For("zen");
             Window w;
+            WindowTracker tracker = null;
             switch (surface)
             {
+                case "menu":
+                    w = MacMenu.Show(new System.Collections.Generic.List<MacMenu.Item>
+                    {
+                        new MacMenu.Item { Text = Core.Loc.De ? "Über diesen PC" : "About This PC" }, MacMenu.Item.Sep,
+                        new MacMenu.Item { Text = Core.Loc.De ? "Systemeinstellungen …" : "System Settings…" }, new MacMenu.Item { Text = "App Store …" }, MacMenu.Item.Sep,
+                        new MacMenu.Item { Text = Core.Loc.De ? "Kopieren" : "Copy", Shortcut = "⌃C", Checked = true }, new MacMenu.Item { Text = Core.Loc.De ? "Einsetzen" : "Paste", Shortcut = "⌃V", Enabled = false },
+                    }, new Point(60, 40), "test");
+                    break;
+                case "alert":
+                    w = MacAlert.Ask(Core.Loc.De ? "Möchtest du deinen Computer jetzt neu starten?" : "Are you sure you want to restart your computer now?", null, MacStyle.Own("finder"), new[] { (Core.Loc.De ? "Abbrechen" : "Cancel", (Action)null, false), (Core.Loc.De ? "Neustart" : "Restart", (Action)null, true) });
+                    break;
+                case "switcher":
+                    tracker = new WindowTracker(t, styleFrames: false);
+                    var list = tracker.ByRecentUse().GroupBy(x => x.Key).Select(g => g.First()).ToList();
+                    var sw = new Switcher(t, list, Math.Min(1, list.Count - 1));
+                    sw.Show();
+                    w = sw;
+                    break;
+                case "banner":
+                    w = MacPanels.Banner(new Notify.Item { When = DateTime.Now, App = "WLAN", Title = Core.Loc.De ? "Verbunden mit „Zuhause“" : "Connected to “Home”", Body = Core.Loc.De ? "Das WLAN-Netzwerk ist jetzt verbunden." : "The Wi‑Fi network is now connected." });
+                    w.Show();
+                    w.UpdateLayout();
+                    var mi = W32.Monitor(W32.MonitorAtCursor(), out double sc);
+                    w.Left = mi.rcWork.Right / sc - w.ActualWidth + 6; w.Top = mi.rcWork.Top / sc;
+                    MacPanels.Enter(w);
+                    break;
+                case "hud":
+                    MacPanels.VolumeHud();
+                    w = MacPanels.Hud;
+                    break;
                 default:
                     w = Flyouts.Open(t, surface, new Rect(0, 0, 0, 0));
                     break;
@@ -30,6 +61,7 @@ namespace WinMorph.Shell
                 tm.Stop();
                 try { Shoot(w, png); } catch (Exception ex) { System.IO.File.WriteAllText(png + ".txt", ex.ToString()); }
                 try { w?.Close(); } catch { }
+                tracker?.Dispose();
                 done();
             };
             tm.Start();
