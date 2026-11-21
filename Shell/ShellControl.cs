@@ -232,9 +232,12 @@ namespace WinMorph.Shell
                 if (CustomLock.Active) { try { Core.LockGuard.LockNow(); } catch { } try { CustomLock.ForceClose(); } catch { } }
                 crashes.RemoveAll(c => (DateTime.Now - c).TotalSeconds > 60);
                 crashes.Add(DateTime.Now);
-                try { host?.Shutdown(); } catch { }
+                // rebuilding: the Windows taskbar stays hidden in between (it used to flash up)
+                bool rebuild = crashes.Count <= 3;
+                try { host?.Shutdown(keepHidden: rebuild); } catch { }
                 host = null;
-                if (crashes.Count <= 3) { try { host = new ShellHost(theme); return; } catch (Exception ex) { Log(ex); } }
+                if (rebuild) { try { host = new ShellHost(theme); return; } catch (Exception ex) { Log(ex); } }
+                try { GiveBackTaskbar(); } catch { }   // giving up: the user gets the Windows taskbar back
                 quit();
             };
             emergency = quit;

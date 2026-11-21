@@ -154,9 +154,12 @@ namespace WinMorph.Shell
 
             bool changed = list.Count != Windows.Count || list.Where((w, i) => w.Hwnd != Windows[i].Hwnd || w.Title != Windows[i].Title || w.Minimized != Windows[i].Minimized).Any();
             Windows = list;
-            if (changed) Changed?.Invoke();
-            else ForegroundChanged?.Invoke();
+            // the 2 s poll must not rebuild the bars when nothing happened (flicker, lost hover, closed tooltips)
+            if (changed) { notifiedFg = Foreground; Changed?.Invoke(); }
+            else if (notifiedFg != Foreground) { notifiedFg = Foreground; ForegroundChanged?.Invoke(); }
         }
+
+        IntPtr notifiedFg;
 
         public event Action ForegroundChanged;
 

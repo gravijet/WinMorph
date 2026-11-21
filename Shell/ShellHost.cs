@@ -37,6 +37,8 @@ namespace WinMorph.Shell
         Switcher switcher;
         volatile bool switching;
         int building; // monitor index while bars are built
+        W32.WinEventProc nativeShow;   // kept in a field: the hook must not lose its delegate to the garbage collector
+        IntPtr nativeHook;
         DispatcherTimer rebuildTimer, peekTimer;
         static bool De => Core.Loc.De;
 
@@ -49,7 +51,8 @@ namespace WinMorph.Shell
             this.preview = preview;
             tracker = preview ? WindowTracker.Demo(t) : new WindowTracker(t);
             tracker.Changed += () => { foreach (var r in refreshers) r(); };
-            tracker.ForegroundChanged += () => { foreach (var r in refreshers) r(); };
+            tracker.ForegroundChanged += () => { foreach (var r in refreshers) r(); CheckFullscreen(); };
+            tracker.Changed += CheckFullscreen;
             if (!preview)
             {
                 AppCatalog.Loaded += () => { foreach (var r in refreshers) r(); };
@@ -68,8 +71,16 @@ namespace WinMorph.Shell
 
             BuildAllMonitors();
 
-            clock = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal, (s, e) => { foreach (var c in clockUpdaters) c(); }, Dispatcher.CurrentDispatcher);
+            clock = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal, (s, e) => { foreach (var c in clockUpdaters) c(); CheckFullscreen(); }, Dispatcher.CurrentDispatcher);
             nativeGuard = new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (s, e) => { if (!peek) HideNative(); }, Dispatcher.CurrentDispatcher);
+            // the moment Windows shows its taskbar again (Explorer, sign-in, a notification), it is hidden – no flash
+            nativeShow = (hook, ev, hwnd, idObject, idChild, thread, time) =>
+            {
+                if (idObject != 0 || peek || hwnd == IntPtr.Zero) return;
+                var cls = W32.ClassOf(hwnd);
+                if (cls == "Shell_TrayWnd" || cls == "Shell_SecondaryTrayWnd") W32.ShowWindow(hwnd, W32.SW_HIDE);
+            };
+            nativeHook = W32.SetWinEventHook(0x8002, 0x8002, IntPtr.Zero, nativeShow, 0, 0, 0);
             Microsoft.Win32.SystemEvents.SessionSwitch += OnSessionSwitch;
             foreach (var r in refreshers) r();
             foreach (var c in clockUpdaters) c();
@@ -97,6 +108,8 @@ namespace WinMorph.Shell
         }
 
         bool Hacker => t.Start == StartKind.Terminal;
+
+        void CheckFullscreen() { foreach (var b in bars) try { b.CheckFullscreen(); } catch { } }
 
         /// <summary>Tooltips in the colours and font of the look instead of the white Windows ones.</summary>
         void ThemeToolTips()
@@ -281,6 +294,7 @@ namespace WinMorph.Shell
         {
             try { Microsoft.Win32.SystemEvents.SessionSwitch -= OnSessionSwitch; } catch { }
             clock.Stop(); nativeGuard.Stop();
+            if (nativeHook != IntPtr.Zero) { W32.UnhookWinEvent(nativeHook); nativeHook = IntPtr.Zero; }
             keys?.Stop(); keys = null;
             Core.LockGuard.Disarm();   // Win+L belongs to Windows again
             HoverPreview.CloseNow();
@@ -696,8 +710,13 @@ namespace WinMorph.Shell
         FrameworkElement TaskButtons()
         {
             var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Stretch };
+            string last = null;
             refreshers.Add(() =>
             {
+                // rebuild only when what the buttons show changed (a title only matters where it is written on the button)
+                var sig = string.Join("|", tracker.Windows.Select(w => w.Hwnd + ":" + w.Minimized + ":" + (w.Hwnd == tracker.Foreground) + ":" + (t.Labels || t.Btn == BtnStyle.Text ? w.AppName ?? w.Title : "")));
+                if (sig == last) return;
+                last = sig;
                 panel.Children.Clear();
                 int i = 1;
                 foreach (var w in tracker.Windows)
@@ -772,14 +791,14 @@ namespace WinMorph.Shell
                     b.Width = t.Labels ? 170 : 58; b.Margin = new Thickness(1, 2, 1, 2);
                     b.BorderBrush = B(0xFFFFFF, active ? (byte)170 : (byte)70); b.BorderThickness = new Thickness(1);
                     if (active) b.Effect = new DropShadowEffect { Color = C(0x9FD8FF), BlurRadius = 10, ShadowDepth = 0, Opacity = 0.7 };
-                    b.ToolTip = w.Title;
+                    LiveTip(b, w);
                     return b;
                 }
                 case BtnStyle.Text:
                 {
                     var text = " " + index + ":" + Short(w.AppName ?? w.Title, 14) + (w.Minimized ? "-" : (active ? "*" : " ")) + " ";
                     var b = Click(T(text, t, 12.5, active ? C(0x000000) : t.BarFg, active ? FontWeights.Bold : FontWeights.Normal), () => ToggleWindow(w), t.BtnHover, active ? B(t.Accent) : null, onRight: () => WindowMenu(w));
-                    b.ToolTip = w.Title;
+                    LiveTip(b, w);
                     return b;
                 }
                 default: // Flat (Windows 8/10, Mint)
@@ -791,10 +810,17 @@ namespace WinMorph.Shell
                     g.Children.Add(line);
                     var b = Click(g, () => ToggleWindow(w), t.BtnHover, active ? B(t.BtnActive) : null, onRight: () => WindowMenu(w));
                     b.Width = t.Labels ? 170 : 48;
-                    b.ToolTip = w.Title;
+                    LiveTip(b, w);
                     return b;
                 }
             }
+        }
+
+        /// <summary>The tooltip always shows the window's current title (the button is not rebuilt for title changes).</summary>
+        static void LiveTip(FrameworkElement el, WinInfo w)
+        {
+            el.ToolTip = w.Title;
+            el.ToolTipOpening += (s, e) => { var now = W32.Text(w.Hwnd); if (now.Length > 0) el.ToolTip = now; };
         }
 
         static string Short(string s, int n) => s.Length <= n ? s.ToLowerInvariant() : s.Substring(0, n).ToLowerInvariant();
@@ -811,10 +837,14 @@ namespace WinMorph.Shell
         FrameworkElement DockItems(Orientation o, double icon, bool runningOnly = false)
         {
             var panel = new StackPanel { Orientation = o, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-            List<AppEntry> pinned = null;
+            List<AppEntry> pinned;
+            string last = null;
             refreshers.Add(() =>
             {
-                if (pinned == null || AppCatalog.Apps.Count > 0 && pinned.Count < 5) pinned = AppCatalog.Pinned();
+                pinned = AppCatalog.Pinned();   // cached by the catalog; fresh after pinning or unpinning
+                var sig = string.Join("|", pinned.Select(a => a.Name + (a.Icon != null))) + "#" + string.Join("|", tracker.Windows.Select(w => w.Hwnd + ":" + w.Minimized + ":" + (w.Hwnd == tracker.Foreground) + ":" + (w.Icon != null)));
+                if (sig == last) return;
+                last = sig;
                 panel.Children.Clear();
                 var used = new HashSet<IntPtr>();
                 foreach (var app in pinned)

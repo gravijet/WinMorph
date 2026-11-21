@@ -106,17 +106,52 @@ namespace WinMorph.Shell
             else if (msg == callbackMsg)
             {
                 if ((int)w == 1) Dispatcher.BeginInvoke(new Action(Place));                 // ABN_POSCHANGED
-                else if ((int)w == 2)                                                         // ABN_FULLSCREENAPP
-                {
-                    bool full = l != IntPtr.Zero;
-                    W32.SetWindowPos(hwnd, full ? (IntPtr)1 : (IntPtr)(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010);
-                    W32.ShowWindow(hwnd, full ? W32.SW_HIDE : W32.SW_SHOWNA);
-                }
+                // ABN_FULLSCREENAPP is also sent for the desktop (Win+D), WinMorph's own full-screen windows and
+                // some borderless windows: it only triggers a check of the real foreground window
+                else if ((int)w == 2) Dispatcher.BeginInvoke(new Action(CheckFullscreen));
             }
             else if (msg == 0x0006 && registered) { var abd = Data(); W32.SHAppBarMessage(6, ref abd); }      // WM_ACTIVATE → ABM_ACTIVATE
             else if (msg == 0x0047 && registered) { var abd = Data(); W32.SHAppBarMessage(9, ref abd); }      // WM_WINDOWPOSCHANGED
             else if (msg == 0x007E || msg == 0x02E0) Dispatcher.BeginInvoke(new Action(() => { Place(); DisplayChanged?.Invoke(); })); // display / DPI change
             return IntPtr.Zero;
+        }
+
+        // ---------------- full-screen apps (games, videos, F11): the bar steps aside ----------------
+        bool hiddenForFullscreen;
+        static readonly uint ownPid = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
+        static readonly System.Collections.Generic.HashSet<string> NeverFullscreen = new System.Collections.Generic.HashSet<string>
+        {
+            "Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "Windows.UI.Core.CoreWindow", "XamlExplorerHostIslandWindow",
+            "ForegroundStaging", "MultitaskingViewFrame", "TaskSwitcherWnd", "NotifyIconOverflowWindow", "TopLevelWindowForOverflowXamlIsland", "LockScreenBackstopFrame",
+        };
+
+        /// <summary>Hides the bar while a real full-screen app is in front on its monitor and brings it back afterwards.</summary>
+        public void CheckFullscreen()
+        {
+            if (hwnd == IntPtr.Zero) return;
+            bool full = ForegroundFillsMonitor();
+            if (full == hiddenForFullscreen) return;
+            hiddenForFullscreen = full;
+            if (full) { W32.SetWindowPos(hwnd, (IntPtr)1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); W32.ShowWindow(hwnd, W32.SW_HIDE); }
+            else { W32.ShowWindow(hwnd, W32.SW_SHOWNA); W32.SetWindowPos(hwnd, (IntPtr)(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); }
+        }
+
+        bool ForegroundFillsMonitor()
+        {
+            var fg = W32.GetForegroundWindow();
+            if (fg == IntPtr.Zero) return hiddenForFullscreen;   // between two windows: keep the state
+            if (!W32.IsWindowVisible(fg) || W32.IsCloaked(fg)) return false;
+            var path = W32.ProcessPath(fg, out uint pid);
+            if (pid == ownPid) return false;
+            // other WinMorph processes (live desktop, lock screen saver) are never "a full-screen app"
+            if (path != null && System.IO.Path.GetFileNameWithoutExtension(path).Equals("WinMorph", StringComparison.OrdinalIgnoreCase)) return false;
+            if (NeverFullscreen.Contains(W32.ClassOf(fg))) return false;
+            var mons = W32.Monitors();
+            var mon = mons[MonitorIndex < mons.Count ? MonitorIndex : 0];
+            if (W32.MonitorFromWindow(fg, 2) != mon) return false;
+            var mi = W32.Monitor(mon, out _);
+            if (!W32.GetWindowRect(fg, out var r)) return false;
+            return r.Left <= mi.rcMonitor.Left && r.Top <= mi.rcMonitor.Top && r.Right >= mi.rcMonitor.Right && r.Bottom >= mi.rcMonitor.Bottom;
         }
 
         void Unregister()
