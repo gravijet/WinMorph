@@ -499,6 +499,13 @@ namespace WinMorph.Shell
             Draw();
             Buttons(("<", () => { month = month.AddMonths(-1); Draw(); }), (L("heute", "today"), () => { month = DateTime.Today; Draw(); }), (">", () => { month = month.AddMonths(1); Draw(); }));
             Sep();
+            // notifications: the newest five, as log lines
+            var notes = Notify.History.Take(5).ToList();
+            Line(L("mitteilungen", "notifications") + (notes.Count > 0 ? " (" + Notify.History.Count + ")" : ""), D);
+            if (notes.Count == 0) Line("  " + L("keine", "none"), A(D, 200));
+            foreach (var n in notes) Line("  " + n.When.ToString("HH:mm") + "  " + Short((n.App ?? "").ToLowerInvariant(), 10).PadRight(10) + "  " + Short(n.Title ?? n.Body ?? "", 26), G);
+            if (notes.Count > 0) Buttons((L("leeren", "clear"), () => { Notify.ClearHistory(); Done(); }));
+            Sep();
             var up = Line("", D);
             Every(1, () =>
             {

@@ -305,11 +305,14 @@ namespace WinMorph.Shell
             Grid.SetColumn(right, 1);
             var places = new StackPanel();
             Color rfg = t.MenuSideFg, rhov = mint ? A(t.Accent, 70) : C(0xFFFFFF, 45);
+            // Windows 7: the account picture in its glass frame, sitting on the top edge of the menu
+            var pic = AccountPicture.Get(64);
             places.Children.Add(new Border
             {
-                Width = 52, Height = 52, CornerRadius = new CornerRadius(mint ? 26 : 4), Margin = new Thickness(0, 4, 0, 10), HorizontalAlignment = HorizontalAlignment.Center,
-                Background = V((0, A(t.Accent, 255)), (1, A(t.Accent, 170))), BorderBrush = B(0xFFFFFF, 140), BorderThickness = new Thickness(2),
-                Child = new TextBlock { Text = ShellActions.UserName.Substring(0, 1).ToUpper(), FontSize = 24, Foreground = B(0xFFFFFF), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+                Width = 56, Height = 56, CornerRadius = new CornerRadius(5), Margin = new Thickness(0, -2, 0, 10), HorizontalAlignment = HorizontalAlignment.Center, Padding = new Thickness(4),
+                Background = V((0, C(0xFFFFFF, 170)), (1, C(0xFFFFFF, 80))), BorderBrush = B(0xFFFFFF, 200), BorderThickness = new Thickness(1),
+                Child = pic != null ? (UIElement)new Border { CornerRadius = new CornerRadius(2), Background = new ImageBrush(pic) { Stretch = Stretch.UniformToFill } }
+                    : new Border { Background = V((0, A(t.Accent, 255)), (1, A(t.Accent, 170))), Child = new TextBlock { Text = ShellActions.UserName.Substring(0, 1).ToUpper(), FontSize = 22, Foreground = B(0xFFFFFF), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } },
             });
             void P(string text, Action a, bool bold = false) => places.Children.Add(Row(null, text, () => Do(a), 0, rfg, rhov, 12.5, bold ? FontWeights.SemiBold : FontWeights.Normal, height: 31));
             P(ShellActions.UserName, () => ShellActions.Folder(Environment.SpecialFolder.UserProfile), true);

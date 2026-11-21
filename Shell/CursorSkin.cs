@@ -12,6 +12,7 @@ namespace WinMorph.Shell
     /// The look's mouse pointers. They are set for this sign-in only (SetSystemCursor): nothing is written to
     /// the registry, and <see cref="Reset"/> (or signing out) brings back the user's own pointer scheme.
     /// Windows 7: the Aero pointers that ship with Windows. Hacker: pointers drawn in the hacker colour.
+    /// Zen: rounded ink pointers with a white rim, koi orange for links.
     /// </summary>
     internal static class CursorSkin
     {
@@ -34,6 +35,7 @@ namespace WinMorph.Shell
             {
                 if (t.Id == "win7") Seven();
                 else if (t.Id == "terminal") Hacker(t.Accent);
+                else if (t.Id == "zen") Zen();
                 else Reset();
             }
             catch { Reset(); }
@@ -101,6 +103,51 @@ namespace WinMorph.Shell
                 if (!File.Exists(file)) WriteCur(file, draw(), hot, size);
                 Set(file, id);
             }
+        }
+
+        // ---------------- Zen pointers: a rounded ink arrow with a white rim, koi orange for links ----------------
+        static void Zen()
+        {
+            int size = Math.Max(32, GetSystemMetrics(13 /* SM_CXCURSOR */));
+            var dir = Path.Combine(Core.Backup.DataDir, "cursors", "zen-" + size + "-v1");
+            Directory.CreateDirectory(dir);
+            Color ink = Color.FromRgb(0x1C, 0x2A, 0x2D), pond = Color.FromRgb(0x0E, 0x7C, 0x78), koi = Color.FromRgb(0xF0, 0x62, 0x1F);
+            var shapes = new List<(string name, uint id, Func<DrawingGroup> draw, Point hot)>
+            {
+                ("arrow", NORMAL, () => SoftArrow(ink, null), new Point(2, 2)),
+                ("link", HAND, () => SoftArrow(ink, koi), new Point(2, 2)),
+                ("working", APPSTARTING, () => SoftArrow(ink, pond), new Point(2, 2)),
+                ("wait", WAIT, () => Pebble(pond), new Point(16, 16)),
+                ("beam", IBEAM, () => Beam(pond), new Point(16, 16)),
+                ("ns", SIZENS, () => Double(pond, 90), new Point(16, 16)),
+                ("we", SIZEWE, () => Double(pond, 0), new Point(16, 16)),
+                ("nwse", SIZENWSE, () => Double(pond, 45), new Point(16, 16)),
+                ("nesw", SIZENESW, () => Double(pond, -45), new Point(16, 16)),
+                ("move", SIZEALL, () => Move(pond), new Point(16, 16)),
+                ("no", NO, () => No(Color.FromRgb(0xC9, 0x30, 0x2A)), new Point(16, 16)),
+            };
+            foreach (var (name, id, draw, hot) in shapes)
+            {
+                var file = Path.Combine(dir, name + ".cur");
+                if (!File.Exists(file)) WriteCur(file, draw(), hot, size);
+                Set(file, id);
+            }
+        }
+
+        static DrawingGroup SoftArrow(Color ink, Color? dot)
+        {
+            var arrow = Geo("M2.5,2.5 C2.5,2.5 2.5,20 2.5,20.5 C2.5,21.6 3.6,22 4.4,21.2 L8.2,17.4 L11,23.6 C11.4,24.5 12.3,24.8 13.1,24.4 C13.9,24 14.2,23.1 13.8,22.3 L11.1,16.2 L16.3,16.2 C17.4,16.2 17.9,14.9 17.1,14.2 Z");
+            var pen = new Pen(Frozen(Color.FromRgb(255, 255, 255)), 1.6) { LineJoin = PenLineJoin.Round }; pen.Freeze();
+            var g = Group(new GeometryDrawing(Frozen(ink), pen, arrow));
+            if (dot.HasValue) g.Children.Add(new GeometryDrawing(Frozen(dot.Value), new Pen(Frozen(Color.FromRgb(255, 255, 255)), 1.2), new EllipseGeometry(new Point(21, 23), 4.2, 4.2)));
+            return g;
+        }
+
+        static DrawingGroup Pebble(Color c)
+        {
+            var pen = new Pen(Frozen(Color.FromRgb(255, 255, 255)), 1.6); pen.Freeze();
+            return Group(new GeometryDrawing(null, new Pen(Frozen(c), 3.2), new EllipseGeometry(new Point(16, 16), 9, 9)),
+                         new GeometryDrawing(Frozen(Color.FromRgb(0xF0, 0x62, 0x1F)), pen, new EllipseGeometry(new Point(16, 7), 3.2, 3.2)));
         }
 
         // all shapes are drawn on a 32 x 32 grid: a black body with a thin line in the hacker colour
