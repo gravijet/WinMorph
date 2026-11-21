@@ -18,10 +18,10 @@ namespace WinMorph.Core
             },
             new Preset {
                 Id = "zen", Name = "Zen",
-                TagDe = "Ruhe, Licht, Fokus", TagEn = "Calm, light, focus",
-                DescDe = "Eine schwebende, helle Leiste, Berglandschaft mit Licht nach Tageszeit, ruhige Uhr mit Spruch des Tages, Fokus-Timer, Atemübung und Regen-Geräusch in der Leiste, ein Alt+Tab mit Shōji-Schiebetüren und Ema-Täfelchen und ein stiller Sperrbildschirm.",
-                DescEn = "A floating light bar, a mountain landscape lit by the time of day, a calm clock with a quote of the day, focus timer, breathing exercise and rain sound in the bar, an Alt+Tab with shoji sliding doors and ema plaques and a quiet lock screen.",
-                Accent = C(0xA0805A), Wall = WallKind.Zen, Live = "zen-desk",
+                TagDe = "Koi-Teich unter Milchglas", TagEn = "Koi pond under frosted glass",
+                DescDe = "Ein Koi-Teich als Desktop, auf dem die Koi schwimmen; Leiste, Startmenü, Panels und Apps aus Milchglas darüber, Lotus als Start, Alt+Tab als Teichspiegel, Fokus-Timer, Atemübung und ein Sperrbildschirm mit Wasserringen.",
+                DescEn = "A koi pond as the desktop with swimming koi; bar, Start menu, panels and apps of frosted glass above it, a lotus as Start, Alt+Tab as a pond mirror, focus timer, breathing and a lock screen with rings of water.",
+                Accent = C(0x0E7C78), Wall = WallKind.Zen, Live = "zen-desk",
             },
             new Preset {
                 Id = "terminal", Name = "Hacker",

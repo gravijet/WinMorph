@@ -28,6 +28,7 @@ namespace WinMorph.Shell
             const int Cols = 6;
             var ink = ZenStyle.Ink; var ink2 = ZenStyle.Ink2;
             var root = new StackPanel { Margin = new Thickness(22, 20, 22, 16) };
+            root.Resources.MergedDictionaries.Add(ZenStyle.ScrollBars);   // also when the menu is drawn into a preview
 
             // search
             var head = new DockPanel { Margin = new Thickness(0, 0, 0, 14) };

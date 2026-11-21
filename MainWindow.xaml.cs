@@ -99,7 +99,7 @@ namespace WinMorph
             switch (p.Id)
             {
                 case "win7": return new[] { C(0x0A62C9), C(0x37B4F2), C(0x7ED957) };      // Aero blue, sky, the green of the start orb
-                case "zen": return new[] { C(0xC23F27), C(0x8A6A44), C(0xE9D9BC) };       // shu vermilion, umber, washi
+                case "zen": return new[] { C(0x0E7C78), C(0xF0621F), C(0x4A8A3E) };       // pond green, koi orange, lily pad
                 default: return new[] { C(0x0B0F0C), Hacker, Applier.Mix(Hacker, Colors.Black, 0.55) };
             }
         }
@@ -107,6 +107,7 @@ namespace WinMorph
         {
             var i = Inks(p);
             Brush b = p.Id == "terminal" ? new LinearGradientBrush(C(0x050806), C(0x142019), 45)
+                : p.Id == "zen" ? new LinearGradientBrush(C(0x13958F), C(0x0B4F5C), 45)
                 : new LinearGradientBrush(i[0], Applier.Mix(i[0], i[1], 0.35), 45);
             b.Freeze();
             return b;
@@ -160,12 +161,7 @@ namespace WinMorph
                     StretchDirection = StretchDirection.DownOnly, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -2, 70, 0),
                     Child = new TextBlock { Text = p.Name, FontFamily = Display, FontWeight = FontWeights.ExtraBold, FontSize = 34, Foreground = B(fg) },
                 };
-                var tag = new TextBlock { Text = p.Tag(De), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = B(A(fg, 225)), VerticalAlignment = VerticalAlignment.Bottom, TextWrapping = TextWrapping.Wrap, MaxHeight = 36, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 58, 0), LineHeight = 17 };
-                // the colour bar printed on the screen's edge: the look's inks, then its key
-                var bar = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom };
-                foreach (var ink in Inks(p).Skip(1)) bar.Children.Add(new Border { Width = 11, Height = 11, Background = B(ink), BorderBrush = B(A(fg, 120)), BorderThickness = new Thickness(1), Margin = new Thickness(3, 0, 0, 1) });
-                bar.Children.Add(new TextBlock { Text = (n + 1).ToString(), FontFamily = Mono, FontSize = 12, Foreground = B(A(fg, 170)), Margin = new Thickness(8, 0, 0, -2) });
-                g.Children.Add(name); g.Children.Add(tag); g.Children.Add(bar);
+                g.Children.Add(name);
                 if (p.Id == active) g.Children.Add(ActiveStamp());
                 var lift = new TranslateTransform();
                 var rise = new TranslateTransform();
@@ -197,7 +193,7 @@ namespace WinMorph
         /// <summary>A rubber stamp on the active look.</summary>
         FrameworkElement ActiveStamp() => new Border
         {
-            Child = new TextBlock { Text = L("AKTIV", "ACTIVE"), FontFamily = Display, FontWeight = FontWeights.ExtraBold, FontSize = 13, Foreground = R("Paper") },
+            Child = new TextBlock { Text = L("Aktiv", "Active"), FontFamily = Display, FontWeight = FontWeights.ExtraBold, FontSize = 13, Foreground = R("Paper") },
             Background = R("Magenta"), CornerRadius = new CornerRadius(3), Padding = new Thickness(8, 1, 8, 2),
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, RenderTransform = new RotateTransform(4), RenderTransformOrigin = new Point(0.5, 0.5),
         };
@@ -250,13 +246,6 @@ namespace WinMorph
                 Effect = new DropShadowEffect { BlurRadius = 26, ShadowDepth = 6, Direction = 270, Opacity = 0.14, Color = C(0x16171B) },
             };
             var dock = new DockPanel();
-            var foot = new DockPanel { Margin = new Thickness(38, 0, 38, 0) };
-            sheetCaption = new TextBlock { FontFamily = Mono, FontSize = 11.5, Foreground = R("Faint"), VerticalAlignment = VerticalAlignment.Center };
-            colorBar = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            DockPanel.SetDock(colorBar, Dock.Right);
-            foot.Children.Add(colorBar); foot.Children.Add(sheetCaption);
-            DockPanel.SetDock(foot, Dock.Bottom);
-            dock.Children.Add(foot);
 
             printArea = new Grid { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, ClipToBounds = true, Width = 640, Height = 360 };
             printOld = new Image { Stretch = Stretch.Uniform };
@@ -278,26 +267,12 @@ namespace WinMorph
             blade.Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 5, Direction = 270, Opacity = 0.35 };
             bladeMove = new TranslateTransform(); blade.RenderTransform = bladeMove;
             printArea.Children.Add(blade);
-            sheetLoading = new TextBlock { Text = L("Druckvorlage wird belichtet …", "Exposing the screen …"), FontSize = 14, Foreground = R("Faint"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+            sheetLoading = new TextBlock { Text = L("Vorschau lädt …", "Loading preview …"), FontSize = 14, Foreground = R("Faint"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
             printArea.Children.Add(sheetLoading);
 
-            // crop marks and registration targets hug the printed area (in a 30 px margin around it)
-            const double M = 30;
-            printArea.Margin = new Thickness(M);
+            printArea.Margin = new Thickness(8);
             var marks = new Grid { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             marks.Children.Add(printArea);
-            var mag = C(0xD6006F);
-            foreach (var (h, v) in new[] { (HorizontalAlignment.Left, VerticalAlignment.Top), (HorizontalAlignment.Right, VerticalAlignment.Top), (HorizontalAlignment.Left, VerticalAlignment.Bottom), (HorizontalAlignment.Right, VerticalAlignment.Bottom) })
-            {
-                bool l = h == HorizontalAlignment.Left, t = v == VerticalAlignment.Top;
-                // a horizontal and a vertical hairline in line with the edges, stopping short of the print
-                marks.Children.Add(new Rectangle { Width = 18, Height = 1, Fill = R("Ink"), HorizontalAlignment = h, VerticalAlignment = v, Margin = new Thickness(l ? 4 : 0, t ? M : 0, l ? 0 : 4, t ? 0 : M), IsHitTestVisible = false });
-                marks.Children.Add(new Rectangle { Width = 1, Height = 18, Fill = R("Ink"), HorizontalAlignment = h, VerticalAlignment = v, Margin = new Thickness(l ? M : 0, t ? 4 : 0, l ? 0 : M, t ? 0 : 4), IsHitTestVisible = false });
-            }
-            var top = RegMark(20, mag); top.VerticalAlignment = VerticalAlignment.Top; top.Margin = new Thickness(0, 4, 0, 0);
-            var left = RegMark(20, mag); left.HorizontalAlignment = HorizontalAlignment.Left; left.Margin = new Thickness(4, 0, 0, 0);
-            var right = RegMark(20, mag); right.HorizontalAlignment = HorizontalAlignment.Right; right.Margin = new Thickness(0, 0, 4, 0);
-            marks.Children.Add(top); marks.Children.Add(left); marks.Children.Add(right);
             dock.Children.Add(marks);
             sheet.Child = dock;
             SheetHost.Children.Add(sheet);
@@ -307,7 +282,7 @@ namespace WinMorph
         /// <summary>The printed area keeps 16:9 and fills the sheet as far as the table allows.</summary>
         void FitPrint()
         {
-            double w = SheetHost.ActualWidth - 36 - 16 - 60 - 4, h = SheetHost.ActualHeight - 32 - 20 - 60 - 18 - 4;
+            double w = SheetHost.ActualWidth - 36 - 16 - 16 - 4, h = SheetHost.ActualHeight - 32 - 20 - 16 - 4;
             if (w <= 0 || h <= 0) return;
             double k = Math.Min(w / 16, h / 9);
             printArea.Width = Math.Floor(16 * k); printArea.Height = Math.Floor(9 * k);
@@ -321,10 +296,6 @@ namespace WinMorph
         {
             int v = ++printVersion;
             var inks = Inks(p);
-            sheetCaption.Text = L("ANDRUCK", "PROOF") + "  ·  " + p.Name.ToUpperInvariant() + "  ·  " + (Presets.All.IndexOf(p) + 1) + "/" + Presets.All.Count;
-            colorBar.Children.Clear();
-            foreach (var ink in inks.Concat(new[] { C(0xD6006F), C(0xFFC21A), C(0x16171B) }))
-                colorBar.Children.Add(new Border { Width = 14, Height = 10, Background = B(ink), Margin = new Thickness(2, 0, 0, 0), BorderBrush = B(0xDEE1E7), BorderThickness = new Thickness(ink.R + ink.G + ink.B > 660 ? 1 : 0) });
             void Go()
             {
                 if (v != printVersion) return;
@@ -434,24 +405,26 @@ namespace WinMorph
             {
                 case "win7": return new[]
                 {
-                    ("desktop", "Desktop", "Desktop", "Aero-Hintergrund mit Lichtbändern", "Aero wallpaper with light ribbons"),
-                    ("lock", "Sperrbildschirm", "Lock screen", "Aero-Anmeldung mit Kennwortfeld, auch bei Win+L", "Aero sign-in with password box, also on Win+L"),
-                    ("shell", "Taskleiste, Startmenü, Alt+Tab", "Taskbar, Start menu, Alt+Tab", "Glasleiste mit Startkugel, Aero-Alt+Tab mit Live-Vorschau, blaue Titelleisten", "Glass bar with start orb, Aero Alt+Tab with live previews, blue title bars"),
-                    ("shell", "Explorer, Task-Manager, Ausführen", "Explorer, Task Manager, Run", "Im Windows-7-Stil auf Win+E, Strg+Umschalt+Esc und Win+R; Aero-Mauszeiger", "Windows 7 style on Win+E, Ctrl+Shift+Esc and Win+R; Aero pointers"),
+                    ("desktop", "Desktop", "Desktop", "Aero-Hintergrund", "Aero wallpaper"),
+                    ("lock", "Sperrbildschirm", "Lock screen", "Windows-7-Anmeldung mit Kontobild, auch bei Win+L", "Windows 7 sign-in with your account picture, also on Win+L"),
+                    ("shell", "Taskleiste, Startmenü, Alt+Tab", "Taskbar, Start menu, Alt+Tab", "Glasleiste mit Startkugel, Aero-Alt+Tab, blaue Titelleisten", "Glass bar with start orb, Aero Alt+Tab, blue title bars"),
+                    ("shell", "WLAN, Ton, Akku, Uhr, Mitteilungen", "Wi-Fi, sound, battery, clock, notifications", "Die Windows-7-Panels und Sprechblasen", "The Windows 7 panels and balloon tips"),
+                    ("shell", "Explorer, Task-Manager, Ausführen", "Explorer, Task Manager, Run", "Im Windows-7-Stil, wie auch immer sie geöffnet werden; Aero-Mauszeiger", "In Windows 7 style however they are opened; Aero pointers"),
                 };
                 case "zen": return new[]
                 {
-                    ("desktop", "Desktop", "Desktop", "Berglandschaft, Licht folgt der Tageszeit", "Mountain landscape lit by the time of day"),
-                    ("lock", "Sperrbildschirm", "Lock screen", "Atemkreis; das Passwort legt sich als Tintensteine auf einen Pinselstrich", "Breathing circle; the password lies as ink stones on a brush stroke"),
-                    ("shell", "Leiste & Startmenü", "Bar & Start menu", "Schwebende helle Leiste mit Fokus-Timer, Atemübung und Regen; Startmenü als Hängerolle", "Floating light bar with focus timer, breathing and rain; Start menu as a hanging scroll"),
-                    ("shell", "Alt+Tab & Fenster", "Alt+Tab & windows", "Shōji-Schiebetüren mit dem Inhalt der App, Ema-Täfelchen, warme Papier-Titelleisten", "Shoji doors with the app's content, ema plaques, warm paper title bars"),
+                    ("desktop", "Desktop", "Desktop", "Koi-Teich, die Koi schwimmen", "Koi pond, the koi swim"),
+                    ("lock", "Sperrbildschirm", "Lock screen", "Uhr und Glasfeld über dem Teich, auch bei Win+L", "Clock and glass field over the pond, also on Win+L"),
+                    ("shell", "Leiste, Startmenü, Alt+Tab", "Bar, Start menu, Alt+Tab", "Milchglas über dem Teich, Lotus-Start, Teichspiegel", "Frosted glass over the pond, lotus start, pond mirror"),
+                    ("shell", "WLAN, Klang, Akku, Kalender, Ruhe", "Wi-Fi, sound, battery, calendar, calm", "Glas-Panels, Fokus-Timer, Atmen, Nicht stören", "Glass panels, focus timer, breathing, do not disturb"),
+                    ("shell", "Dateien, Aktivität, Ausführen", "Files, Activity, Run", "Eigene Zen-Apps statt Explorer und Task-Manager; Zen-Mauszeiger", "Own Zen apps instead of Explorer and Task Manager; Zen pointers"),
                 };
                 default: return new[]
                 {
                     ("desktop", "Desktop", "Desktop", "Live-Systeminfos neben deinen Symbolen", "Live system info next to your icons"),
                     ("lock", "Sperrbildschirm", "Lock screen", "Terminal-Anmeldung im Code-Regen, auch bei Win+L", "Terminal sign-in in the code rain, also on Win+L"),
-                    ("shell", "Statuszeile, Terminal, Alt+Tab", "Status line, terminal, Alt+Tab", "Netz, CPU, RAM, Akku, Uhr; die Windows-Taste öffnet das Terminal; Prozess-Tabelle", "Network, CPU, RAM, battery, clock; the Windows key opens the terminal; process table"),
-                    ("shell", "Dateien, Task-Manager, Ausführen", "Files, task manager, run", "Eigene Terminal-Apps auf Win+E, Strg+Umschalt+Esc und Win+R; Mauszeiger in deiner Farbe", "Own terminal apps on Win+E, Ctrl+Shift+Esc and Win+R; pointers in your colour"),
+                    ("shell", "Statuszeile, Terminal, Alt+Tab", "Status line, terminal, Alt+Tab", "Netz, CPU, RAM, Akku, Uhr; Windows-Taste öffnet das Terminal", "Network, CPU, RAM, battery, clock; the Windows key opens the terminal"),
+                    ("shell", "Dateien, Task-Manager, Ausführen", "Files, task manager, run", "Terminal-Apps, wie auch immer sie geöffnet werden; Mauszeiger in deiner Farbe", "Terminal apps however they are opened; pointers in your colour"),
                 };
             }
         }
@@ -468,16 +441,10 @@ namespace WinMorph
             // head: the look's ink field with the job number
             var head = new Border { Background = Field(p), Padding = new Thickness(26, 18, 26, 18), CornerRadius = new CornerRadius(13, 13, 0, 0) };
             var hs = new StackPanel();
-            hs.Children.Add(new TextBlock { Text = L("AUFTRAG", "JOB") + "  Nº " + (Presets.All.IndexOf(p) + 1).ToString("00") + "  ·  " + L("3 DRUCKGÄNGE", "3 PASSES"), FontFamily = Mono, FontSize = 11.5, Foreground = B(A(OnField(p), 210)) });
-            hs.Children.Add(new TextBlock { Text = p.Name, FontFamily = Display, FontWeight = FontWeights.ExtraBold, FontSize = 46, Foreground = B(OnField(p)), Margin = new Thickness(0, 2, 0, 0) });
-            hs.Children.Add(new TextBlock { Text = p.Tag(De), FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = B(A(OnField(p), 225)) });
+            hs.Children.Add(new TextBlock { Text = p.Name, FontFamily = Display, FontWeight = FontWeights.ExtraBold, FontSize = 46, Foreground = B(OnField(p)) });
             head.Child = hs;
             DockPanel.SetDock(head, Dock.Top);
             dock.Children.Add(head);
-            // the perforation where the ticket was torn off the pad
-            var perf = new Rectangle { Height = 1.5, Stroke = R("Rule"), StrokeThickness = 1.5, StrokeDashArray = new DoubleCollection { 3, 3 } };
-            DockPanel.SetDock(perf, Dock.Top);
-            dock.Children.Add(perf);
 
             // foot: the action; while printing, the button itself fills like a progress bar
             var foot = new StackPanel { Margin = new Thickness(26, 4, 26, 22) };
@@ -493,15 +460,12 @@ namespace WinMorph
             btnHost.Children.Add(applyBtn); btnHost.Children.Add(applyFill); btnHost.Children.Add(applyText);
             foot.Children.Add(btnHost);
             status = new TextBlock { FontSize = 13, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(2, 11, 0, 0), LineHeight = 19 };
-            status.Text = L("Unter „Änderungen“ lässt sich alles vollständig zurücksetzen. Strg+Enter wendet an.", "Everything can be fully reset under “Changes”. Ctrl+Enter applies.");
             foot.Children.Add(status);
             DockPanel.SetDock(foot, Dock.Bottom);
             dock.Children.Add(foot);
 
             // body: description and the passes
             var body = new StackPanel { Margin = new Thickness(26, 16, 26, 8) };
-            body.Children.Add(new TextBlock { Text = p.Desc(De), FontSize = 13.5, Foreground = R("Sub"), TextWrapping = TextWrapping.Wrap, LineHeight = 20 });
-            body.Children.Add(new TextBlock { Text = L("DRUCKGÄNGE", "PASSES"), FontFamily = Mono, FontSize = 11.5, Foreground = R("Faint"), Margin = new Thickness(0, 16, 0, 8) });
             int k = 0;
             foreach (var part in Passes(p))
             {
@@ -551,7 +515,7 @@ namespace WinMorph
         FrameworkElement ColorPicker()
         {
             var sp = new StackPanel();
-            sp.Children.Add(new TextBlock { Text = L("DRUCKFARBE", "INK COLOUR"), FontFamily = Mono, FontSize = 11.5, Foreground = R("Faint"), Margin = new Thickness(0, 8, 0, 8) });
+            sp.Children.Add(new TextBlock { Text = L("Farbe", "Colour"), FontFamily = Mono, FontSize = 11.5, Foreground = R("Faint"), Margin = new Thickness(0, 8, 0, 8) });
             var row = new WrapPanel();
             var cur = Hacker; bool known = false;
             foreach (var (de, en, rgb) in Shell.ShellThemes.HackerColors)
@@ -594,7 +558,7 @@ namespace WinMorph
             ShowPrint(selected, pull: true);
             // active: the whole look follows the new colour at once (bar, frames, pointers, desktop, lock picture)
             if (Shell.ShellControl.CurrentPreset == "terminal") Apply_Click(null, null);
-            else status.Text = L("Druckfarbe gespeichert.", "Ink colour saved.");
+            else status.Text = L("Farbe gespeichert.", "Colour saved.");
         }
 
         // =====================================================================
@@ -622,16 +586,16 @@ namespace WinMorph
             foreach (var ps in passes.Where(x => x.Step == step))
             {
                 ps.FillScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.25, 0.9, Ms(expect)) { EasingFunction = OutSoft });
-                ps.State.Text = L("druckt", "printing");
+                ps.State.Text = L("läuft", "running");
                 ps.State.Foreground = R("Magenta");
             }
             string text;
             switch (step)
             {
                 case "reset": text = L("Vorherigen Look abbauen", "Taking down the previous look"); break;
-                case "desktop": text = L("Druckgang 1 von 3 · Desktop", "Pass 1 of 3 · desktop"); break;
-                case "lock": text = L("Druckgang 2 von 3 · Sperrbildschirm", "Pass 2 of 3 · lock screen"); break;
-                default: text = L("Druckgang 3 von 3 · Taskleiste, Alt+Tab, Apps", "Pass 3 of 3 · taskbar, Alt+Tab, apps"); break;
+                case "desktop": text = L("Desktop", "Desktop"); break;
+                case "lock": text = L("Sperrbildschirm", "Lock screen"); break;
+                default: text = L("Leiste, Alt+Tab und Apps", "Bar, Alt+Tab and apps"); break;
             }
             status.Text = text + " …";
         }
@@ -669,14 +633,14 @@ namespace WinMorph
             {
                 ps.FillScale.BeginAnimation(ScaleTransform.ScaleYProperty, null); ps.FillScale.ScaleY = 0.25;
                 ps.Check.BeginAnimation(Shape.StrokeDashOffsetProperty, null); ps.Check.StrokeDashOffset = 20; ps.Check.Opacity = 0;
-                ps.State.Text = L("wartet", "waiting"); ps.State.Foreground = R("Faint");
+                ps.State.Text = ""; ps.State.Foreground = R("Faint");
             }
             applyScale.BeginAnimation(ScaleTransform.ScaleXProperty, null); applyScale.ScaleX = 0;
             applyFill.BeginAnimation(OpacityProperty, null); applyFill.Opacity = 1;
-            status.Text = L("Druckvorlagen für den Look vorbereiten …", "Preparing the look's screens …");
+            status.Text = L("Wird vorbereitet …", "Preparing …");
             var clock = Stopwatch.StartNew();
-            var ticker = new DispatcherTimer(TimeSpan.FromMilliseconds(100), DispatcherPriority.Background, (s, ev) => applyText.Text = L("Wird gedruckt …  ", "Printing …  ") + clock.Elapsed.TotalSeconds.ToString("0.0", Ci) + " s", Dispatcher);
-            applyText.Text = L("Wird gedruckt …", "Printing …");
+            var ticker = new DispatcherTimer(TimeSpan.FromMilliseconds(100), DispatcherPriority.Background, (s, ev) => applyText.Text = L("Wird angewendet …  ", "Applying …  ") + clock.Elapsed.TotalSeconds.ToString("0.0", Ci) + " s", Dispatcher);
+            applyText.Text = L("Wird angewendet …", "Applying …");
             currentStep = null;
             await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);   // let the button state paint first
             Applier ap = null;
@@ -698,7 +662,7 @@ namespace WinMorph
             if (currentStep != null) FinishPass(currentStep, ok);
             if (!ok)
                 foreach (var ps in passes.Where(x => Array.IndexOf(Order, x.Step) > Array.IndexOf(Order, currentStep ?? "reset")))
-                { ps.State.Text = L("nicht gedruckt", "not printed"); ps.State.Foreground = R("Stop"); }
+                { ps.State.Text = L("übersprungen", "skipped"); ps.State.Foreground = R("Stop"); }
             currentStep = null;
             applyScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, Ms(260)) { EasingFunction = Out });
             Anim(applyFill, OpacityProperty, 0, 500, OutSoft, delay: 1200);
@@ -707,7 +671,7 @@ namespace WinMorph
             {
                 applyText.Text = ok ? "✓  " + L(p.Name + " ist aktiv", p.Name + " is active") : L(p.Name + " erneut anwenden", "Apply " + p.Name + " again");
                 status.Text = error != null ? error
-                    : ok ? string.Format(Ci, L("Gedruckt in {0:0.0} s. Bleibt auch nach einem Neustart.", "Printed in {0:0.0} s. Stays after a restart, too."), clock.Elapsed.TotalSeconds)
+                    : ok ? string.Format(Ci, L("Angewendet in {0:0.0} s.", "Applied in {0:0.0} s."), clock.Elapsed.TotalSeconds)
                     : L("Angewendet, mit Problemen: ", "Applied with problems: ") + string.Join(", ", ap.Problems.Take(3)) + (ap.Problems.Count > 3 ? " …" : "");
                 var back = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
                 back.Tick += (s2, e2) => { back.Stop(); if (!busy && selected == p) applyText.Text = L(p.Name + " neu anwenden", "Apply " + p.Name + " again"); };
@@ -825,7 +789,7 @@ namespace WinMorph
                 var empty = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
                 var mark = RegMark(46, C(0xD6006F), 2); mark.Margin = new Thickness(0, 0, 0, 14);
                 empty.Children.Add(mark);
-                empty.Children.Add(new TextBlock { Text = L("Noch kein Look gedruckt.", "No look printed yet."), FontSize = 18, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center });
+                empty.Children.Add(new TextBlock { Text = L("Noch kein Look angewendet.", "No look applied yet."), FontSize = 18, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center });
                 empty.Children.Add(new TextBlock { Text = L("Sobald du einen Look anwendest, steht hier jede einzelne Änderung mit dem Originalwert.", "Once you apply a look, every single change is listed here with its original value."), FontSize = 14, Foreground = R("Sub"), Margin = new Thickness(0, 6, 0, 18), HorizontalAlignment = HorizontalAlignment.Center });
                 var go = new Button { Style = (Style)FindResource("Btn"), Height = 44, FontSize = 14, Content = L("Look auswählen", "Choose a look"), HorizontalAlignment = HorizontalAlignment.Center };
                 go.Click += (s, e) => TabLooks.IsChecked = true;
