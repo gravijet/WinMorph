@@ -50,6 +50,7 @@ namespace WinMorph.Live
         {
             // ---- calm desktop of the Zen look ----
             S("zen-desk", "calm", "Koi-Teich", "Koi pond", "Koi schwimmen unter den Seerosen", "Koi swim beneath the lily pads", interactive: false),
+            S("mac-desk", "calm", "Glaswellen", "Glass waves", "Blaue Glasbahnen ziehen langsam unter dem Morgenhimmel", "Blue sheets of glass drift slowly under the morning sky", interactive: false),
             // ---- hacker ----
             S("hacker-desk", "hacker", "Hacker-Desktop", "Hacker desktop", "Ruhig, mit Live-Systeminfos · spart Akku", "Calm, with live system info · saves battery", interactive: false),
             S("matrix-hud", "hacker", "Matrix + System-HUD", "Matrix + system HUD", "Code-Regen mit Live-Systemmonitor · interaktiv", "Code rain with live system monitor · interactive"),

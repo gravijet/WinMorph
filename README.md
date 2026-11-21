@@ -6,17 +6,18 @@
 
 WinMorph legt ein komplett eigenes Design über Windows 10/11: Taskleiste, Startmenü, Alt+Tab, WLAN-, Ton-, Akku- und Kalender-Panels, Mitteilungen, Lautstärkeanzeige, Fensterrahmen, Mauszeiger, Desktop, Sperrbildschirm und eigene Apps für Explorer, Task-Manager und Ausführen. **Windows-Einstellungen bleiben unverändert** (kein Dunkelmodus, keine Akzentfarbe, keine Schriften, Klänge oder Taskleisten-Optionen; Rahmen und Mauszeiger gelten nur, solange der Look läuft, und landen nie in der Registry). Ein Look wird immer komplett angewendet, und alles lässt sich vollständig und geprüft zurücksetzen.
 
-## Drei Looks
+## Vier Looks
 
 | Look | Taskleiste & Start | Alt+Tab | Sperrbildschirm |
 |---|---|---|---|
 | **Windows 7** | Glasleiste mit Startkugel, zweispaltiges Startmenü mit Kontobild und Suche | Aero-Glas mit Live-Vorschau | Windows-7-Anmeldung mit Kontobild, „Benutzer wechseln“, Ein/Aus-Knopf, echter Fehlerseite |
 | **Zen** („Morgenteich“) | Milchglas-Leiste über einem Koi-Teich, Lotus als Start; Startmenü aus Glas mit angehefteten Apps als Kieseln und allen Apps A–Z | Teichspiegel: das gewählte Fenster live im Glasrahmen, jedes Fenster ein Kiesel mit Wasserring | Uhr und Glasfeld über dem Teich, jeder Tastendruck ein Wasserring |
+| **macOS** (Tahoe, hell) | Menüleiste oben mit Apple-Menü, Programmname und Programm-Menüs (Ablage, Bearbeiten, Darstellung, Fenster, Hilfe), Batterie, WLAN, Spotlight, Kontrollzentrum, Datum und Uhrzeit; Dock aus Glas mit Finder, Launchpad, deinen Apps, Systemeinstellungen, Downloads und Papierkorb, Lauf-Punkten, Namensschildern und Hüpfen beim Start; Windows-Taste = Launchpad | App-Umschalter wie ⌘-Tab: ein Symbol pro App auf hellem Glas | Datum und große Uhrzeit, Kontobild, Name und Passwortfeld, Schütteln bei falschem Passwort, „Benutzer wechseln“ |
 | **Hacker** | Statuszeile mit Netz, CPU, RAM, Lautstärke, Akku, Uhr; Windows-Taste = echtes Terminal | Prozess-Tabelle mit PID, RAM und Live-Vorschau | Terminal-Sperre mit Code-Regen |
 
-Eigene Apps: Jeder Look bringt Explorer, Task-Manager und Ausführen in seinem Stil mit: **Windows 7** mit dem originalen Aero-Steuerelement-Design von WPF, **Zen** als „Dateien“, „Aktivität“ und „Ausführen“ aus Milchglas, **Hacker** im Terminal-Stil. Der Explorer des Looks erscheint nicht nur bei Win+E, sondern auch, wenn ein Ordner ganz normal geöffnet wird (Startmenü, Desktop-Symbol, andere Programme): das Windows-Fenster wird beim Erscheinen versteckt und die App des Looks öffnet am selben Ordner. Systemsteuerung, Papierkorb und andere Windows-Orte bleiben Windows'. Der Task-Manager des Looks öffnet über Strg+Umschalt+Esc, das Startmenü, Win+X und die Leiste; ein Windows-Task-Manager (etwa über Strg+Alt+Entf) wird nie geschlossen, denn das tun sonst nur Schadprogramme. Dazu eigene Mauszeiger (Aero, Zen, Hacker-Farbe).
+Eigene Apps: Jeder Look bringt Explorer, Task-Manager und Ausführen in seinem Stil mit: **Windows 7** mit dem originalen Aero-Steuerelement-Design von WPF, **Zen** als „Dateien“, „Aktivität“ und „Ausführen“ aus Milchglas, **macOS** als Finder (Seitenleiste, Symbol- und Listenansicht, Papierkorb mit Zurücklegen und Entleeren), Aktivitätsanzeige (CPU und Speicher mit Lastgrafik) und Spotlight (Win+S, Win+Leertaste, Win+R), dazu „Über diesen PC“ und „Sofort beenden“, **Hacker** im Terminal-Stil. Der Explorer des Looks erscheint nicht nur bei Win+E, sondern auch, wenn ein Ordner ganz normal geöffnet wird (Startmenü, Desktop-Symbol, andere Programme): das Windows-Fenster wird beim Erscheinen versteckt und die App des Looks öffnet am selben Ordner. Systemsteuerung, Papierkorb und andere Windows-Orte bleiben Windows'. Der Task-Manager des Looks öffnet über Strg+Umschalt+Esc, das Startmenü, Win+X und die Leiste; ein Windows-Task-Manager (etwa über Strg+Alt+Entf) wird nie geschlossen, denn das tun sonst nur Schadprogramme. Dazu eigene Mauszeiger (Aero, Zen, Mac mit drehendem Wasserball, Hacker-Farbe).
 
-Panels und Mitteilungen: WLAN (mit Verbinden), Ton, Akku mit Energiesparplänen und Helligkeit, Uhr mit Kalender, bei Zen dazu Mitteilungen und ein Ruhe-Panel (Fokus-Timer, Atemübung, Hintergrundklang, Nicht stören, Bluetooth). WinMorphs eigene Hinweise (Fokus-Timer, WLAN, Terminal-Timer) erscheinen im Design des Looks; Mitteilungen anderer Apps bleiben Windows', WinMorph liest sie nicht und ändert ihre Einstellungen nicht. Die Lautstärketasten zeigen die Anzeige des Looks. Hacker gibt es in jeder Farbe (Grün, Cyan, Bernstein, Rot, Violett, Weiß oder eigene).
+Panels und Mitteilungen: WLAN (mit Verbinden), Ton, Akku mit Energiesparplänen und Helligkeit, Uhr mit Kalender, bei Zen dazu Mitteilungen und ein Ruhe-Panel (Fokus-Timer, Atemübung, Hintergrundklang, Nicht stören, Bluetooth), bei macOS das Kontrollzentrum (WLAN, Bluetooth, Energiemodus, Fokus, Bildschirm sperren, Bildschirmfoto, Helligkeit, Ton), die Menüs von WLAN und Batterie und die Mitteilungszentrale mit Kalender- und Batterie-Widget. WinMorphs eigene Hinweise (Fokus-Timer, WLAN, Terminal-Timer) erscheinen im Design des Looks; Mitteilungen anderer Apps bleiben Windows', WinMorph liest sie nicht und ändert ihre Einstellungen nicht. Die Lautstärketasten zeigen die Anzeige des Looks. Hacker gibt es in jeder Farbe (Grün, Cyan, Bernstein, Rot, Violett, Weiß oder eigene).
 
 Sperrbildschirm: ohne Tastenhinweise; Windows Hello erscheint als Schaltfläche, wenn es eingerichtet ist. Bei Windows 7 und Zen ist das Kennwortfeld sofort da, bei Hacker weckt der erste Tastendruck.
 
@@ -46,7 +47,7 @@ Notfall: Strg+Alt+Umschalt+F12 beendet den Design-Shell sofort. Ohne Oberfläche
 
 ## App
 
-Links die Vorschau des gewählten Looks (beim Wechsel zieht eine Rakel das neue Bild auf), darunter die drei Looks, rechts was der Look ändert und „Anwenden“; beim Anwenden füllt sich jeder Bereich, bekommt ein Häkchen und seine Zeit, und der Knopf selbst wird zum Fortschrittsbalken. Die Seite „Änderungen“ zeigt jede Änderung mit Originalwert. Tasten: `1`–`3` wählen den Look, `Strg+Enter` wendet an. Schriften: Bricolage Grotesque und Instrument Sans (SIL Open Font License, siehe `Fonts/`).
+Links die Vorschau des gewählten Looks (beim Wechsel zieht eine Rakel das neue Bild auf), darunter die vier Looks, rechts was der Look ändert und „Anwenden“; beim Anwenden füllt sich jeder Bereich, bekommt ein Häkchen und seine Zeit, und der Knopf selbst wird zum Fortschrittsbalken. Die Seite „Änderungen“ zeigt jede Änderung mit Originalwert. Tasten: `1`–`4` wählen den Look, `Strg+Enter` wendet an. Schriften: Bricolage Grotesque und Instrument Sans, im macOS-Look Inter (alle SIL Open Font License, siehe `Fonts/`); ist Apples SF Pro installiert, nimmt der macOS-Look diese. Apple-Logo, SF-Schriften und Apple-Bilder werden nicht mitgeliefert: Das Apple-Menü zeigt das Apple-Zeichen nur, wenn SF Pro installiert ist.
 
 Wer einen Look baut oder umgestaltet: `LOOKS.md` (jede Oberfläche, Sperrbildschirm ohne Hinweise, kein Fülltext, Prüfbefehle).
 
@@ -104,13 +105,13 @@ Das skalierbare Original des Logos liegt in `website/public/favicon.svg`. `WinMo
 | `--live-preview <scene> <png>` | Live-Hintergrund als Bild speichern (z. B. `zen-desk`) |
 | `--switcher-demo <id>` | Alt+Tab des Looks mit den echten Fenstern zeigen, wechselt alle 1,5 s (ändert nichts) |
 | `--lock-test <id> <präfix>` | Sperrbildschirm im Ruhezustand, beim Tippen und nach falschem Passwort als Bilder speichern (sperrt nichts) |
-| `--own-app <win7\|zen\|terminal> <tasks\|run\|files> [ordner]` | eigene App des Looks für ein paar Sekunden öffnen (Test) |
-| `--ui-test <id> <net\|vol\|bat\|clock\|zen> <png>` | Panel des Looks auf dem Bildschirm öffnen und fotografieren (ändert nichts) |
+| `--own-app <win7\|zen\|macos\|terminal> <tasks\|run\|files> [ordner]` | eigene App des Looks für ein paar Sekunden öffnen (Test) |
+| `--ui-test <id> <net\|vol\|bat\|clock\|zen\|cc\|nc> <png>` | Panel des Looks auf dem Bildschirm öffnen und fotografieren (ändert nichts) |
 | `--screenshot <png> <id\|changes> <de\|en>` | Bild der App speichern |
 | `--selftest <datei>` | Backup/Restore an einem Test-Schlüssel prüfen |
 | `--uninstall` | WinMorph deinstallieren (mit Rückfrage) |
 | `--wifi-list <datei>` | sichtbare WLAN-Netze in eine Datei schreiben (Test) |
 
-Look-IDs: `win7`, `zen`, `terminal` (= Hacker)
+Look-IDs: `win7`, `zen`, `macos`, `terminal` (= Hacker)
 
 Alle Hintergrundbilder werden im Programm selbst gezeichnet. „Windows“ ist eine Marke von Microsoft; WinMorph ist ein unabhängiges Projekt und ahmt nur den Stil nach.

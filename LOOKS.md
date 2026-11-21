@@ -4,9 +4,9 @@ Ein Look ist erst fertig, wenn **nichts mehr nach Windows 11 aussieht**. Wer ein
 
 ## 1. Konzept zuerst
 
-- Ein Konzept aus der Welt des Looks (Zen: *Morgenteich*, ein Koi-Teich von oben; Windows 7: das Original, so echt wie möglich; Hacker: Terminal). Daraus folgen Palette, Schrift, Formen, Bewegung und Symbole. Kein Element wird „neutral“ gelassen.
+- Ein Konzept aus der Welt des Looks (Zen: *Morgenteich*, ein Koi-Teich von oben; Windows 7 und macOS: das Original, so echt wie möglich; Hacker: Terminal). Daraus folgen Palette, Schrift, Formen, Bewegung und Symbole. Kein Element wird „neutral“ gelassen.
 - **Benannte Palette** in `Shell/ShellThemes.cs` (Zen zusätzlich `Shell/ZenStyle.cs`), kräftig und mehrfarbig, Kontrast gemessen. Statusfarben bleiben bedeutungsgleich (Fehler rot, Erfolg grün).
-- **Eigene Schrift** pro Look (Zen: Yu Gothic UI, Hacker: Consolas, Windows 7: Segoe UI). Segoe UI Variable und Windows-11-Symbolschrift nur dort, wo der Look sie wirklich so hatte.
+- **Eigene Schrift** pro Look (Zen: Yu Gothic UI, Hacker: Consolas, Windows 7: Segoe UI, macOS: SF Pro wenn installiert, sonst die eingebettete Inter). Segoe UI Variable und Windows-11-Symbolschrift nur dort, wo der Look sie wirklich so hatte.
 - **Bewegung** mit einer Persönlichkeit pro Look (Zen: Wasser, Flächen tauchen mit einer Welle auf und setzen sich ohne Federn; Windows 7: kurze Überblendungen wie das Original; Hacker: hart, getippt). Jede Fläche geht animiert auf und zu.
 
 ## 2. Jede Oberfläche (Checkliste)
@@ -22,7 +22,7 @@ Ein Look ist erst fertig, wenn **nichts mehr nach Windows 11 aussieht**. Wer ein
 | Lautstärketasten | `Shell/ShellHost.cs` (`VolumeKey`), `VolumeOsd` | eigene Anzeige statt Windows-Popup |
 | Startmenü | `Shell/StartMenu*.cs` | eigenes Layout, nicht das Windows-11-Raster |
 | Win+X / Rechtsklick / Tooltips | `QuickMenu.cs`, `MiniMenu.cs`, `ShellHost.ThemeToolTips` | im Look |
-| Alt+Tab | `Shell/Switcher.cs` | eigene Darstellung mit Live-Vorschau |
+| Alt+Tab | `Shell/Switcher.cs` | eigene Darstellung mit Live-Vorschau; Nachbauten wie das Original (macOS: ein Symbol pro App) |
 | Vorschau beim Darüberfahren | `Shell/HoverPreview.cs` | im Look |
 | Fensterrahmen | `ShellTheme.Frame` | Titelleisten in den Farben des Looks |
 | Explorer, Task-Manager, Ausführen | `SevenApps.cs`, `ZenApps.cs`, `HackerApps.cs` | eigene Apps; Explorer-Fenster werden über `OwnAppRedirect` ersetzt, der Task-Manager über alle eigenen Wege (Strg+Umschalt+Esc, Startmenü, Win+X) |
@@ -34,7 +34,7 @@ Ein Look ist erst fertig, wenn **nichts mehr nach Windows 11 aussieht**. Wer ein
 ## 3. Sperrbildschirm: echt, ohne Hinweise
 
 - **Keine Tastenhinweise** auf dem Bildschirm („Enter“, „F1: Windows Hello“, „F2“, „Taste drücken“). Was es gibt, ist ein sichtbares, klickbares Element: Pfeil zum Entsperren, Windows Hello nur wenn eingerichtet, „Benutzer wechseln“, Ein/Aus.
-- Ein Nachbau (Windows 7) zeigt genau, was das Original zeigte: Kontobild, Name, „Gesperrt“, Kennwortfeld mit Pfeil, die echte Fehlerseite mit OK, die Edition unten. Nichts dazuerfinden.
+- Ein Nachbau (Windows 7, macOS) zeigt genau, was das Original zeigt: Kontobild, Name, „Gesperrt“, Kennwortfeld mit Pfeil, die echte Fehlerseite mit OK, die Edition unten. Nichts dazuerfinden.
 - Meldungen sind kurze Sätze ohne Tasten („Das Kennwort ist falsch.“).
 
 ## 4. Nur was informiert
@@ -71,4 +71,6 @@ Jedes Bild ansehen. Danach den Look einmal echt anwenden (`--apply <look>`), Sta
 - Tray-Symbole fremder Programme (OneDrive, Discord …): nur über Windows erreichbar.
 - Mitteilungen anderer Apps zeigt Windows (siehe „Nichts, was nach Schadsoftware aussieht“).
 - Ein Windows-Task-Manager, der auf anderem Weg geöffnet wird (Strg+Alt+Entf), bleibt Windows'.
-- Titelleisten-Knöpfe fremder Programme zeichnet Windows; der Look färbt nur die Leiste.
+- Titelleisten-Knöpfe fremder Programme zeichnet Windows; der Look färbt nur die Leiste (macOS: keine Ampel-Knöpfe in fremden Fenstern, nur in den eigenen Apps).
+- Programm-Menüs der macOS-Menüleiste: fremde Programme haben keine Mac-Menüs; Ablage, Bearbeiten, Darstellung und Fenster schicken die üblichen Tastenkürzel (Strg+C, Strg+S …) an das Programm.
+- Apple-Logo, SF-Schriften und Apple-Bilder werden nicht mitgeliefert (Marken und Lizenzen von Apple).

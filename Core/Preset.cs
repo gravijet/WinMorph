@@ -2,7 +2,7 @@ using System.Windows.Media;
 
 namespace WinMorph.Core
 {
-    public enum WallKind { Aero, Matrix, Zen }
+    public enum WallKind { Aero, Matrix, Zen, Mac }
 
     /// <summary>
     /// A complete, fixed look. Applying it always applies everything WinMorph draws itself

@@ -106,6 +106,7 @@ namespace WinMorph.Shell
             Window w;
             if (t.Start == StartKind.Terminal) w = TerminalBanner(t, i);
             else if (t.Id == "zen") w = ZenCard(i);
+            else if (t.Id == "macos") w = MacPanels.Banner(i);
             else w = SevenBalloon(i);
             var close = new DispatcherTimer { Interval = TimeSpan.FromSeconds(seconds) };
             close.Tick += (s, e) => { if (w.IsMouseOver) return; close.Stop(); Leave(w); };
@@ -213,6 +214,7 @@ namespace WinMorph.Shell
         {
             if (!(w.Content is FrameworkElement c)) return;
             if (theme?.Id == "zen") { ZenStyle.Ripple(c, new Point(0.9, 1), 420); return; }
+            if (theme?.Id == "macos") { MacPanels.Enter(w); return; }
             c.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(theme?.Id == "win7" ? 250 : 160)));
         }
 
@@ -228,14 +230,15 @@ namespace WinMorph.Shell
         {
             var mi = W32.PrimaryMonitor(out double sc);
             double right = mi.rcWork.Right / sc, top = mi.rcWork.Top / sc, bottom = mi.rcWork.Bottom / sc;
-            bool term = theme?.Start == StartKind.Terminal;
-            double y = term ? top + 8 : bottom;
+            bool mac = theme?.Id == "macos";
+            bool term = theme?.Start == StartKind.Terminal || mac;
+            double y = term ? top + (mac ? -1 : 8) : bottom;
             for (int i = shown.Count - 1; i >= 0; i--)   // newest nearest to the bar
             {
                 var w = shown[i];
                 w.UpdateLayout();
-                w.Left = right - w.ActualWidth - (term ? 10 : 0);
-                if (term) { w.Top = y; y += w.ActualHeight + 8; }
+                w.Left = right - w.ActualWidth - (mac ? -6 : term ? 10 : 0);
+                if (term) { w.Top = y; y += w.ActualHeight + (mac ? -20 : 8); }
                 else { w.Top = y - w.ActualHeight + (theme?.Id == "zen" ? 16 : 6); y = w.Top + (theme?.Id == "zen" ? 20 : 6); }
             }
         }

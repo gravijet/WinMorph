@@ -1,6 +1,6 @@
 # WinMorph – Hinweise für Agenten
 
-WPF-App (.NET Framework 4.8, C#, kein XAML außer `App.xaml`/`MainWindow.xaml`; die Shell-Oberflächen werden im Code gebaut). Drei Looks: `win7`, `zen`, `terminal` (Hacker).
+WPF-App (.NET Framework 4.8, C#, kein XAML außer `App.xaml`/`MainWindow.xaml`; die Shell-Oberflächen werden im Code gebaut). Vier Looks: `win7`, `zen`, `macos`, `terminal` (Hacker).
 
 ## Bauen und prüfen
 
@@ -27,4 +27,6 @@ Weitere Prüfbefehle (Vorschaubilder, Panels, eigene Apps, Sperrbildschirm): `LO
 - `Shell/ZenStyle.cs` Zen-Palette, Milchglas (`Pane`), Wasser-Animationen, Bildlaufleisten; `Shell/ZenApps.cs` Dateien/Aktivität/Ausführen
 - `Shell/OwnAppRedirect.cs` ersetzt Windows-Explorer-Fenster durch den Dateimanager des Looks
 - `Core/PondArt.cs` Zen-Teich (Standbild und Live), `Live/LookScenes.cs` Live-Hintergründe
-- `Shell/LockScreen.cs` Designs der Sperrbildschirme, `Shell/CustomLock.cs` Entsperren
+- `Shell/LockScreen.cs` Designs der Sperrbildschirme (macOS: `LockScreen.Mac.cs`), `Shell/CustomLock.cs` Entsperren
+- macOS: `Shell/MacStyle.cs` (Farben, Schrift, Vibrancy-Glas, Symbole, Icon-Raster, `MacMenu`, `MacAlert`), `ShellHost.Mac.cs` (Menüleiste, Dock), `MacPanels.cs` (Kontrollzentrum, WLAN, Batterie, Mitteilungszentrale, Lautstärke, Banner), `MacApps.cs` (Finder, Aktivitätsanzeige, Spotlight, Über diesen PC, Sofort beenden), `StartMenu.Mac.cs` (Launchpad), `Core/MacArt.cs` (Hintergrund, auch live)
+- Keine Apple-Grafiken, -Logos oder -Schriften einbauen: alles wird im Code gezeichnet; SF Pro nur, wenn der Nutzer sie installiert hat

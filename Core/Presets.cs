@@ -24,6 +24,13 @@ namespace WinMorph.Core
                 Accent = C(0x0E7C78), Wall = WallKind.Zen, Live = "zen-desk",
             },
             new Preset {
+                Id = "macos", Name = "macOS",
+                TagDe = "Menüleiste, Dock und Glas", TagEn = "Menu bar, Dock and glass",
+                DescDe = "Die Menüleiste oben mit Apple-Menü, Programm-Menüs, Kontrollzentrum und Mitteilungszentrale, das Dock mit Finder und Papierkorb, Launchpad, Spotlight, der App-Umschalter, Finder und Aktivitätsanzeige, Mac-Zeiger und der Sperrbildschirm.",
+                DescEn = "The menu bar on top with the Apple menu, app menus, Control Center and Notification Center, the Dock with Finder and Trash, Launchpad, Spotlight, the app switcher, Finder and Activity Monitor, Mac pointers and the lock screen.",
+                Accent = C(0x007AFF), Wall = WallKind.Mac, Live = "mac-desk",
+            },
+            new Preset {
                 Id = "terminal", Name = "Hacker",
                 TagDe = "Terminal-Look in deiner Farbe", TagEn = "Terminal look in your colour",
                 DescDe = "Statuszeile oben mit Netz, CPU, RAM, Lautstärke, Akku und Uhr, die Windows-Taste öffnet ein echtes Terminal, Alt+Tab als Prozess-Tabelle mit Live-Vorschau, dunkle Fensterrahmen, Desktop mit Live-Systeminfos und ein Terminal-Sperrbildschirm.",

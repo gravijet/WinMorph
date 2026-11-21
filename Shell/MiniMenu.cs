@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -17,6 +18,12 @@ namespace WinMorph.Shell
         public static void Show(ShellTheme t, IEnumerable<(string text, Action action)> items)
         {
             HoverPreview.CloseNow();
+            if (t.Id == "macos")
+            {
+                // the look's own menu: same items, macOS menu material
+                MacMenu.AtCursor(items.Select(x => x.Item1 == "-" ? MacMenu.Item.Sep : new MacMenu.Item { Text = x.Item1, Run = x.Item2 }).ToList());
+                return;
+            }
             var m = new MiniMenu(t, items);
             m.Show();
             m.Activate();

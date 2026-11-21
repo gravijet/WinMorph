@@ -91,6 +91,9 @@ namespace WinMorph.Core
                 case WallKind.Zen:
                     PondArt.Draw(dc, W, H);   // "Morgenteich": the koi pond
                     break;
+                case WallKind.Mac:
+                    MacArt.Draw(dc, W, H);    // sheets of blue glass under a morning sky
+                    break;
             }
             dc.Pop();
         }
@@ -148,7 +151,7 @@ namespace WinMorph.Core
             int w = Math.Max(1920, Native.GetSystemMetrics(0));
             int h = Math.Max(1080, Native.GetSystemMetrics(1));
             var c = WinMorph.Shell.ShellThemes.HackerColor;   // the hacker picture follows the chosen colour
-            var variant = p.Id == "terminal" ? "-" + c.R.ToString("X2") + c.G.ToString("X2") + c.B.ToString("X2") : "";
+            var variant = p.Id == "terminal" ? "-" + c.R.ToString("X2") + c.G.ToString("X2") + c.B.ToString("X2") : p.Id == "macos" ? "-m1" : "";
             var file = Path.Combine(Backup.DataDir, "Wallpapers", p.Id + "-" + w + "x" + h + variant + "-v4.png");
             return File.Exists(file) ? file : RenderToFile(p, file, w, h);
         }

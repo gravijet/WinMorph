@@ -61,6 +61,15 @@ namespace WinMorph.Live
     /// the lily pads, beat their tails, turn away from the edges, and now and then a ring of water spreads.
     /// Water and floating leaves are drawn once; each frame only the small areas around the koi change.
     /// </summary>
+    sealed class MacScene : Scene
+    {
+        // the formula of the still picture, with time: the sheets drift very slowly, so a few frames a second are smooth
+        public override int Fps => 6;
+        public override double Resolution => 0.3;
+        protected override void Init() { }
+        public override void Step(double dt) => Core.MacArt.Fill(Px, W, H, T, false);
+    }
+
     sealed class ZenScene : Scene
     {
         public override int Fps => 20;

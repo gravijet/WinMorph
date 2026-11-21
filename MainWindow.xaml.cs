@@ -100,6 +100,7 @@ namespace WinMorph
             {
                 case "win7": return new[] { C(0x0A62C9), C(0x37B4F2), C(0x7ED957) };      // Aero blue, sky, the green of the start orb
                 case "zen": return new[] { C(0x0E7C78), C(0xF0621F), C(0x4A8A3E) };       // pond green, koi orange, lily pad
+                case "macos": return new[] { C(0x1E6FE0), C(0x3FA9F5), C(0xFF9F0A) };     // system blue, the glass sky, orange
                 default: return new[] { C(0x0B0F0C), Hacker, Applier.Mix(Hacker, Colors.Black, 0.55) };
             }
         }
@@ -108,6 +109,7 @@ namespace WinMorph
             var i = Inks(p);
             Brush b = p.Id == "terminal" ? new LinearGradientBrush(C(0x050806), C(0x142019), 45)
                 : p.Id == "zen" ? new LinearGradientBrush(C(0x13958F), C(0x0B4F5C), 45)
+                : p.Id == "macos" ? new LinearGradientBrush(C(0x3A82EA), C(0x0E318E), 45)
                 : new LinearGradientBrush(i[0], Applier.Mix(i[0], i[1], 0.35), 45);
             b.Freeze();
             return b;
@@ -219,7 +221,7 @@ namespace WinMorph
         {
             if (Overlay.Visibility == Visibility.Visible) { if (e.Key == Key.Escape && !working) { CloseDialog(); e.Handled = true; } return; }
             if (LooksPage.Visibility != Visibility.Visible || busy || e.OriginalSource is TextBox) return;
-            int i = e.Key >= Key.D1 && e.Key <= Key.D3 ? e.Key - Key.D1 : e.Key >= Key.NumPad1 && e.Key <= Key.NumPad3 ? e.Key - Key.NumPad1 : -1;
+            int i = e.Key >= Key.D1 && e.Key <= Key.D9 ? e.Key - Key.D1 : e.Key >= Key.NumPad1 && e.Key <= Key.NumPad9 ? e.Key - Key.NumPad1 : -1;
             if (i >= 0 && i < Presets.All.Count) { Select(Presets.All[i]); e.Handled = true; }
             else if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control) { Apply_Click(null, null); e.Handled = true; }
         }
@@ -418,6 +420,14 @@ namespace WinMorph
                     ("shell", "Leiste, Startmenü, Alt+Tab", "Bar, Start menu, Alt+Tab", "Milchglas über dem Teich, Lotus-Start, Teichspiegel", "Frosted glass over the pond, lotus start, pond mirror"),
                     ("shell", "WLAN, Klang, Akku, Kalender, Ruhe", "Wi-Fi, sound, battery, calendar, calm", "Glas-Panels, Fokus-Timer, Atmen, Nicht stören", "Glass panels, focus timer, breathing, do not disturb"),
                     ("shell", "Dateien, Aktivität, Ausführen", "Files, Activity, Run", "Eigene Zen-Apps statt Explorer und Task-Manager; Zen-Mauszeiger", "Own Zen apps instead of Explorer and Task Manager; Zen pointers"),
+                };
+                case "macos": return new[]
+                {
+                    ("desktop", "Desktop", "Desktop", "Glaswellen unter dem Morgenhimmel, sie ziehen langsam", "Glass waves under the morning sky, drifting slowly"),
+                    ("lock", "Sperrbildschirm", "Lock screen", "Große Uhr, Konto und Passwortfeld wie am Mac, auch bei Win+L", "Large clock, account and password field like on a Mac, also on Win+L"),
+                    ("shell", "Menüleiste, Dock, Launchpad", "Menu bar, Dock, Launchpad", "Apple-Menü, Programm-Menüs, Dock mit Finder und Papierkorb, App-Umschalter", "Apple menu, app menus, Dock with Finder and Trash, app switcher"),
+                    ("shell", "Kontrollzentrum, WLAN, Batterie, Mitteilungen", "Control Center, Wi-Fi, battery, notifications", "Die Menüs der Menüleiste und die Mitteilungszentrale mit Widgets", "The menu bar menus and Notification Center with widgets"),
+                    ("shell", "Finder, Aktivitätsanzeige, Spotlight", "Finder, Activity Monitor, Spotlight", "Eigene Mac-Apps statt Explorer, Task-Manager und Ausführen; Mac-Zeiger", "Own Mac apps instead of Explorer, Task Manager and Run; Mac pointers"),
                 };
                 default: return new[]
                 {

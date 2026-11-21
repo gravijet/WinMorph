@@ -2,12 +2,12 @@ using System.Windows.Media;
 
 namespace WinMorph.Shell
 {
-    public enum BarLayout { Bottom, Floating, TerminalTop }
+    public enum BarLayout { Bottom, Floating, TerminalTop, Mac }
     public enum BtnStyle { Glass, Pill, Text }
-    public enum StartKind { Orb, Terminal, Zen }
-    public enum MenuKind { Seven, Palette, Zen }
-    public enum LockKind { Seven, Terminal, Zen }
-    public enum SwitchKind { Aero, Shoji, Table }
+    public enum StartKind { Orb, Terminal, Zen, Mac }
+    public enum MenuKind { Seven, Palette, Zen, Launchpad }
+    public enum LockKind { Seven, Terminal, Zen, Mac }
+    public enum SwitchKind { Aero, Shoji, Table, Mac }
 
     public sealed class FrameColors
     {

@@ -18,7 +18,7 @@ namespace WinMorph.Shell
     /// Themed lock screen. It runs as a password-protected screen saver, so the real,
     /// secure Windows sign-in appears as soon as the user comes back.
     /// </summary>
-    public static class LockScreen
+    public static partial class LockScreen
     {
         static readonly List<Window> windows = new List<Window>();
         static Point? firstMouse;
@@ -707,6 +707,9 @@ namespace WinMorph.Shell
                     Tick(auth.Tick);
                     break;
                 }
+                case LockKind.Mac:
+                    MacLock(root, bg, auth);
+                    break;
                 default:
                 {
                     root.Children.Add(bg);

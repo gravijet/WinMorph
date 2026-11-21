@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -52,6 +53,7 @@ namespace WinMorph.Shell
             {
                 case SwitchKind.Shoji: Content = BuildShoji(); break;
                 case SwitchKind.Table: Content = BuildTable(); break;
+                case SwitchKind.Mac: Content = BuildMac(); break;
                 default: Content = BuildAero(); break;
             }
             RenderGuard.Watch(this);
@@ -92,6 +94,54 @@ namespace WinMorph.Shell
         [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr h, int i, int v);
         [StructLayout(LayoutKind.Sequential)] struct MARGINS { public int Left, Right, Top, Bottom; }
         [DllImport("dwmapi.dll")] static extern int DwmExtendFrameIntoClientArea(IntPtr h, ref MARGINS m);
+
+        /// <summary>
+        /// macOS: the app switcher. One icon per app on a light glass bar in the middle of the screen; the chosen
+        /// app sits on a grey rounded plate with its name below.
+        /// </summary>
+        UIElement BuildMac()
+        {
+            AllowsTransparency = true; Background = Brushes.Transparent; SizeToContent = SizeToContent.WidthAndHeight;
+            MacStyle.Prepare(this);
+            double icon = wins.Count > 10 ? 76 : 100, cell = icon + 22;
+            var grid = new Grid { Margin = new Thickness(12, 12, 12, 8) };
+            grid.RowDefinitions.Add(new RowDefinition());
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(24) });
+            var plates = new List<Border>();
+            for (int i = 0; i < wins.Count; i++)
+            {
+                var w = wins[i];
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(cell) });
+                var plate = new Border { Width = cell, Height = cell, CornerRadius = new CornerRadius(20), Background = Brushes.Transparent };
+                var entry = AppCatalog.Apps.FirstOrDefault(a => a.Matches(w));
+                var img = new Image { Source = MacApps.IconOf(w.Hwnd) ?? (w.ExePath != null && System.IO.Path.GetFileName(w.ExePath).Equals("explorer.exe", StringComparison.OrdinalIgnoreCase) ? MacStyle.Own("finder") : MacStyle.Tile(entry?.Icon ?? w.Icon)), Width = icon, Height = icon };
+                RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+                plate.Child = img;
+                Grid.SetColumn(plate, i);
+                grid.Children.Add(plate);
+                plates.Add(plate);
+                Clickable(plate, i);
+            }
+            var name = MacStyle.Text("", 13, MacStyle.Label);
+            name.HorizontalAlignment = HorizontalAlignment.Center; name.TextAlignment = TextAlignment.Center;
+            Grid.SetRow(name, 1);
+            grid.Children.Add(name);
+            onSelect = (i, anim) =>
+            {
+                for (int k = 0; k < plates.Count; k++) plates[k].Background = k == i ? B(0x000000, 34) : Brushes.Transparent;
+                var w = wins[i];
+                var own = MacApps.NameOf(w.Hwnd);
+                var entry = AppCatalog.Apps.FirstOrDefault(a => a.Matches(w));
+                name.Text = own ?? (w.ExePath != null && System.IO.Path.GetFileName(w.ExePath).Equals("explorer.exe", StringComparison.OrdinalIgnoreCase) ? "Finder" : entry?.Name ?? w.AppName ?? w.Title);
+                Grid.SetColumn(name, i);
+                Grid.SetColumnSpan(name, 1);
+                name.Width = Math.Max(cell, 220); name.Margin = new Thickness(-(Math.Max(cell, 220) - cell) / 2, 0, -(Math.Max(cell, 220) - cell) / 2, 0);
+            };
+            var pane = MacStyle.Glass(grid, 26, C(0xEFEFF1, 190));
+            var host = new Border { Child = pane, Padding = new Thickness(30) };
+            Loaded += (s, e) => MacStyle.Pop(pane, new Point(0.5, 0.5), 0.97, 140);
+            return host;
+        }
 
         void Place()
         {

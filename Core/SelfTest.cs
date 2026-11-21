@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Microsoft.Win32;
 
@@ -76,12 +77,22 @@ namespace WinMorph.Core
                 // every look has its own start menu kind; Zen's is the hanging scroll
                 Check(WinMorph.Shell.ShellThemes.For("zen").Menu == WinMorph.Shell.MenuKind.Zen && WinMorph.Shell.ShellThemes.For("win7").Menu == WinMorph.Shell.MenuKind.Seven, "start menu per look");
 
-                // looks: exactly Windows 7, Zen and Hacker, each with its own bar, Alt+Tab and lock screen
-                Check(string.Join(",", Presets.All.ConvertAll(x => x.Id)) == "win7,zen,terminal", "three looks: win7, zen, terminal");
+                // looks: Windows 7, Zen, macOS and Hacker, each with its own bar, Alt+Tab and lock screen
+                Check(string.Join(",", Presets.All.ConvertAll(x => x.Id)) == "win7,zen,macos,terminal", "four looks: win7, zen, macos, terminal");
                 var themes = Presets.All.ConvertAll(x => WinMorph.Shell.ShellThemes.For(x.Id));
-                Check(themes.TrueForAll(x => x != null) && new System.Collections.Generic.HashSet<WinMorph.Shell.SwitchKind>(themes.ConvertAll(x => x.Switch)).Count == 3
-                    && new System.Collections.Generic.HashSet<WinMorph.Shell.LockKind>(themes.ConvertAll(x => x.Lock)).Count == 3, "every look has its own Alt+Tab and lock screen");
-                Check(Presets.Find("macos") == null && WinMorph.Shell.ShellThemes.For("win11") == null && WinMorph.Shell.ShellThemes.ForLock("nexus")?.Id == "win7", "looks of older versions are ignored safely");
+                Check(themes.TrueForAll(x => x != null) && new System.Collections.Generic.HashSet<WinMorph.Shell.SwitchKind>(themes.ConvertAll(x => x.Switch)).Count == 4
+                    && new System.Collections.Generic.HashSet<WinMorph.Shell.LockKind>(themes.ConvertAll(x => x.Lock)).Count == 4, "every look has its own Alt+Tab and lock screen");
+                Check(WinMorph.Shell.ShellThemes.For("win11") == null && WinMorph.Shell.ShellThemes.ForLock("nexus")?.Id == "win7", "looks of older versions are ignored safely");
+                // macOS: the German menu bar date, the embedded font, the formula of the desktop (sky top left, deep glass bottom right)
+                Check(WinMorph.Shell.MacStyle.MenuClock(new DateTime(2026, 11, 20, 20, 19, 0)) == (Loc.De ? "Fr. 20. Nov. 20:19" : WinMorph.Shell.MacStyle.MenuClock(new DateTime(2026, 11, 20, 20, 19, 0))), "macOS menu bar date");
+                Check(WinMorph.Shell.MacStyle.Font.Source.Length > 0 && new System.Windows.Media.Typeface(WinMorph.Shell.MacStyle.Font, System.Windows.FontStyles.Normal, System.Windows.FontWeights.Normal, System.Windows.FontStretches.Normal).TryGetGlyphTypeface(out var gt) && gt.FamilyNames.Values.Any(n => n.StartsWith("Inter") || n.StartsWith("SF")), "macOS font loads (SF Pro or the embedded Inter)");
+                {
+                    var px = new uint[64 * 36];
+                    MacArt.Fill(px, 64, 36, 0, false);
+                    int Lum(uint c) => (int)(((c >> 16) & 255) * 3 + ((c >> 8) & 255) * 6 + (c & 255)) / 10;
+                    Check(Lum(px[2 * 64 + 2]) > 200 && Lum(px[34 * 64 + 61]) < 90, "macOS desktop: light sky top left, deep blue glass bottom right");
+                }
+
                 // a backup of today's looks holds no Windows settings; one of older versions does (then Explorer reloads them)
                 var design = new Backup(file + ".design");
                 design.Reg(@"HKCU\Control Panel\Desktop", "WallpaperStyle"); design.Reg(Applier.Cdm, "RotatingLockScreenEnabled"); design.Reg(WinMorph.Shell.ShellControl.SettingsKey, "ShellPreset"); design.Value("WALL", "");

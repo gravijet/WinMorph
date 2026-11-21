@@ -56,6 +56,15 @@ namespace WinMorph.Shell
                     MenuBg = C(0xF4F8F7, 235), MenuFg = C(0x1C2A2D), MenuSub = C(0x4F6064), MenuHover = C(0x0E7C78, 38), MenuRadius = 24, SearchHint = de ? "Apps, Dateien, Befehle" : "Apps, files, commands",
                     Frame = F(0xE6F0EE, 0xF2F7F6, 0x1C2A2D, 0x7A8A8D, 0x0E7C78, borderIn: 0xB9CFCB),
                 };
+                case "macos": return new ShellTheme
+                {
+                    // macOS Tahoe, light: a transparent menu bar on top, the glass Dock below, system blue
+                    Id = id, Name = "macOS", Layout = BarLayout.Mac, Btn = BtnStyle.Pill, Start = StartKind.Mac, Menu = MenuKind.Launchpad, Lock = LockKind.Mac, Switch = SwitchKind.Mac, MenuFullScreen = true,
+                    BarHeight = 24, BarBg = S(0xFFFFFF, 1), BarFg = C(0x1D1D1F), BarFgDim = C(0x6E6E73), BtnFg = C(0x1D1D1F), BtnHover = C(0xFFFFFF, 90), BtnActive = C(0xFFFFFF, 120),
+                    Accent = C(0x007AFF), Font = "Segoe UI Variable Text, Segoe UI", FontSize = 13, Radius = 22, DockIcon = 54,
+                    MenuBg = C(0xF6F6F6, 235), MenuFg = C(0x1D1D1F), MenuSub = C(0x6E6E73), MenuHover = C(0x007AFF), MenuRadius = 11, SearchHint = de ? "Suche" : "Search",
+                    Frame = F(0xF6F6F6, 0xFBFBFB, 0x1D1D1F, 0x9A9A9E, 0xC9C9CC, borderIn: 0xDCDCDE),
+                };
                 default: return null;
             }
         }

@@ -39,6 +39,7 @@ namespace WinMorph.Shell
             {
                 case MenuKind.Seven: Content = BuildSeven(); break;
                 case MenuKind.Zen: Content = BuildZen(); break;
+                case MenuKind.Launchpad: Content = BuildLaunchpad(); break;
                 default: Content = BuildPalette(); break;
             }
             Left = -20000; Top = -20000;
@@ -46,7 +47,8 @@ namespace WinMorph.Shell
             SourceInitialized += (s, e) =>
             {
                 var h = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-                if (fullScreen) W32.SetBlur(h, 3, 0);
+                if (fullScreen && t.Menu != MenuKind.Launchpad) W32.SetBlur(h, 3, 0);
+                if (t.Menu == MenuKind.Launchpad) W32.SetWindowLong(h, W32.GWL_EXSTYLE, W32.GetWindowLong(h, W32.GWL_EXSTYLE) | W32.WS_EX_TOOLWINDOW);
             };
         }
 
@@ -60,8 +62,11 @@ namespace WinMorph.Shell
         {
             if (closing) return;
             closing = true;
-            try { Hide(); } catch { }
-            try { resetView?.Invoke(); if (searchBox != null) searchBox.Text = ""; } catch { }
+            if (!CloseLaunchpad())
+            {
+                try { Hide(); } catch { }
+                try { resetView?.Invoke(); if (searchBox != null) searchBox.Text = ""; } catch { }
+            }
             Hidden?.Invoke();
         }
 
@@ -92,6 +97,7 @@ namespace WinMorph.Shell
             var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
             c.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(fullScreen ? 160 : 120)));
             if (t.Menu == MenuKind.Zen) { SurfaceZen(); return; }
+            if (t.Menu == MenuKind.Launchpad) { SurfaceLaunchpad(); return; }
             if (fullScreen)
             {
                 var sc = new ScaleTransform(1.04, 1.04);

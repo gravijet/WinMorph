@@ -19,7 +19,7 @@ namespace WinMorph.Shell
     /// Runs the WinMorph shell: hides the Windows taskbar, shows themed bars, docks and
     /// start menus, and recolours window frames. Everything is undone on exit.
     /// </summary>
-    public sealed class ShellHost
+    public sealed partial class ShellHost
     {
         readonly ShellTheme t;
         readonly WindowTracker tracker;
@@ -127,22 +127,35 @@ namespace WinMorph.Shell
         {
             var st = new Style(typeof(ToolTip));
             bool zen = t.Id == "zen";
-            var bg = zen ? Color.FromArgb(245, 0xFA, 0xFC, 0xFB) : Color.FromRgb(t.MenuBg.R, t.MenuBg.G, t.MenuBg.B);
-            st.Setters.Add(new Setter(Control.BackgroundProperty, B(Hacker ? C(0x000000) : bg)));
-            st.Setters.Add(new Setter(Control.ForegroundProperty, B(t.MenuFg)));
-            st.Setters.Add(new Setter(Control.BorderBrushProperty, B(zen ? C(0xFFFFFF) : A(t.Accent, 200))));
-            st.Setters.Add(new Setter(Control.FontFamilyProperty, new FontFamily(t.Font)));
-            st.Setters.Add(new Setter(Control.PaddingProperty, zen ? new Thickness(12, 6, 12, 7) : new Thickness(8, 4, 8, 4)));
-            if (zen) st.Setters.Add(new Setter(ToolTip.HasDropShadowProperty, true));
+            if (Mac)
+            {
+                st.Setters.Add(new Setter(Control.BackgroundProperty, B(0xF4F4F6, 248)));
+                st.Setters.Add(new Setter(Control.ForegroundProperty, B(0x1D1D1F)));
+                st.Setters.Add(new Setter(Control.BorderBrushProperty, B(0x000000, 40)));
+                st.Setters.Add(new Setter(Control.FontFamilyProperty, MacStyle.Font));
+                st.Setters.Add(new Setter(Control.FontSizeProperty, 12.0));
+                st.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(7, 3, 7, 4)));
+                st.Setters.Add(new Setter(ToolTip.HasDropShadowProperty, true));
+            }
+            else
+            {
+                var bg = zen ? Color.FromArgb(245, 0xFA, 0xFC, 0xFB) : Color.FromRgb(t.MenuBg.R, t.MenuBg.G, t.MenuBg.B);
+                st.Setters.Add(new Setter(Control.BackgroundProperty, B(Hacker ? C(0x000000) : bg)));
+                st.Setters.Add(new Setter(Control.ForegroundProperty, B(t.MenuFg)));
+                st.Setters.Add(new Setter(Control.BorderBrushProperty, B(zen ? C(0xFFFFFF) : A(t.Accent, 200))));
+                st.Setters.Add(new Setter(Control.FontFamilyProperty, new FontFamily(t.Font)));
+                st.Setters.Add(new Setter(Control.PaddingProperty, zen ? new Thickness(12, 6, 12, 7) : new Thickness(8, 4, 8, 4)));
+                if (zen) st.Setters.Add(new Setter(ToolTip.HasDropShadowProperty, true));
+            }
             var tpl = new ControlTemplate(typeof(ToolTip));
             var border = new FrameworkElementFactory(typeof(Border));
             border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
             border.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(Control.BorderBrushProperty));
-            border.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+            border.SetValue(Border.BorderThicknessProperty, new Thickness(Mac ? 0.6 : 1));
             border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
-            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(Hacker ? 0 : zen ? 12 : 6));
+            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(Hacker ? 0 : zen ? 12 : Mac ? 5 : 6));
             var cp = new FrameworkElementFactory(typeof(ContentPresenter));
-            cp.SetValue(TextElement.FontFamilyProperty, new FontFamily(t.Font));
+            cp.SetValue(TextElement.FontFamilyProperty, Mac ? MacStyle.Font : new FontFamily(t.Font));
             cp.SetValue(TextElement.ForegroundProperty, B(t.MenuFg));
             border.AppendChild(cp);
             tpl.VisualTree = border;
@@ -315,6 +328,7 @@ namespace WinMorph.Shell
             try { menu?.Close(); } catch { }
             try { console?.Close(); } catch { }
             HackerPanel.CloseAll();
+            MacPanels.CloseAll(); MacMenu.Current?.Dismiss(true); MacSpotlight.CloseNow();
             Notify.Stop();
             Zen.Shutdown();
             foreach (var b in bars) try { b.Close(); } catch { }
@@ -379,6 +393,7 @@ namespace WinMorph.Shell
             {
                 otherKey = true;
                 if (vk == 0x58) { swallowedDuringWin = true; Ui(ShowQuickMenu); return true; }                 // Win+X
+                if (Mac && (vk == 0x53 || vk == 0x20)) { swallowedDuringWin = true; Ui(() => MacSpotlight.Toggle()); return true; }   // Win+S, Win+Space → Spotlight
                 if (ShellActions.Own != null)
                 {
                     if (vk == 0x45) { swallowedDuringWin = true; Ui(() => ShellActions.Files()); return true; }      // Win+E → the look's explorer
@@ -453,6 +468,7 @@ namespace WinMorph.Shell
         {
             HoverPreview.CloseNow();
             var list = tracker.ByRecentUse();
+            if (Mac) list = list.GroupBy(w => w.Key).Select(g => g.First()).ToList();   // Cmd+Tab: one entry per app
             if (list.Count == 0) { switching = false; return; }
             int start = list.Count > 1 ? (back ? list.Count - 1 : 1) : 0;
             CancelSwitcher();
@@ -480,6 +496,7 @@ namespace WinMorph.Shell
         void ShowQuickMenu()
         {
             if (Hacker) { HackerPanel.Toggle("power", t, new Rect(0, 0, 0, 0)); return; }
+            if (Mac) { menuOpeners.FirstOrDefault()?.Invoke(); return; }   // the Apple menu
             Rect anchor = startAnchor != null && startBar != null && startAnchor.IsLoaded ? startBar.ScreenRectOf(startAnchor) : new Rect(0, 0, 0, 0);
             var q = new QuickMenu(t, anchor, startBar?.Edge ?? Edge.Bottom);
             q.Show();
@@ -519,6 +536,7 @@ namespace WinMorph.Shell
                 case BarLayout.Bottom: ClassicBar(); break;
                 case BarLayout.Floating: FloatingBar(); break;
                 case BarLayout.TerminalTop: TerminalBar(); break;
+                case BarLayout.Mac: MacBars(); break;
             }
         }
 
@@ -797,6 +815,7 @@ namespace WinMorph.Shell
         /// <summary>Live preview on hover, new window on middle click, themed menu on right click.</summary>
         void AttachExtras(FrameworkElement el, Func<List<WinInfo>> wins, AppEntry app, WinInfo single)
         {
+            if (Mac) return;
             el.MouseEnter += (s, e) => HoverPreview.Hover(t, el, () => wins().Where(w => W32.IsWindow(w.Hwnd)).ToList(), w => W32.Activate(w.Hwnd));
             el.MouseLeave += (s, e) => HoverPreview.Leave();
             el.PreviewMouseLeftButtonDown += (s, e) => HoverPreview.CloseNow();

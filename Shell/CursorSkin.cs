@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media;
@@ -36,6 +37,7 @@ namespace WinMorph.Shell
                 if (t.Id == "win7") Seven();
                 else if (t.Id == "terminal") Hacker(t.Accent);
                 else if (t.Id == "zen") Zen();
+                else if (t.Id == "macos") Mac();
                 else Reset();
             }
             catch { Reset(); }
@@ -209,8 +211,127 @@ namespace WinMorph.Shell
             new GeometryDrawing(Black, Line(g, 2.2), new EllipseGeometry(new Point(16, 16), 11, 11)),
             new GeometryDrawing(null, Line(g, 2.2), Geo("M8.5,8.5 L23.5,23.5")));
 
-        /// <summary>Writes a .cur file with 32-bit images in several sizes (Windows picks the one for the pointer size).</summary>
-        static void WriteCur(string file, DrawingGroup art, Point hot, int size)
+        // ---------------- macOS pointers: black arrow with a white rim, the white hand, the thin I-beam, the spinning wheel ----------------
+        static void Mac()
+        {
+            int size = Math.Max(32, GetSystemMetrics(13 /* SM_CXCURSOR */));
+            var dir = Path.Combine(Core.Backup.DataDir, "cursors", "mac-" + size + "-v1");
+            Directory.CreateDirectory(dir);
+            var white = Color.FromRgb(255, 255, 255);
+            var shapes = new List<(string name, uint id, Func<DrawingGroup> draw, Point hot)>
+            {
+                ("arrow", NORMAL, MacArrow, new Point(4, 2.5)),
+                ("link", HAND, MacHand, new Point(13, 3)),
+                ("beam", IBEAM, MacBeam, new Point(16, 16)),
+                ("ns", SIZENS, () => Double(white, 90), new Point(16, 16)),
+                ("we", SIZEWE, () => Double(white, 0), new Point(16, 16)),
+                ("nwse", SIZENWSE, () => Double(white, 45), new Point(16, 16)),
+                ("nesw", SIZENESW, () => Double(white, -45), new Point(16, 16)),
+                ("move", SIZEALL, () => Move(white), new Point(16, 16)),
+                ("no", NO, MacNo, new Point(16, 16)),
+                ("cross", CROSS, () => Cross(white), new Point(16, 16)),
+            };
+            foreach (var (name, id, draw, hot) in shapes)
+            {
+                var file = Path.Combine(dir, name + ".cur");
+                if (!File.Exists(file)) WriteCur(file, draw(), hot, size);
+                Set(file, id);
+            }
+            // the spinning wheel, animated
+            var wait = Path.Combine(dir, "wait.ani");
+            if (!File.Exists(wait)) WriteAni(wait, Enumerable.Range(0, 8).Select(i => Wheel(i * 45.0 / 1, 16, 16, 11)).ToList(), new Point(16, 16), size, 4);
+            Set(wait, WAIT);
+            var working = Path.Combine(dir, "working.ani");
+            if (!File.Exists(working)) WriteAni(working, Enumerable.Range(0, 8).Select(i => { var g = MacArrow(); g.Children.Add(Wheel(i * 45.0, 23, 23, 7)); return g; }).ToList(), new Point(4, 2.5), size, 4);
+            Set(working, APPSTARTING);
+        }
+
+        static DrawingGroup MacArrow()
+        {
+            var arrow = Geo("M4,2.5 L4,24 L9,19.4 L12.4,27.2 C12.6,27.7 13.1,27.9 13.6,27.7 L15.7,26.8 C16.2,26.6 16.4,26.1 16.2,25.6 L12.8,17.9 L19.4,17.9 Z");
+            var rim = new Pen(Frozen(Color.FromRgb(255, 255, 255)), 1.5) { LineJoin = PenLineJoin.Round }; rim.Freeze();
+            var shadow = new DrawingGroup { Transform = new TranslateTransform(0.6, 1.2), Opacity = 0.32 };
+            shadow.Children.Add(new GeometryDrawing(Frozen(Color.FromRgb(0, 0, 0)), new Pen(Frozen(Color.FromRgb(0, 0, 0)), 2.2), arrow));
+            return Group(shadow, new GeometryDrawing(Frozen(Color.FromRgb(0, 0, 0)), rim, arrow));
+        }
+
+        static DrawingGroup MacHand()
+        {
+            var hand = Geo("M11,4.5 C11,3.4 11.9,2.6 13,2.6 C14.1,2.6 15,3.4 15,4.5 L15,12.8 C15.3,12.1 16,11.6 16.9,11.6 C18,11.6 18.8,12.4 18.8,13.5 L18.8,14.2 C19.1,13.6 19.8,13.1 20.6,13.1 C21.7,13.1 22.5,13.9 22.5,15 L22.5,15.8 C22.8,15.3 23.4,14.9 24.2,14.9 C25.3,14.9 26,15.7 26,16.8 L26,22.5 C26,26.6 23,29.6 19,29.6 L16.4,29.6 C14,29.6 12.4,28.6 11,26.8 L6.2,20.6 C5.5,19.7 5.7,18.5 6.6,17.8 C7.5,17.1 8.7,17.3 9.4,18.1 L11,20 Z");
+            var line = new Pen(Frozen(Color.FromRgb(0, 0, 0)), 1.3) { LineJoin = PenLineJoin.Round }; line.Freeze();
+            var thin = new Pen(Frozen(Color.FromRgb(0, 0, 0)), 1.0) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }; thin.Freeze();
+            var shadow = new DrawingGroup { Transform = new TranslateTransform(0.6, 1.2), Opacity = 0.28 };
+            shadow.Children.Add(new GeometryDrawing(Frozen(Color.FromRgb(0, 0, 0)), null, hand));
+            return Group(shadow, new GeometryDrawing(Frozen(Color.FromRgb(255, 255, 255)), line, hand), new GeometryDrawing(null, thin, Geo("M15,13 L15,18.6 M18.8,14.4 L18.8,18.6 M22.5,16 L22.5,18.6")));
+        }
+
+        static DrawingGroup MacBeam()
+        {
+            var shape = Geo("M12.5,5 C14.4,5 15.4,5.6 16,6.6 C16.6,5.6 17.6,5 19.5,5 M16,6.6 L16,25.4 M12.5,27 C14.4,27 15.4,26.4 16,25.4 C16.6,26.4 17.6,27 19.5,27 M13.6,16 L18.4,16");
+            var outer = new Pen(Frozen(Color.FromRgb(255, 255, 255)), 3.2) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round }; outer.Freeze();
+            var inner = new Pen(Frozen(Color.FromRgb(0, 0, 0)), 1.3) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round }; inner.Freeze();
+            return Group(new GeometryDrawing(null, outer, shape), new GeometryDrawing(null, inner, shape));
+        }
+
+        static DrawingGroup MacNo()
+        {
+            var outer = new Pen(Frozen(Color.FromRgb(255, 255, 255)), 5.4); outer.Freeze();
+            var inner = new Pen(Frozen(Color.FromRgb(0, 0, 0)), 2.6); inner.Freeze();
+            var ring = new EllipseGeometry(new Point(16, 16), 10, 10);
+            var bar = Geo("M9,9 L23,23");
+            return Group(new GeometryDrawing(null, outer, ring), new GeometryDrawing(null, outer, bar), new GeometryDrawing(null, inner, ring), new GeometryDrawing(null, inner, bar));
+        }
+
+        /// <summary>The spinning wheel: six glossy colour sectors, turned by the given angle.</summary>
+        static DrawingGroup Wheel(double angle, double cx, double cy, double r)
+        {
+            var cols = new[] { Color.FromRgb(0x3E, 0xC2, 0x5F), Color.FromRgb(0x2D, 0xB7, 0xE8), Color.FromRgb(0x3D, 0x6F, 0xE6), Color.FromRgb(0xB0, 0x4F, 0xD6), Color.FromRgb(0xE8, 0x45, 0x3C), Color.FromRgb(0xF2, 0x8C, 0x28), Color.FromRgb(0xF7, 0xC7, 0x44) };
+            var g = new DrawingGroup();
+            int n = cols.Length;
+            for (int i = 0; i < n; i++)
+            {
+                double a0 = (angle + i * 360.0 / n) * Math.PI / 180, a1 = (angle + (i + 1) * 360.0 / n) * Math.PI / 180;
+                var sg = new StreamGeometry();
+                using (var c = sg.Open())
+                {
+                    c.BeginFigure(new Point(cx, cy), true, true);
+                    c.LineTo(new Point(cx + r * Math.Cos(a0), cy + r * Math.Sin(a0)), true, true);
+                    c.ArcTo(new Point(cx + r * Math.Cos(a1), cy + r * Math.Sin(a1)), new Size(r, r), 0, false, SweepDirection.Clockwise, true, true);
+                }
+                sg.Freeze();
+                var fill = new RadialGradientBrush(Color.FromRgb((byte)Math.Min(255, cols[i].R + 60), (byte)Math.Min(255, cols[i].G + 60), (byte)Math.Min(255, cols[i].B + 60)), cols[i]) { Center = new Point(0.5, 0.5), GradientOrigin = new Point(0.5, 0.5), RadiusX = 0.5, RadiusY = 0.5 };
+                fill.Freeze();
+                g.Children.Add(new GeometryDrawing(fill, null, sg));
+            }
+            var gloss = new RadialGradientBrush(Color.FromArgb(150, 255, 255, 255), Color.FromArgb(0, 255, 255, 255)) { GradientOrigin = new Point(0.35, 0.25), Center = new Point(0.4, 0.3), RadiusX = 0.6, RadiusY = 0.6 };
+            gloss.Freeze();
+            g.Children.Add(new GeometryDrawing(gloss, new Pen(Frozen(Color.FromArgb(150, 40, 40, 40)), 0.7), new EllipseGeometry(new Point(cx, cy), r, r)));
+            return g;
+        }
+
+        /// <summary>An animated cursor (RIFF ACON): each frame is a complete .cur.</summary>
+        static void WriteAni(string file, List<DrawingGroup> frames, Point hot, int size, int jiffies)
+        {
+            var cur = frames.Select(f => CurBytes(f, hot, size)).ToList();
+            using (var ms = new MemoryStream())
+            using (var w = new BinaryWriter(ms))
+            {
+                void Tag(string s) => w.Write(System.Text.Encoding.ASCII.GetBytes(s));
+                Tag("RIFF"); w.Write(0); Tag("ACON");
+                Tag("anih"); w.Write(36); w.Write(36); w.Write(frames.Count); w.Write(frames.Count); w.Write(0); w.Write(0); w.Write(0); w.Write(0); w.Write(jiffies); w.Write(1);
+                Tag("LIST"); long listSizeAt = ms.Position; w.Write(0); Tag("fram");
+                foreach (var c in cur) { Tag("icon"); w.Write(c.Length); w.Write(c); if (c.Length % 2 == 1) w.Write((byte)0); }
+                long end = ms.Position;
+                ms.Position = listSizeAt; w.Write((int)(end - listSizeAt - 4));
+                ms.Position = 4; w.Write((int)(end - 8));
+                File.WriteAllBytes(file, ms.ToArray());
+            }
+        }
+
+        static void WriteCur(string file, DrawingGroup art, Point hot, int size) => File.WriteAllBytes(file, CurBytes(art, hot, size));
+
+        /// <summary>A .cur file with 32-bit images in several sizes (Windows picks the one for the pointer size).</summary>
+        static byte[] CurBytes(DrawingGroup art, Point hot, int size)
         {
             var sizes = new SortedSet<int> { 32, 48, 64, size };
             var images = new List<(int s, byte[] dib)>();
@@ -243,7 +364,7 @@ namespace WinMorph.Shell
                     images.Add((s, ms.ToArray()));
                 }
             }
-            using (var fs = File.Create(file))
+            using (var fs = new MemoryStream())
             using (var w = new BinaryWriter(fs))
             {
                 w.Write((short)0); w.Write((short)2); w.Write((short)images.Count);
@@ -256,6 +377,8 @@ namespace WinMorph.Shell
                     offset += dib.Length;
                 }
                 foreach (var (_, dib) in images) w.Write(dib);
+                w.Flush();
+                return fs.ToArray();
             }
         }
     }

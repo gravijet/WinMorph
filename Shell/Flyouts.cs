@@ -28,6 +28,11 @@ namespace WinMorph.Shell
         /// <summary>Opens (or closes, when it is already open) a panel. kind: net, vol, bat, clock, zen.</summary>
         public static Window Open(ShellTheme t, string kind, Rect anchor)
         {
+            if (t.Id == "macos")
+            {
+                MacPanels.Toggle(t, kind == "vol" ? "cc" : kind == "clock" ? "nc" : kind == "zen" ? "cc" : kind, anchor, null);
+                return MacPanels.Open;
+            }
             if (t.Start == StartKind.Terminal)
             {
                 HackerPanel.Toggle(kind == "bat" ? "power" : kind == "clock" ? "cal" : kind, t, anchor);
@@ -36,7 +41,7 @@ namespace WinMorph.Shell
             return Flyout.Toggle(t, kind, anchor);
         }
 
-        public static void CloseAll() { Flyout.CloseOpen(); HackerPanel.CloseAll(); }
+        public static void CloseAll() { Flyout.CloseOpen(); HackerPanel.CloseAll(); MacPanels.CloseAll(); }
     }
 
     internal sealed class Flyout : Window
@@ -885,6 +890,7 @@ namespace WinMorph.Shell
 
         public static void Show(ShellTheme t)
         {
+            if (t.Id == "macos") { MacPanels.VolumeHud(); return; }
             if (Flyout.IsOpen("vol")) return;   // the open volume panel shows it already
             if (w == null || theme != t) Build(t);
             update();
