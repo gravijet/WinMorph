@@ -126,19 +126,21 @@ namespace WinMorph.Shell
         void ThemeToolTips()
         {
             var st = new Style(typeof(ToolTip));
-            var bg = Color.FromRgb(t.MenuBg.R, t.MenuBg.G, t.MenuBg.B);
+            bool zen = t.Id == "zen";
+            var bg = zen ? Color.FromArgb(245, 0xFA, 0xFC, 0xFB) : Color.FromRgb(t.MenuBg.R, t.MenuBg.G, t.MenuBg.B);
             st.Setters.Add(new Setter(Control.BackgroundProperty, B(Hacker ? C(0x000000) : bg)));
             st.Setters.Add(new Setter(Control.ForegroundProperty, B(t.MenuFg)));
-            st.Setters.Add(new Setter(Control.BorderBrushProperty, B(A(t.Accent, 200))));
+            st.Setters.Add(new Setter(Control.BorderBrushProperty, B(zen ? C(0xFFFFFF) : A(t.Accent, 200))));
             st.Setters.Add(new Setter(Control.FontFamilyProperty, new FontFamily(t.Font)));
-            st.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(8, 4, 8, 4)));
+            st.Setters.Add(new Setter(Control.PaddingProperty, zen ? new Thickness(12, 6, 12, 7) : new Thickness(8, 4, 8, 4)));
+            if (zen) st.Setters.Add(new Setter(ToolTip.HasDropShadowProperty, true));
             var tpl = new ControlTemplate(typeof(ToolTip));
             var border = new FrameworkElementFactory(typeof(Border));
             border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty));
             border.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(Control.BorderBrushProperty));
             border.SetValue(Border.BorderThicknessProperty, new Thickness(1));
             border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(Control.PaddingProperty));
-            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(Hacker ? 0 : 6));
+            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(Hacker ? 0 : zen ? 12 : 6));
             var cp = new FrameworkElementFactory(typeof(ContentPresenter));
             cp.SetValue(TextElement.FontFamilyProperty, new FontFamily(t.Font));
             cp.SetValue(TextElement.ForegroundProperty, B(t.MenuFg));
@@ -599,27 +601,22 @@ namespace WinMorph.Shell
 
 
 
-        // ---------- floating pill (NovaOS, Zen) ----------
+        // ---------- Zen: a frosted pill floating over the pond ----------
         void FloatingBar()
         {
-            var pill = new Border
-            {
-                CornerRadius = new CornerRadius(t.Radius), Height = t.BarHeight, Padding = new Thickness(10, 0, 14, 0),
-                Background = t.BarBg, BorderBrush = B(t.BarLine.A > 0 ? t.BarLine : C(0xFFFFFF, 40)), BorderThickness = new Thickness(1),
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-                Effect = new DropShadowEffect { BlurRadius = 24, ShadowDepth = 0, Opacity = t.Id == "zen" ? 0.18 : 0.6, Color = t.Id == "zen" ? Colors.Black : t.Accent },
-            };
-            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
             row.Children.Add(StartButton());
-            row.Children.Add(new Border { Width = 1, Margin = new Thickness(10, 12, 10, 12), Background = B(A(t.BarFg, 50)) });
+            Border Gap() => new Border { Width = 1, Height = 22, Margin = new Thickness(8, 0, 8, 0), Background = B(A(t.BarFg, 34)), VerticalAlignment = VerticalAlignment.Center };
+            row.Children.Add(Gap());
             row.Children.Add(DockItems(Orientation.Horizontal, t.DockIcon));
-            row.Children.Add(new Border { Width = 1, Margin = new Thickness(10, 12, 10, 12), Background = B(A(t.BarFg, 50)) });
+            row.Children.Add(Gap());
             row.Children.Add(Tray());
-            pill.Child = row;
-            startBar = NewBar(Edge.Bottom, t.BarHeight + 18, false, pill, Brushes.Transparent);
+            var pill = ZenStyle.Pane(row, t.Radius, 150);
+            pill.Height = t.BarHeight;
+            pill.HorizontalAlignment = HorizontalAlignment.Center; pill.VerticalAlignment = VerticalAlignment.Center;
+            startBar = NewBar(Edge.Bottom, t.BarHeight + 22, false, pill, Brushes.Transparent);
+            if (!preview) pill.Loaded += (s, e) => ZenStyle.Ripple(pill, new Point(0.5, 1), 520);
         }
-
-
 
         // ---------- terminal status line (hacker look) ----------
         void TerminalBar()
@@ -715,8 +712,11 @@ namespace WinMorph.Shell
                     break;
                 case StartKind.Zen:
                 {
-                    var ring = new Border { Width = 16, Height = 16, CornerRadius = new CornerRadius(8), BorderBrush = B(t.BarFg), BorderThickness = new Thickness(1.5) };
-                    el = Click(ring, () => ToggleMenu(self), t.BtnHover, radius: new CornerRadius(14), pad: new Thickness(8));
+                    // the lotus on a white stone: the one coloured mark of the bar
+                    var stone = new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(18), Child = ZenStyle.Lotus(22), Cursor = Cursors.Hand, VerticalAlignment = VerticalAlignment.Center };
+                    ZenStyle.Press(stone, C(0xFFFFFF, 170), C(0xFFFFFF, 240));
+                    stone.MouseLeftButtonUp += (s, e) => { e.Handled = true; ToggleMenu(self); };
+                    el = stone;
                     break;
                 }
                 default:
@@ -923,7 +923,7 @@ namespace WinMorph.Shell
             g.Children.Add(img);
             if (running)
             {
-                Color dotColor = t.Id == "zen" ? t.BarFg : C(0xFFFFFF);
+                Color dotColor = t.Id == "zen" ? ZenStyle.Koi : C(0xFFFFFF);
                 var dot = new Border
                 {
                     Width = vertical ? 4 : (active ? 14 : 5), Height = vertical ? (active ? 14 : 5) : 4, CornerRadius = new CornerRadius(2), Background = B(dotColor),
@@ -932,7 +932,7 @@ namespace WinMorph.Shell
                 };
                 g.Children.Add(dot);
             }
-            var b = new Border { Child = g, Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = name, CornerRadius = new CornerRadius(8) };
+            var b = new Border { Child = g, Background = Brushes.Transparent, Cursor = Cursors.Hand, ToolTip = name, CornerRadius = new CornerRadius(t.Id == "zen" ? 14 : 8) };
             if (active) b.Background = B(t.BtnActive.A > 0 ? A(t.BtnActive, t.BtnActive.A) : C(0xFFFFFF, 30));
             const bool magnify = false;
             b.MouseEnter += (s, e) =>
@@ -984,7 +984,7 @@ namespace WinMorph.Shell
                 var timer = ZenStyle.Text("", 13, fg, FontWeights.SemiBold);
                 var timerBtn = Item(timer, "zen", De ? "Fokus-Timer" : "Focus timer", 9);
                 timerBtn.Visibility = Visibility.Collapsed;
-                Item(ZenStyle.Lotus(19), "zen", De ? "Ruhe: Fokus, Atmen, Klang, Nicht stören" : "Calm: focus, breathing, sound, do not disturb", 8);
+                Item(Glyph("", 15, fg), "zen", De ? "Ruhe: Fokus, Atmen, Klang, Nicht stören" : "Calm: focus, breathing, sound, do not disturb", 8);
                 if (!preview) clockUpdaters.Add(() => { Zen.Tick(); timer.Text = Zen.TimerText; timerBtn.Visibility = Zen.Running ? Visibility.Visible : Visibility.Collapsed; });
             }
 

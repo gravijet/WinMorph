@@ -54,7 +54,7 @@ namespace WinMorph.Shell
         /// Places the picture freely (DIP rectangle inside the host, fitted to its aspect ratio) and shows only
         /// its middle part of width <paramref name="reveal"/> (0..1) – the gap between two sliding doors.
         /// </summary>
-        public void Place(Rect r, double reveal = 1)
+        public void Place(Rect r, double reveal = 1, byte opacity = 255)
         {
             if (thumb == IntPtr.Zero) return;
             var src = PresentationSource.FromVisual(host);
@@ -86,7 +86,7 @@ namespace WinMorph.Shell
                 dwFlags = 0x1 | 0x2 | 0x4 | 0x8 | 0x10,
                 rcDestination = new W32.RECT { Left = (int)Math.Round(vl * s), Top = (int)Math.Round(y * s), Right = (int)Math.Round(vr * s), Bottom = (int)Math.Round((y + dh) * s) },
                 rcSource = new W32.RECT { Left = (int)Math.Round(sl + (vl - x) / k), Top = (int)Math.Round(st), Right = (int)Math.Round(sl + (vr - x) / k), Bottom = (int)Math.Round(sb) },
-                opacity = 255, fVisible = visible ? 1 : 0, fSourceClientAreaOnly = 0,
+                opacity = opacity, fVisible = visible && opacity > 0 ? 1 : 0, fSourceClientAreaOnly = 0,
             };
             W32.DwmUpdateThumbnailProperties(thumb, ref props);
         }

@@ -49,11 +49,12 @@ namespace WinMorph.Shell
                 }
                 case "zen": return new ShellTheme
                 {
+                    // "Morgenteich": frosted glass over a koi pond, ink text, pond green and koi orange
                     Id = id, Name = "Zen", Layout = BarLayout.Floating, Btn = BtnStyle.Pill, Start = StartKind.Zen, Menu = MenuKind.Zen, Lock = LockKind.Zen, Switch = SwitchKind.Shoji,
-                    BarHeight = 40, BarBg = S(0xF7F2E9, 225), BarFg = C(0x6B5B45), BarFgDim = C(0xA89A85), BtnFg = C(0x6B5B45), BtnHover = C(0x6B5B45, 25), BtnActive = C(0x6B5B45, 45),
-                    Accent = C(0xA0805A), Font = "Segoe UI Light", FontSize = 13, Radius = 20, DockIcon = 24,
-                    MenuBg = C(0xFBF8F2, 245), MenuFg = C(0x4A3F30), MenuSub = C(0x9C8E79), MenuHover = C(0xA0805A, 40), MenuRadius = 20, SearchHint = de ? "Atme ein. Tippe." : "Breathe. Type.",
-                    Frame = F(0xF3EDE2, 0xF8F4EC, 0x6B5B45, 0xB3A691, 0xD8C6AA),
+                    BarHeight = 50, BarBg = S(0xF4F8F7, 150), BarFg = C(0x1C2A2D), BarFgDim = C(0x4F6064), BtnFg = C(0x1C2A2D), BtnHover = C(0xFFFFFF, 120), BtnActive = C(0xFFFFFF, 190),
+                    Accent = C(0x0E7C78), Font = "Yu Gothic UI", FontSize = 13.5, Radius = 25, DockIcon = 30,
+                    MenuBg = C(0xF4F8F7, 235), MenuFg = C(0x1C2A2D), MenuSub = C(0x4F6064), MenuHover = C(0x0E7C78, 38), MenuRadius = 24, SearchHint = de ? "Apps, Dateien, Befehle" : "Apps, files, commands",
+                    Frame = F(0xE6F0EE, 0xF2F7F6, 0x1C2A2D, 0x7A8A8D, 0x0E7C78, borderIn: 0xB9CFCB),
                 };
                 default: return null;
             }

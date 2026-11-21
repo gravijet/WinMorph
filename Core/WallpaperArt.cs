@@ -89,14 +89,8 @@ namespace WinMorph.Core
                     break;
                 }
                 case WallKind.Zen:
-                {
-                    dc.DrawRectangle(Lin(0, 0, 0, 1, (0, C(0xF5EFE4)), (1, C(0xE2D4BD))), null, full);
-                    dc.DrawEllipse(S(0xD99A6C, 220), null, new Point(W * 0.68, H * 0.36), H * 0.09, H * 0.09);
-                    uint[] m = { 0xD8C6AA, 0xC2AB8C, 0xA88F72, 0x8C755D };
-                    for (int i = 0; i < m.Length; i++)
-                        dc.DrawGeometry(S(m[i], 235), null, Wave(W, H, H * (0.55 + i * 0.1), H * 0.07, 0.8 + i * 0.4, i * 2.3));
+                    PondArt.Draw(dc, W, H);   // "Morgenteich": the koi pond
                     break;
-                }
             }
             dc.Pop();
         }
@@ -155,7 +149,7 @@ namespace WinMorph.Core
             int h = Math.Max(1080, Native.GetSystemMetrics(1));
             var c = WinMorph.Shell.ShellThemes.HackerColor;   // the hacker picture follows the chosen colour
             var variant = p.Id == "terminal" ? "-" + c.R.ToString("X2") + c.G.ToString("X2") + c.B.ToString("X2") : "";
-            var file = Path.Combine(Backup.DataDir, "Wallpapers", p.Id + "-" + w + "x" + h + variant + "-v3.png");
+            var file = Path.Combine(Backup.DataDir, "Wallpapers", p.Id + "-" + w + "x" + h + variant + "-v4.png");
             return File.Exists(file) ? file : RenderToFile(p, file, w, h);
         }
     }

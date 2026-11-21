@@ -91,7 +91,7 @@ namespace WinMorph.Shell
             if (!(Content is FrameworkElement c)) return;
             var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
             c.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(fullScreen ? 160 : 120)));
-            if (t.Menu == MenuKind.Zen) { UnrollZen(); return; }
+            if (t.Menu == MenuKind.Zen) { SurfaceZen(); return; }
             if (fullScreen)
             {
                 var sc = new ScaleTransform(1.04, 1.04);
@@ -124,7 +124,13 @@ namespace WinMorph.Shell
                 return;
             }
             double w = ActualWidth, h = ActualHeight, x, y;
-            if (t.Menu == MenuKind.Palette || t.Menu == MenuKind.Zen)
+            if (t.Menu == MenuKind.Zen)
+            {
+                // just above the floating bar, centred on the screen
+                x = monRect.Left + (monRect.Width - w) / 2;
+                y = work.Bottom - h + 14;
+            }
+            else if (t.Menu == MenuKind.Palette)
             {
                 x = monRect.Left + (monRect.Width - w) / 2;
                 y = t.Layout == BarLayout.TerminalTop ? work.Top + 40 : monRect.Top + monRect.Height * 0.22;
@@ -140,7 +146,7 @@ namespace WinMorph.Shell
                 y = edge == Edge.Top ? anchor.Bottom : anchor.Top - h;
             }
             Left = Math.Max(work.Left, Math.Min(x, work.Right - w));
-            Top = Math.Max(work.Top, Math.Min(y, work.Bottom - h));
+            Top = Math.Max(work.Top, Math.Min(y, work.Bottom - h + (t.Menu == MenuKind.Zen ? 14 : 0)));
         }
 
         double DpiOf() { W32.PrimaryMonitor(out double s); return s; }

@@ -29,19 +29,21 @@ namespace WinMorph.Shell
             const bool retro = false;   // no retro look left
             Color bg = retro ? C(0xC0C0C0) : Core.Applier.Mix(Color.FromRgb(t.MenuBg.R, t.MenuBg.G, t.MenuBg.B), Colors.Black, 0.05);
             Color fg = retro ? C(0x000000) : (t.Menu == MenuKind.Seven ? C(0x1E1E1E) : t.MenuFg);
-            if (t.Menu == MenuKind.Seven) bg = C(0xFFFFFF);
             Color hover = retro ? C(0x000080) : A(t.Accent, 90);
+            if (t.Menu == MenuKind.Seven) { bg = C(0xF5F6F7); hover = C(0xDCEBFC); }   // Windows 7's menu colours
 
-            var sp = new StackPanel { Margin = new Thickness(4) };
+            bool zen = t.Id == "zen";
+            if (zen) { fg = ZenStyle.Ink; hover = C(0xFFFFFF, 150); FontFamily = ZenStyle.Family; }
+            var sp = new StackPanel { Margin = new Thickness(zen ? 8 : 4) };
             void Item(string text, Action a)
             {
-                var tb = new TextBlock { Text = text, FontSize = 12.5, Foreground = B(fg), Margin = new Thickness(10, 0, 30, 0), VerticalAlignment = VerticalAlignment.Center };
-                var b = Click(tb, () => { Done(); a(); }, hover, radius: new CornerRadius(retro ? 0 : 4), pad: new Thickness(0, 6, 0, 6));
+                var tb = new TextBlock { Text = text, FontSize = zen ? 13.5 : 12.5, Foreground = B(fg), Margin = new Thickness(zen ? 12 : 10, 0, 30, 0), VerticalAlignment = VerticalAlignment.Center };
+                var b = Click(tb, () => { Done(); a(); }, hover, radius: new CornerRadius(retro ? 0 : zen ? 12 : 4), pad: new Thickness(0, zen ? 7 : 6, 0, zen ? 7 : 6));
                 b.MouseEnter += (s, e) => tb.Foreground = B(fg);
                 b.MouseLeave += (s, e) => tb.Foreground = B(fg);
                 sp.Children.Add(b);
             }
-            void Sep() => sp.Children.Add(new Border { Height = 1, Background = B(A(fg, 50)), Margin = new Thickness(6, 4, 6, 4) });
+            void Sep() => sp.Children.Add(new Border { Height = 1, Background = B(A(fg, zen ? (byte)30 : (byte)50)), Margin = new Thickness(6, 4, 6, 4) });
 
             Item(L("Installierte Apps", "Installed apps"), () => ShellActions.Run("ms-settings:appsfeatures"));
             Item(L("Energieoptionen", "Power options"), () => ShellActions.Run("ms-settings:powersleep"));
@@ -71,7 +73,8 @@ namespace WinMorph.Shell
             Item(L("Original-Windows wiederherstellen", "Restore original Windows"), ShellActions.Restore);
 
             UIElement content;
-            if (retro) content = new Bevel { Child = sp };
+            if (zen) content = new Border { Child = ZenStyle.Pane(sp, 20, 175), Padding = new Thickness(18, 12, 18, 24) };
+            else if (retro) content = new Bevel { Child = sp };
             else content = new Border
             {
                 Child = sp, Background = B(bg), CornerRadius = new CornerRadius(Math.Min(10, t.MenuRadius + 4)), BorderBrush = B(C(0x808080, 70)), BorderThickness = new Thickness(1),

@@ -18,7 +18,7 @@ namespace WinMorph.Shell
     /// <summary>
     /// The Alt+Tab switcher of a look. Every look has its own:
     ///  Aero (Windows 7): a glass panel with live thumbnails and a glass highlight that glides between them.
-    ///  Shoji (Zen): paper doors slide shut and open again on the chosen window; the windows hang as wooden ema plaques that swing.
+    ///  Pond (Zen): the chosen window large in a frosted frame over the misted pond, every window a pebble that lifts with a ring of water.
     ///  Table (Hacker): a process table with PID and memory, inverted selection and a live preview pane.
     /// </summary>
     public sealed class Switcher : Window
@@ -60,7 +60,7 @@ namespace WinMorph.Shell
                 var h = new WindowInteropHelper(this).Handle;
                 int ex = W32.GetWindowLong(h, W32.GWL_EXSTYLE);
                 SetWindowLong(h, W32.GWL_EXSTYLE, ex | W32.WS_EX_TOOLWINDOW | W32.WS_EX_NOACTIVATE);
-                int corner = t.Switch == SwitchKind.Table || t.Switch == SwitchKind.Shoji ? 1 : 2;   // 1 = square, 2 = round
+                int corner = t.Switch == SwitchKind.Table || t.Switch == SwitchKind.Shoji ? 1 : 2;   // the pond covers the whole monitor   // 1 = square, 2 = round
                 W32.DwmSetWindowAttribute(h, W32.DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, 4);
                 if (glass)
                 {
@@ -233,197 +233,133 @@ namespace WinMorph.Shell
         }
 
         // =====================================================================
-        // Zen: shoji and ema. The chosen window stands behind sliding paper doors;
-        // the windows hang as wooden plaques on a cord.
+        // Zen: the pond mirror – the chosen window large over the misted pond, every window a pebble
         // =====================================================================
         UIElement BuildShoji()
         {
-            glass = true;
-            Background = Brushes.Transparent;
             var mi = W32.Monitor(W32.MonitorAtCursor(), out double s);
             Left = mi.rcMonitor.Left / s; Top = mi.rcMonitor.Top / s;
             double W = (mi.rcMonitor.Right - mi.rcMonitor.Left) / s, H = (mi.rcMonitor.Bottom - mi.rcMonitor.Top) / s;
             Width = W; Height = H;
-            Color ink = C(0x2E2A24), sub = C(0x8A7A63), wood = C(0x8B6B4A), woodDark = C(0x4E3926), washi = C(0xFAF6EE), seal = C(0xC8452D);
-
+            // the whole pond, blurred and misted: the window is not layered, so the live pictures can sit on it
+            Background = new ImageBrush(ZenStyle.FrostImage) { Stretch = Stretch.Fill };
+            var ink = ZenStyle.Ink; var ink2 = ZenStyle.Ink2;
             var root = new Canvas { Width = W, Height = H, ClipToBounds = true };
-            // washi veil over the blurred desktop, a far ink-wash ridge at the bottom
-            root.Children.Add(new Rectangle { Width = W, Height = H, Fill = new LinearGradientBrush(C(0xF8F3EA, 205), C(0xEEE4D3, 235), 90) });
-            foreach (var (baseY, amp, alpha) in new[] { (0.86, 0.07, (byte)22), (0.92, 0.05, (byte)34) })
-            {
-                var g = new StreamGeometry();
-                using (var c = g.Open())
-                {
-                    c.BeginFigure(new Point(0, H), true, true);
-                    c.LineTo(new Point(0, H * baseY), false, false);
-                    c.BezierTo(new Point(W * 0.22, H * (baseY - amp)), new Point(W * 0.36, H * (baseY + amp * 0.4)), new Point(W * 0.55, H * (baseY - amp * 0.6)), false, false);
-                    c.BezierTo(new Point(W * 0.72, H * (baseY - amp * 1.4)), new Point(W * 0.86, H * baseY), new Point(W, H * (baseY - amp * 0.3)), false, false);
-                    c.LineTo(new Point(W, H), false, false);
-                }
-                root.Children.Add(new Path { Data = g, Fill = new LinearGradientBrush(C(0x2E2A24, alpha), C(0x2E2A24, 0), 90), IsHitTestVisible = false });
-            }
+            root.Children.Add(new Rectangle { Width = W, Height = H, Fill = B(A(ZenStyle.Mist, 105)) });
+            var rings = new Grid { Width = W, Height = H, IsHitTestVisible = false };
+            root.Children.Add(rings);
             if (wins.Count == 0)
             {
-                var empty = Empty(ink, "Segoe UI Light");
-                root.Children.Add(Place(empty, W * 0.4, H * 0.42));
+                var empty = ZenStyle.Text(L("Keine offenen Fenster", "No open windows"), 22, ink, FontWeights.SemiBold);
+                root.Children.Add(Place(empty, W / 2 - 140, H * 0.45));
                 return root;
             }
 
-            // ---- the shoji: a wooden frame, a room behind it, two paper doors ----
-            double fw = Math.Round(Math.Min(W * 0.56, 1080)), fh = Math.Round(Math.Min(H * 0.52, fw * 0.6));
-            double fx = Math.Round((W - fw) / 2), fy = Math.Round(H * 0.09);
-            const double rim = 12;
-            root.Children.Add(Place(new Border
+            // ---- the mirror: a frosted frame holding the live picture of the chosen window ----
+            double fw = Math.Round(Math.Min(W * 0.58, 1120)), fh = Math.Round(Math.Min(H * 0.56, fw * 0.6));
+            double fx = Math.Round((W - fw) / 2), fy = Math.Round(H * 0.1);
+            const double pad = 14;
+            var frame = new Border
             {
-                Width = fw + rim * 2, Height = fh + rim * 2, CornerRadius = new CornerRadius(3), Background = new LinearGradientBrush(C(0x6B4F35), woodDark, 90),
-                Effect = new DropShadowEffect { Color = C(0x3A2A1A), BlurRadius = 46, ShadowDepth = 14, Direction = 270, Opacity = 0.28 },
-            }, fx - rim, fy - rim));
-            var room = new Canvas { Width = fw, Height = fh, ClipToBounds = true, Background = new LinearGradientBrush(C(0x6E5A44), C(0x4E3E2E), 90) };
-            var roomIcon = new Image { Width = 112, Height = 112, Opacity = 0.85 };
-            room.Children.Add(Place(roomIcon, (fw - 112) / 2, (fh - 112) / 2));
-            FrameworkElement Door(bool left)
-            {
-                double dw = fw / 2;
-                var d = new Grid { Width = dw, Height = fh, Background = new LinearGradientBrush(washi, C(0xF0E7D6), 0) };
-                // kumiko lattice
-                for (int k = 1; k < 3; k++) d.Children.Add(new Rectangle { Width = 3, Fill = B(wood), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(dw * k / 3 - 1.5, 0, 0, 0) });
-                for (int k = 1; k < 4; k++) d.Children.Add(new Rectangle { Height = 3, Fill = B(wood), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, fh * k / 4 - 1.5, 0, 0) });
-                d.Children.Add(new Border { BorderBrush = B(woodDark), BorderThickness = new Thickness(left ? 5 : 3, 5, left ? 3 : 5, 5) });
-                // the finger pull near the meeting edge
-                d.Children.Add(new Ellipse
-                {
-                    Width = 12, Height = 30, Fill = B(C(0x5E4A35)), Stroke = B(C(0xB79A72)), StrokeThickness = 2,
-                    HorizontalAlignment = left ? HorizontalAlignment.Right : HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(left ? 0 : 18, 0, left ? 18 : 0, 0),
-                });
-                return d;
-            }
-            var doorL = Door(true); var doorR = Door(false);
-            var moveL = new TranslateTransform(); var moveR = new TranslateTransform(fw / 2, 0);
-            doorL.RenderTransform = moveL; doorR.RenderTransform = moveR;
-            room.Children.Add(doorL); room.Children.Add(doorR);
-            root.Children.Add(Place(room, fx, fy));
+                Width = fw + pad * 2, Height = fh + pad * 2, CornerRadius = new CornerRadius(26), Background = B(0xFFFFFF, 120),
+                BorderBrush = new LinearGradientBrush(C(0xFFFFFF, 235), C(0xFFFFFF, 110), 90), BorderThickness = new Thickness(1.2),
+                Effect = new DropShadowEffect { Color = ZenStyle.PondDeep, BlurRadius = 50, ShadowDepth = 14, Direction = 270, Opacity = 0.25 },
+            };
+            root.Children.Add(Place(frame, fx - pad, fy - pad));
+            var roomIcon = new Image { Width = 128, Height = 128, Opacity = 0.9 };
+            root.Children.Add(Place(roomIcon, fx + (fw - 128) / 2, fy + (fh - 128) / 2));
+            var frameMove = new TranslateTransform(0, 16);
+            frame.RenderTransform = frameMove; frame.Opacity = 0;
+            Animate(frameMove, TranslateTransform.YProperty, 0, 520, ZenStyle.Surface);
+            Animate(frame, OpacityProperty, 1, 320, ZenStyle.Surface);
 
-            // ---- title, written below the frame ----
+            var title = new TextBlock { Foreground = B(ink), FontFamily = ZenStyle.Family, FontSize = 26, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Width = fw };
+            var app = new TextBlock { Foreground = B(ink2), FontFamily = ZenStyle.Family, FontSize = 14, TextAlignment = TextAlignment.Center, Width = fw };
             var titleMove = new TranslateTransform();
-            var title = new TextBlock { Foreground = B(ink), FontFamily = new FontFamily("Segoe UI Light"), FontSize = 30, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Width = fw, RenderTransform = titleMove };
-            var app = new TextBlock { Foreground = B(sub), FontFamily = new FontFamily("Segoe UI"), FontSize = 13.5, TextAlignment = TextAlignment.Center, Width = fw };
-            root.Children.Add(Place(title, fx, fy + fh + rim + 26));
-            root.Children.Add(Place(app, fx, fy + fh + rim + 70));
+            title.RenderTransform = titleMove;
+            root.Children.Add(Place(title, fx, fy + fh + pad + 22));
+            root.Children.Add(Place(app, fx, fy + fh + pad + 60));
 
-            // ---- ema: every window a wooden plaque on a cord ----
-            int max = Math.Min(wins.Count, 12);
-            const double ew = 58, eh = 64, gap = 26, drop = 16;
-            double rowW = max * ew + (max - 1) * gap, rx = (W - rowW) / 2, ry = fy + fh + rim + 128;
-            double sag = 14 + max * 1.5;
-            var rope = new StreamGeometry();
-            using (var c = rope.Open()) { c.BeginFigure(new Point(rx - 40, ry), false, false); c.QuadraticBezierTo(new Point(W / 2, ry + sag * 2), new Point(rx + rowW + 40, ry), true, true); }
-            root.Children.Add(new Path { Data = rope, Stroke = B(wood), StrokeThickness = 2.4 });
-            double RopeY(double x) { double tt = (x - (rx - 40)) / (rowW + 80); return ry + 4 * sag * tt * (1 - tt); }
-
-            var swings = new List<RotateTransform>();
-            var strings = new List<Line>();
-            var seals = new List<Border>();
+            // ---- the pebbles: one per window ----
+            int max = Math.Min(wins.Count, 14);
+            const double pw = 66, gap = 18;
+            double rowW = max * pw + (max - 1) * gap, rx = (W - rowW) / 2, ry = fy + fh + pad + 112;
+            var lifts = new List<TranslateTransform>();
+            var halos = new List<Ellipse>();
             for (int i = 0; i < max; i++)
             {
-                double hx = rx + i * (ew + gap) + ew / 2, hy = RopeY(hx);
-                var plaque = new Canvas { Width = ew, Height = drop + eh, Background = Brushes.Transparent };
-                var str = new Line { X1 = ew / 2, Y1 = 0, X2 = ew / 2, Y2 = drop + 4, Stroke = B(wood), StrokeThickness = 1.6 };
-                var shape = new Path
-                {
-                    Data = Geometry.Parse(FormattableString.Invariant($"M0,13 L{ew / 2},0 L{ew},13 L{ew},{eh} L0,{eh} Z")),
-                    Fill = new LinearGradientBrush(C(0xE6CDA4), C(0xC9A06A), 90), Stroke = B(C(0x9A7550)), StrokeThickness = 1.2,
-                    Effect = new DropShadowEffect { Color = C(0x3A2A1A), BlurRadius = 10, ShadowDepth = 4, Direction = 270, Opacity = 0.22 },
-                };
-                plaque.Children.Add(str);
-                plaque.Children.Add(Place(shape, 0, drop));
-                plaque.Children.Add(Place(new Ellipse { Width = 5, Height = 5, Fill = B(woodDark) }, ew / 2 - 2.5, drop + 6));
-                plaque.Children.Add(Place(Img(wins[i].Icon, 28), (ew - 28) / 2, drop + 22));
-                var mark = new Border
-                {
-                    Width = 18, Height = 18, CornerRadius = new CornerRadius(3), Background = B(seal), Opacity = 0, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new ScaleTransform(1, 1),
-                    Child = new TextBlock { Text = Initial(wins[i]), Foreground = B(0xFFFFFF), FontWeight = FontWeights.Bold, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
-                };
-                plaque.Children.Add(Place(mark, ew - 14, drop + eh - 14));
-                var swing = new RotateTransform(0);
-                var fall = new TranslateTransform(0, -26);
-                plaque.RenderTransformOrigin = new Point(0.5, 0);
-                plaque.RenderTransform = new TransformGroup { Children = { swing, fall } };
-                plaque.Opacity = 0;
-                Clickable(plaque, i);
-                swings.Add(swing); strings.Add(str); seals.Add(mark); cells.Add(plaque);
-                root.Children.Add(Place(plaque, hx - ew / 2, hy));
-                // they are hung up one after another and settle on the cord
-                double delay = 90 + i * Math.Max(18, 44 - i * 3);
-                Animate(fall, TranslateTransform.YProperty, 0, 620, new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 7 }, delay: delay);
-                Animate(plaque, OpacityProperty, 1, 260, Soft, delay: delay);
+                var cell = new Grid { Width = pw, Height = pw, Background = Brushes.Transparent };
+                var halo = new Ellipse { Stroke = B(ZenStyle.Koi), StrokeThickness = 3, Opacity = 0, Margin = new Thickness(-5) };
+                cell.Children.Add(halo);
+                cell.Children.Add(new Border { CornerRadius = new CornerRadius(pw / 2), Background = B(0xFFFFFF, 185), BorderBrush = B(0xFFFFFF, 240), BorderThickness = new Thickness(1), Effect = new DropShadowEffect { Color = ZenStyle.PondDeep, BlurRadius = 14, ShadowDepth = 4, Direction = 270, Opacity = 0.2 } });
+                cell.Children.Add(wins[i].Icon != null ? (UIElement)Img(wins[i].Icon, 34) : ZenStyle.Text(Initial(wins[i]), 22, ZenStyle.Pond, FontWeights.SemiBold));
+                ((FrameworkElement)cell.Children[2]).HorizontalAlignment = HorizontalAlignment.Center;
+                var lift = new TranslateTransform(0, 22);
+                cell.RenderTransform = lift; cell.Opacity = 0;
+                Clickable(cell, i);
+                lifts.Add(lift); halos.Add(halo); cells.Add(cell);
+                root.Children.Add(Place(cell, rx + i * (pw + gap), ry));
+                // they surface one after another, the gaps shrinking like a pouring of stones
+                double delay = 60 + i * Math.Max(16, 40 - i * 3);
+                Animate(lift, TranslateTransform.YProperty, 0, 520, ZenStyle.Surface, delay: delay);
+                Animate(cell, OpacityProperty, 1, 280, ZenStyle.Surface, delay: delay);
             }
-            if (wins.Count > max) root.Children.Add(Place(new TextBlock { Text = "+" + (wins.Count - max), Foreground = B(sub), FontSize = 15 }, rx + rowW + 52, ry - 10));
+            if (wins.Count > max) root.Children.Add(Place(ZenStyle.Text("+" + (wins.Count - max), 15, ink2, FontWeights.SemiBold), rx + rowW + 20, ry + pw / 2 - 10));
 
-            // ---- the doors: one value (0 closed … 1 open) drives paper and live picture ----
-            double open = 0, vel = 0, goal = 0;
-            int shown = -1, last = -1;
-            bool running = false;
+            // ---- one value drives the picture: it fades out, the next window comes, it fades in ----
             LiveThumb pic = null;
+            int shown = -1, last = -1;
+            double alpha = 0, goal = 1;
+            bool running = false;
             var frameRect = new Rect(fx, fy, fw, fh);
             void Show(int i)
             {
                 shown = i;
                 pic?.Dispose(); pic = null;
                 roomIcon.Source = wins[i].Icon;
-                // what runs in the app, minimised ones included (DWM keeps their last frame); the icon only if there is no picture
-                var lt = new LiveThumb(this, wins[i].Hwnd, room); if (lt.Ok) pic = lt;
-                pic?.Place(frameRect, 0);
+                var lt = new LiveThumb(this, wins[i].Hwnd, root); if (lt.Ok) pic = lt;
+                pic?.Place(frameRect, 1, 0);
                 roomIcon.Visibility = pic != null ? Visibility.Hidden : Visibility.Visible;
                 title.Text = wins[i].Title;
                 app.Text = wins[i].AppName;
-                Animate(title, OpacityProperty, 1, 420, Soft, from: 0);
-                Animate(titleMove, TranslateTransform.YProperty, 0, 520, Soft, from: 8);
+                Animate(title, OpacityProperty, 1, 380, ZenStyle.Surface, from: 0);
+                Animate(titleMove, TranslateTransform.YProperty, 0, 460, ZenStyle.Surface, from: 8);
             }
             void Frame(object sender, EventArgs e)
             {
-                const double dt = 1 / 60.0;
-                bool closing = goal < open;
-                double k = closing ? 900 : 150, d = closing ? 60 : 19.5;   // close briskly, open slowly with a soft settle
-                vel += (-k * (open - goal) - d * vel) * dt;
-                open += vel * dt;
-                if (goal == 0 && open < 0.02) { open = 0; vel = 0; if (shown != index) Show(index); goal = 1; }
-                double o = Math.Max(0, open);
-                moveL.X = -o * fw / 2; moveR.X = fw / 2 + o * fw / 2;
-                pic?.Place(frameRect, o);
-                if (goal == 1 && Math.Abs(open - 1) < 0.0008 && Math.Abs(vel) < 0.002)
-                {
-                    open = 1; moveL.X = -fw / 2; moveR.X = fw; pic?.Place(frameRect, 1);
-                    CompositionTarget.Rendering -= Frame; running = false;
-                }
+                double speed = goal < alpha ? 1 / 0.09 : 1 / 0.2;   // out quickly, in softly
+                alpha += Math.Sign(goal - alpha) * speed / 60.0;
+                if (goal == 0 && alpha <= 0) { alpha = 0; if (shown != index) Show(index); goal = 1; }
+                alpha = Math.Max(0, Math.Min(1, alpha));
+                double eased = 1 - Math.Pow(1 - alpha, 3);
+                pic?.Place(frameRect, 1, (byte)Math.Round(255 * eased));
+                roomIcon.Opacity = 0.9 * eased;
+                if (goal == 1 && alpha >= 1) { CompositionTarget.Rendering -= Frame; running = false; }
             }
             void Run() { if (!running) { running = true; CompositionTarget.Rendering += Frame; } }
             Closed += (s2, e) => { CompositionTarget.Rendering -= Frame; pic?.Dispose(); };
 
             onSelect = (i, anim) =>
             {
-                // the ema swings out towards the direction of travel and gets the red seal
                 if (i != last)
                 {
-                    int dir = last < 0 ? 1 : (i > last ? 1 : -1);
-                    if (i < max)
-                    {
-                        swings[i].BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(dir * 11, 0, TimeSpan.FromMilliseconds(1500)) { EasingFunction = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 3, Springiness = 3 } });
-                        strings[i].Stroke = B(seal);
-                        var sc = (ScaleTransform)seals[i].RenderTransform;
-                        var press = new DoubleAnimation(1.9, 1, TimeSpan.FromMilliseconds(170)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } };
-                        sc.BeginAnimation(ScaleTransform.ScaleXProperty, press); sc.BeginAnimation(ScaleTransform.ScaleYProperty, press);
-                        seals[i].BeginAnimation(OpacityProperty, new DoubleAnimation(0, 0.95, TimeSpan.FromMilliseconds(120)));
-                    }
                     if (last >= 0 && last < max)
                     {
-                        strings[last].Stroke = B(wood);
-                        seals[last].BeginAnimation(OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(220)));
-                        swings[last].BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(-dir * 4, 0, TimeSpan.FromMilliseconds(900)) { EasingFunction = new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 2, Springiness = 4 } });
+                        Animate(lifts[last], TranslateTransform.YProperty, 0, 320, ZenStyle.Surface);
+                        Animate(halos[last], OpacityProperty, 0, 200);
+                    }
+                    if (i < max)
+                    {
+                        Animate(lifts[i], TranslateTransform.YProperty, -10, 360, ZenStyle.Surface);
+                        Animate(halos[i], OpacityProperty, 1, 160);
+                        // a ring spreads from the chosen pebble
+                        var c = new Point(rx + i * (pw + gap) + pw / 2, ry + pw / 2 - 10);
+                        ZenStyle.Rings(rings, c, A(ZenStyle.Koi, 200), 2, 120);
                     }
                     last = i;
                 }
-                if (i != shown) { goal = 0; Run(); }        // doors slide shut, the next window, doors slide open
-                else if (open < 1) { goal = 1; Run(); }
+                if (i != shown) { if (shown < 0) { Show(i); alpha = 0; goal = 1; } else goal = 0; Run(); }
+                else if (alpha < 1) { goal = 1; Run(); }
             };
             return root;
         }

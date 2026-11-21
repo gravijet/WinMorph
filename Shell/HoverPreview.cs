@@ -70,7 +70,9 @@ namespace WinMorph.Shell
             bool term = t.Btn == BtnStyle.Text;   // hacker look: text only, square, no icons
             Color bg = retro ? C(0xC0C0C0) : Color.FromRgb(t.MenuBg.R, t.MenuBg.G, t.MenuBg.B);
             if (t.Menu == MenuKind.Seven) bg = C(0x1E3350);
+            bool zen = t.Id == "zen";
             Color fg = retro ? C(0x000000) : (bg.R + bg.G + bg.B > 380 ? C(0x1E1E1E) : C(0xF2F2F2));
+            if (zen) fg = ZenStyle.Ink;
             Background = B(bg);
             FontFamily = new FontFamily(t.Font);
 
@@ -79,24 +81,25 @@ namespace WinMorph.Shell
             {
                 var win = w;
                 var head = new DockPanel { Margin = new Thickness(2, 0, 2, 6) };
-                var close = Click(term ? (UIElement)new TextBlock { Text = "[x]", Foreground = B(fg), FontFamily = new FontFamily("Consolas") } : Glyph("", 10, fg), () => { W32.Close(win.Hwnd); CloseNow(); }, term ? A(t.Accent, 80) : C(0xE81123), radius: new CornerRadius(term ? 0 : 3), pad: new Thickness(5, 3, 5, 3));
+                var close = Click(term ? (UIElement)new TextBlock { Text = "[x]", Foreground = B(fg), FontFamily = new FontFamily("Consolas") } : Glyph("", 10, fg), () => { W32.Close(win.Hwnd); CloseNow(); }, term ? A(t.Accent, 80) : zen ? A(ZenStyle.Momiji, 200) : C(0xE81123), radius: new CornerRadius(term ? 0 : zen ? 10 : 3), pad: new Thickness(5, 3, 5, 3));
                 DockPanel.SetDock(close, Dock.Right);
                 head.Children.Add(close);
                 var title = new StackPanel { Orientation = Orientation.Horizontal };
                 if (!term) title.Children.Add(Img(win.Icon, 16));
-                title.Children.Add(new TextBlock { Text = win.Title, Foreground = B(fg), FontFamily = new FontFamily(t.Font), FontSize = 12, Margin = new Thickness(6, 0, 0, 0), MaxWidth = 170, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
+                title.Children.Add(new TextBlock { Text = win.Title, Foreground = B(fg), FontFamily = new FontFamily(t.Font), FontSize = zen ? 12.5 : 12, Margin = new Thickness(6, 0, 0, 0), MaxWidth = 170, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
                 head.Children.Add(title);
                 var thumbArea = new Grid { Width = 220, Height = 128 };
                 if (term) thumbArea.Children.Add(new TextBlock { Text = Core.Loc.De ? "minimiert" : "minimised", Foreground = B(A(fg, 140)), FontFamily = new FontFamily("Consolas"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
                 else thumbArea.Children.Add(Img(win.Icon, 40));
                 var sp = new StackPanel();
                 sp.Children.Add(head); sp.Children.Add(thumbArea);
-                var card = Click(sp, () => { activate(win); CloseNow(); }, A(t.Accent, term ? (byte)40 : (byte)70), radius: new CornerRadius(retro || term ? 0 : 8), pad: new Thickness(8));
+                var card = Click(sp, () => { activate(win); CloseNow(); }, zen ? C(0xFFFFFF, 140) : A(t.Accent, term ? (byte)40 : (byte)70), radius: new CornerRadius(retro || term ? 0 : zen ? 16 : 8), pad: new Thickness(8));
                 card.Margin = new Thickness(2);
                 row.Children.Add(card);
                 targets.Add((win.Hwnd, thumbArea));
             }
-            Content = retro ? (UIElement)new Bevel { Child = row } : term ? new Border { Child = row, BorderBrush = B(C(0x808080, 70)), BorderThickness = new Thickness(1) } : (UIElement)row;
+            Content = retro ? (UIElement)new Bevel { Child = row } : term ? new Border { Child = row, BorderBrush = B(C(0x808080, 70)), BorderThickness = new Thickness(1) } : zen ? ZenStyle.Pane(row, 0, 150, shadow: false) : (UIElement)row;
+            if (zen) Background = B(ZenStyle.Mist);
             if (term) { Background = B(0x000000); FontFamily = new FontFamily("Consolas"); }
 
             RenderGuard.Watch(this);
