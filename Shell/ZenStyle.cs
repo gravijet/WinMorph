@@ -111,6 +111,52 @@ namespace WinMorph.Shell
             return g;
         }
 
+        // ---------------- scroll bars: a thin rounded reed instead of Windows' bar with arrows ----------------
+        static ResourceDictionary scroll;
+        public static ResourceDictionary ScrollBars
+        {
+            get
+            {
+                if (scroll != null) return scroll;
+                const string xaml = @"<ResourceDictionary xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
+  <Style x:Key='ZenThumb' TargetType='Thumb'>
+    <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='Thumb'>
+      <Border x:Name='b' CornerRadius='4' Background='#661C2A2D' Margin='2'/>
+      <ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='b' Property='Background' Value='#AA0E7C78'/></Trigger>
+      <Trigger Property='IsDragging' Value='True'><Setter TargetName='b' Property='Background' Value='#FF0E7C78'/></Trigger></ControlTemplate.Triggers>
+    </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key='ZenPage' TargetType='RepeatButton'>
+    <Setter Property='Focusable' Value='False'/><Setter Property='IsTabStop' Value='False'/>
+    <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='RepeatButton'><Border Background='Transparent'/></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType='ScrollBar'>
+    <Setter Property='Width' Value='10'/><Setter Property='MinWidth' Value='10'/>
+    <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='ScrollBar'>
+      <Track x:Name='PART_Track' IsDirectionReversed='True'>
+        <Track.DecreaseRepeatButton><RepeatButton Style='{StaticResource ZenPage}' Command='ScrollBar.PageUpCommand'/></Track.DecreaseRepeatButton>
+        <Track.IncreaseRepeatButton><RepeatButton Style='{StaticResource ZenPage}' Command='ScrollBar.PageDownCommand'/></Track.IncreaseRepeatButton>
+        <Track.Thumb><Thumb Style='{StaticResource ZenThumb}'/></Track.Thumb>
+      </Track>
+    </ControlTemplate></Setter.Value></Setter>
+    <Style.Triggers><Trigger Property='Orientation' Value='Horizontal'>
+      <Setter Property='Width' Value='Auto'/><Setter Property='MinWidth' Value='0'/><Setter Property='Height' Value='10'/>
+      <Setter Property='Template'><Setter.Value><ControlTemplate TargetType='ScrollBar'>
+        <Track x:Name='PART_Track'>
+          <Track.DecreaseRepeatButton><RepeatButton Style='{StaticResource ZenPage}' Command='ScrollBar.PageLeftCommand'/></Track.DecreaseRepeatButton>
+          <Track.IncreaseRepeatButton><RepeatButton Style='{StaticResource ZenPage}' Command='ScrollBar.PageRightCommand'/></Track.IncreaseRepeatButton>
+          <Track.Thumb><Thumb Style='{StaticResource ZenThumb}'/></Track.Thumb>
+        </Track>
+      </ControlTemplate></Setter.Value></Setter>
+    </Trigger></Style.Triggers>
+  </Style>
+</ResourceDictionary>";
+                try { scroll = (ResourceDictionary)System.Windows.Markup.XamlReader.Parse(xaml); }
+                catch { scroll = new ResourceDictionary(); }
+                return scroll;
+            }
+        }
+
         // ---------------- motion: water ----------------
         public static readonly IEasingFunction Surface = new QuinticEase { EasingMode = EasingMode.EaseOut };
         public static readonly IEasingFunction Settle = new SineEase { EasingMode = EasingMode.EaseInOut };

@@ -75,33 +75,43 @@ namespace WinMorph.Shell
         public static void Breathe(ShellTheme t)
         {
             if (breath != null) { breath.Close(); return; }
-            var mi = W32.PrimaryMonitor(out double sc);
+            var mi = W32.Monitor(W32.MonitorAtCursor(), out double sc);
             var w = new Window
             {
                 WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, Topmost = true, ShowInTaskbar = false, AllowsTransparency = true,
-                Background = B(A(Color.FromRgb(t.MenuBg.R, t.MenuBg.G, t.MenuBg.B), 238)), Cursor = Cursors.Hand,
+                Background = new ImageBrush(ZenStyle.FrostImage) { Stretch = Stretch.Fill },
                 Left = mi.rcMonitor.Left / sc, Top = mi.rcMonitor.Top / sc, Width = (mi.rcMonitor.Right - mi.rcMonitor.Left) / sc, Height = (mi.rcMonitor.Bottom - mi.rcMonitor.Top) / sc,
             };
-            var grid = new Grid();
+            // the pond under mist; in the middle a ring of water that widens with the breath
+            var grid = new Grid { Background = B(A(ZenStyle.Mist, 120)) };
             var scale = new ScaleTransform(0.55, 0.55);
-            var glow = new RadialGradientBrush(A(t.Accent, 200), A(t.Accent, 30));
-            var circle = new Ellipse { Width = 340, Height = 340, Fill = glow, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = scale, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            var word = new TextBlock { FontFamily = new FontFamily("Segoe UI Light"), FontSize = 40, Foreground = B(t.MenuFg), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            var info = new TextBlock { FontFamily = new FontFamily("Segoe UI"), FontSize = 15, Foreground = B(t.MenuSub), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 80) };
-            grid.Children.Add(circle); grid.Children.Add(word); grid.Children.Add(info);
+            var water = new Grid { Width = 380, Height = 380, RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = scale, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            water.Children.Add(new Ellipse { Fill = new RadialGradientBrush(A(ZenStyle.Pond, 120), A(ZenStyle.Pond, 10)) });
+            for (int i = 0; i < 3; i++) water.Children.Add(new Ellipse { Stroke = B(A(Colors.White, (byte)(200 - i * 50))), StrokeThickness = 2, Margin = new Thickness(i * 34) });
+            var word = new TextBlock { FontFamily = ZenStyle.Family, FontWeight = FontWeights.Light, FontSize = 44, Foreground = B(ZenStyle.Ink), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            // six pebbles below: one fills with koi orange per round
+            var dots = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 90) };
+            const int rounds = 6;
+            for (int i = 0; i < rounds; i++) dots.Children.Add(new Ellipse { Width = 14, Height = 14, Margin = new Thickness(7, 0, 7, 0), Fill = B(C(0xFFFFFF, 170)), Stroke = B(C(0xFFFFFF, 230)), StrokeThickness = 1 });
+            var close = ZenStyle.Stone("", () => w.Close(), L("Beenden", "Stop"), 44, C(0xFFFFFF, 170));
+            close.HorizontalAlignment = HorizontalAlignment.Right; close.VerticalAlignment = VerticalAlignment.Top; close.Margin = new Thickness(0, 32, 36, 0);
+            grid.Children.Add(water); grid.Children.Add(word); grid.Children.Add(dots); grid.Children.Add(close);
             w.Content = grid;
             var phases = new[] { (L("Einatmen", "Breathe in"), 4.0, 1.0), (L("Halten", "Hold"), 4.0, 1.0), (L("Ausatmen", "Breathe out"), 6.0, 0.55) };
             int round = 0, phase = -1;
-            const int rounds = 6;
             var timer = new DispatcherTimer();
             void Next()
             {
                 phase++;
-                if (phase == phases.Length) { phase = 0; round++; }
+                if (phase == phases.Length)
+                {
+                    ((Ellipse)dots.Children[round]).Fill = B(ZenStyle.Koi);
+                    phase = 0; round++;
+                }
                 if (round == rounds) { w.Close(); return; }
                 var (text, secs, target) = phases[phase];
+                word.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(600)));
                 word.Text = text;
-                info.Text = L("Runde ", "Round ") + (round + 1) + " / " + rounds + "   ·   " + L("Esc oder Klick beendet", "Esc or click to stop");
                 var anim = new DoubleAnimation(target, TimeSpan.FromSeconds(secs)) { EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } };
                 scale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
                 scale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
@@ -109,9 +119,8 @@ namespace WinMorph.Shell
             }
             timer.Tick += (s, e) => Next();
             w.KeyDown += (s, e) => { if (e.Key == Key.Escape) w.Close(); };
-            w.MouseLeftButtonUp += (s, e) => w.Close();
             w.Closed += (s, e) => { timer.Stop(); breath = null; };
-            w.Loaded += (s, e) => { Next(); timer.Start(); w.Activate(); };
+            w.Loaded += (s, e) => { ZenStyle.Ripple(grid, new Point(0.5, 0.5), 700); Next(); timer.Start(); w.Activate(); };
             breath = w;
             w.Show();
         }

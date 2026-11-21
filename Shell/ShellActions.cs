@@ -16,21 +16,23 @@ namespace WinMorph.Shell
             try { Process.Start(new ProcessStartInfo(target, args ?? "") { UseShellExecute = true }); } catch { }
         }
 
-        /// <summary>Set by the shell for looks with their own apps (Windows 7, Hacker): task manager, run box, file manager.</summary>
+        /// <summary>Set by the shell: every look has its own apps (task manager, run box, file manager).</summary>
         internal static ShellTheme Own;
         /// <summary>The open windows (from the shell's window tracker), for the Windows 7 task manager.</summary>
         internal static Func<System.Collections.Generic.List<WinInfo>> Windows;
         static bool Seven => Own?.Id == "win7";
         static bool Hacker => Own?.Id == "terminal";
+        static bool ZenLook => Own?.Id == "zen";
 
         public static void Folder(Environment.SpecialFolder f) => Files(Environment.GetFolderPath(f));
         public static void Downloads() { if (Own != null) Files(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")); else Run("explorer.exe", "shell:Downloads"); }
-        public static void ThisPC() { if (Seven) SevenFiles.Open(SevenFiles.ComputerPath); else if (Own != null) Files(); else Run("explorer.exe", "shell:MyComputerFolder"); }
+        public static void ThisPC() { if (Seven) SevenFiles.Open(SevenFiles.ComputerPath); else if (ZenLook) ZenFiles.Open(""); else if (Own != null) Files(); else Run("explorer.exe", "shell:MyComputerFolder"); }
         public static void ControlPanel() => Run("control.exe");
         public static void Settings() => Run("ms-settings:");
         public static void RunDialog()
         {
             if (Seven) SevenRun.Open();
+            else if (ZenLook) ZenRun.Open();
             else if (Hacker) HackerPanel.Toggle("run", Own, new Rect(0, 0, 0, 0));
             else W32.SendKeys(LWIN, (byte)'R');
         }
@@ -42,12 +44,14 @@ namespace WinMorph.Shell
         public static void TaskManager()
         {
             if (Seven) SevenTasks.Open();
+            else if (ZenLook) ZenTasks.Open();
             else if (Hacker) HackerTasks.Open(Own);
             else Run("taskmgr.exe");
         }
         public static void Files(string path = null)
         {
             if (Seven) SevenFiles.Open(path);
+            else if (ZenLook) ZenFiles.Open(path);
             else if (Hacker) HackerFiles.Open(Own, path);
             else Run("explorer.exe", path == null ? null : "\"" + path + "\"");
         }

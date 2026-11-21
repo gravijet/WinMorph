@@ -24,6 +24,7 @@ namespace WinMorph.Shell
         UIElement BuildZen()
         {
             const double W = 620;
+            Resources.MergedDictionaries.Add(ZenStyle.ScrollBars);
             const int Cols = 6;
             var ink = ZenStyle.Ink; var ink2 = ZenStyle.Ink2;
             var root = new StackPanel { Margin = new Thickness(22, 20, 22, 16) };

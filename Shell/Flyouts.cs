@@ -86,7 +86,7 @@ namespace WinMorph.Shell
             FontFamily = zen ? ZenStyle.Family : new FontFamily("Segoe UI");
             FontSize = zen ? 13.5 : 12;
             if (!zen) { Resources.MergedDictionaries.Add(SevenWindow.Aero); Resources[typeof(TextBlock)] = new Style(typeof(TextBlock)); }
-            else Resources[typeof(TextBlock)] = new Style(typeof(TextBlock));
+            else { Resources[typeof(TextBlock)] = new Style(typeof(TextBlock)); Resources.MergedDictionaries.Add(ZenStyle.ScrollBars); }
             Deactivated += (s, e) => Done();
             PreviewKeyDown += (s, e) => { if (e.Key == Key.Escape) Done(); };
             Closed += (s, e) => { foreach (var tm in timers) tm.Stop(); };

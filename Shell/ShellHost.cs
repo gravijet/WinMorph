@@ -62,7 +62,7 @@ namespace WinMorph.Shell
             if (preview) { BuildBars(); return; }
 
             ThemeToolTips();
-            ShellActions.Own = t.Id == "win7" || t.Id == "terminal" ? t : null;
+            ShellActions.Own = t;   // every look brings its own Explorer, Task Manager and Run box
             if (ShellActions.Own != null)
             {
                 // the look's own Explorer and Task Manager, also when opened from the Start menu, a desktop icon or Ctrl+Alt+Del
