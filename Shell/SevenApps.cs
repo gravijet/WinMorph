@@ -34,7 +34,8 @@ namespace WinMorph.Shell
         IntPtr hwnd;
 
         static ResourceDictionary aero;
-        static ResourceDictionary Aero
+        /// <summary>WPF's original Windows 7 control theme, also for the look's tray panels.</summary>
+        internal static ResourceDictionary Aero
         {
             get
             {

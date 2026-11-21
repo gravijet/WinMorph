@@ -7,7 +7,11 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
+using System.Windows.Shapes;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;
 using static WinMorph.Shell.Ui;
@@ -15,38 +19,60 @@ using static WinMorph.Shell.Ui;
 namespace WinMorph.Shell
 {
     /// <summary>
-    /// Notification banners of the hacker look. App notifications are read from the Windows
-    /// notification centre (they stay there); Windows' own banners are switched off by the look.
+    /// Notifications in the look's own design: Windows 7 balloon tips at the tray, frosted Zen cards, black
+    /// terminal banners. App notifications are read from the Windows notification centre (they stay there).
+    /// While the look runs, Windows' own banners are switched off per app and given back exactly as they were
+    /// when the look stops (also after a crash: <see cref="RestoreBanners"/> runs from any WinMorph process).
+    /// Apps that ring (calls, alarms) keep Windows' banner, because only that one has the answer buttons.
     /// </summary>
     internal static class Notify
     {
+        public sealed class Item { public DateTime When; public string App, Title, Body, Aumid; }
+
         static readonly List<Window> shown = new List<Window>();
+        static readonly List<Item> history = new List<Item>();
         static ShellTheme theme;
         static DispatcherTimer poll;
         static HashSet<uint> seen;
         static bool busy;
-        const int MaxShown = 4;
+        const int MaxShown = 3;
+        static bool De => Core.Loc.De;
+        static string L(string de, string en) => De ? de : en;
 
-        static string AppKey(string aumid) => @"HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\" + aumid;
+        /// <summary>Newest first; the Zen calendar shows them.</summary>
+        public static IReadOnlyList<Item> History => history;
+        /// <summary>Do not disturb: notices only gather in the history.</summary>
+        public static bool Quiet;
+        public static event Action Changed;
 
-        /// <summary>Starts watching the notification centre (polling every 2 s: event registration needs a packaged app).</summary>
-        public static void Start(ShellTheme t)
+        public static void Dismiss(Item i) { history.Remove(i); Changed?.Invoke(); }
+        public static void ClearHistory() { history.Clear(); Changed?.Invoke(); }
+
+        const string SettingsRoot = @"HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings";
+        const string BannersOff = "BannersOff";   // REG_MULTI_SZ in WinMorph's key: "aumid|original" ("-" = had no value)
+
+        // apps whose banners carry answer/snooze buttons stay with Windows
+        static readonly string[] KeepWindows = { "teams", "yourphone", "phonelink", "whatsapp", "skype", "zoom", "windowsalarms", "alarms", "calling", "discord", "signal", "telegram" };
+
+        /// <summary>Starts the look's notifications: reads the notification centre if Windows allows it.</summary>
+        public static void Use(ShellTheme t)
         {
             Stop();
             theme = t;
             var ui = Dispatcher.CurrentDispatcher;
-            // off the UI thread: waiting there for the permission request could freeze the shell
+            // off the UI thread: waiting for the permission there could freeze the shell
             Task.Run(() =>
             {
                 try
                 {
                     var l = UserNotificationListener.Current;
-                    if (l.GetAccessStatus() != UserNotificationListenerAccessStatus.Allowed && l.RequestAccessAsync().AsTask().Wait(30000) && l.GetAccessStatus() != UserNotificationListenerAccessStatus.Allowed) return;
-                    if (l.GetAccessStatus() != UserNotificationListenerAccessStatus.Allowed) return;
+                    if (l.GetAccessStatus() != UserNotificationListenerAccessStatus.Allowed) l.RequestAccessAsync().AsTask().Wait(30000);
+                    if (l.GetAccessStatus() != UserNotificationListenerAccessStatus.Allowed) return;   // Windows' banners stay
                     ui.BeginInvoke(new Action(() =>
                     {
                         if (theme != t) return;   // stopped or restarted meanwhile
-                        poll = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (s, e) => Poll(l), ui);
+                        foreach (var aumid in KnownApps()) BannerOff(aumid);
+                        poll = new DispatcherTimer(TimeSpan.FromSeconds(1.5), DispatcherPriority.Background, (s, e) => Poll(l), ui);
                         Poll(l);
                     }));
                 }
@@ -54,24 +80,72 @@ namespace WinMorph.Shell
             });
         }
 
-        /// <summary>Own notices only (Zen focus timer, terminal timer): banners in the look's colours, Windows' banners stay as they are.</summary>
-        public static void Use(ShellTheme t) { Stop(); theme = t; }
-
         public static void Stop()
         {
             poll?.Stop(); poll = null; seen = null; theme = null;
             foreach (var w in shown.ToList()) try { w.Close(); } catch { }
             shown.Clear();
+            RestoreBanners();
+        }
+
+        static IEnumerable<string> KnownApps()
+        {
+            try { using (var k = Core.Reg.Open(SettingsRoot)) return k?.GetSubKeyNames().ToList() ?? new List<string>(); }
+            catch { return new string[0]; }
+        }
+
+        static bool Rings(string aumid) => KeepWindows.Any(x => aumid.IndexOf(x, StringComparison.OrdinalIgnoreCase) >= 0);
+
+        static void BannerOff(string aumid)
+        {
+            if (string.IsNullOrEmpty(aumid) || Rings(aumid)) return;
+            try
+            {
+                var list = Recorded();
+                if (list.Any(x => x.StartsWith(aumid + "|", StringComparison.OrdinalIgnoreCase))) return;
+                var key = SettingsRoot + "\\" + aumid;
+                var cur = Core.Reg.Get(key, "ShowBanner");
+                if (cur is int v && v == 0) return;   // the user had switched it off already: nothing to give back
+                // remember first, then change: a crash in between never loses the original
+                list.Add(aumid + "|" + (cur is int c ? c.ToString() : "-"));
+                using (var k = Core.Reg.Create(ShellControl.SettingsKey)) k.SetValue(BannersOff, list.ToArray(), RegistryValueKind.MultiString);
+                using (var k = Core.Reg.Create(key)) k.SetValue("ShowBanner", 0, RegistryValueKind.DWord);
+            }
+            catch { }
+        }
+
+        static List<string> Recorded() => (Core.Reg.Get(ShellControl.SettingsKey, BannersOff) as string[])?.ToList() ?? new List<string>();
+
+        /// <summary>Gives every app its Windows banner back as it was. Safe to call from any process, any time.</summary>
+        public static void RestoreBanners()
+        {
+            try
+            {
+                foreach (var e in Recorded())
+                {
+                    int bar = e.LastIndexOf('|');
+                    if (bar <= 0) continue;
+                    string aumid = e.Substring(0, bar), orig = e.Substring(bar + 1);
+                    using (var k = Core.Reg.Open(SettingsRoot + "\\" + aumid, true))
+                    {
+                        if (k == null) continue;
+                        if (orig == "-") k.DeleteValue("ShowBanner", false);
+                        else if (int.TryParse(orig, out int v)) k.SetValue("ShowBanner", v, RegistryValueKind.DWord);
+                    }
+                }
+                using (var k = Core.Reg.Open(ShellControl.SettingsKey, true)) k?.DeleteValue(BannersOff, false);
+            }
+            catch { }
         }
 
         static void Poll(UserNotificationListener l)
         {
-            if (busy || CustomLock.Active) return;
+            if (busy) return;
             busy = true;
             var ui = Dispatcher.CurrentDispatcher;
             Task.Run(() =>
             {
-                var fresh = new List<(string app, string title, string body)>();
+                var fresh = new List<Item>();
                 try
                 {
                     var list = l.GetNotificationsAsync(NotificationKinds.Toast).AsTask().Result;
@@ -79,68 +153,184 @@ namespace WinMorph.Shell
                     if (seen != null)
                         foreach (var n in list.Where(n => !seen.Contains(n.Id)))
                         {
-                            string aumid = null, app = "app";
+                            string aumid = null, app = "App";
                             try { aumid = n.AppInfo.AppUserModelId; app = n.AppInfo.DisplayInfo.DisplayName; } catch { }
-                            // Windows still shows its own banner for apps the look did not switch off – no double banner
-                            if (aumid == null || !(Core.Reg.Get(AppKey(aumid), "ShowBanner") is int b && b == 0)) continue;
                             var bind = n.Notification.Visual.GetBinding(KnownNotificationBindings.ToastGeneric);
                             var texts = bind?.GetTextElements().Select(x => x.Text).Where(x => !string.IsNullOrWhiteSpace(x)).ToList() ?? new List<string>();
-                            fresh.Add((app, texts.FirstOrDefault() ?? "", string.Join("\n", texts.Skip(1))));
+                            fresh.Add(new Item { When = DateTime.Now, App = app, Aumid = aumid, Title = texts.FirstOrDefault() ?? "", Body = string.Join("\n", texts.Skip(1)) });
                         }
                     seen = ids;
                 }
                 catch { }
-                ui.BeginInvoke(new Action(() => { busy = false; foreach (var f in fresh) Show(f.app, f.title, f.body); }));
+                ui.BeginInvoke(new Action(() =>
+                {
+                    busy = false;
+                    foreach (var f in fresh)
+                    {
+                        bool windowsShows = f.Aumid == null || Rings(f.Aumid) || !(Core.Reg.Get(SettingsRoot + "\\" + f.Aumid, "ShowBanner") is int b && b == 0);
+                        Add(f);
+                        if (!windowsShows) Banner(f);
+                        else if (f.Aumid != null) BannerOff(f.Aumid);   // a new app: Windows showed this one, the next ones are the look's
+                    }
+                }));
             });
         }
 
-        /// <summary>Shows a banner at the top right. Also used for the shell's own messages (Wi-Fi, battery, timer).</summary>
+        static void Add(Item i)
+        {
+            history.Insert(0, i);
+            while (history.Count > 30) history.RemoveAt(history.Count - 1);
+            Changed?.Invoke();
+        }
+
+        /// <summary>The shell's own messages (Wi-Fi, timer, focus): into the history and onto the screen.</summary>
         public static void Show(string app, string title, string body = null, double seconds = 6)
         {
+            if (theme == null) return;
+            var i = new Item { When = DateTime.Now, App = app, Title = title, Body = body };
+            Add(i);
+            Banner(i, seconds);
+        }
+
+        static void Banner(Item i, double seconds = 6)
+        {
             var t = theme;
-            if (t == null) return;
-            bool term = t.Start == StartKind.Terminal;
-            // the hacker look keeps its black terminal banner, the others use their menu colours
-            Color g = term ? t.Accent : t.MenuFg, d = term ? t.BarFgDim : t.MenuSub, bg = term ? Colors.Black : Color.FromRgb(t.MenuBg.R, t.MenuBg.G, t.MenuBg.B);
-            var mono = new FontFamily(term ? "Consolas" : t.Font);
-            var stack = new StackPanel { MaxWidth = 380 };
-            stack.Children.Add(new TextBlock { Text = (term ? "[" + (app ?? "").ToLowerInvariant() + "]  " : (app ?? "") + "  ·  ") + DateTime.Now.ToString("HH:mm"), Foreground = B(d), FontFamily = mono, FontSize = 11.5 });
-            if (!string.IsNullOrEmpty(title)) stack.Children.Add(new TextBlock { Text = title, Foreground = B(g), FontFamily = mono, FontSize = 14, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
-            if (!string.IsNullOrEmpty(body)) stack.Children.Add(new TextBlock { Text = body.Length > 300 ? body.Substring(0, 299) + "…" : body, Foreground = B(term ? Core.Applier.Mix(g, Colors.White, 0.35) : Core.Applier.Mix(g, bg, 0.2)), FontFamily = mono, FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
-            var w = new Window
+            if (t == null || Quiet || CustomLock.Active) return;
+            Window w;
+            if (t.Start == StartKind.Terminal) w = TerminalBanner(t, i);
+            else if (t.Id == "zen") w = ZenCard(i);
+            else w = SevenBalloon(i);
+            var close = new DispatcherTimer { Interval = TimeSpan.FromSeconds(seconds) };
+            close.Tick += (s, e) => { if (w.IsMouseOver) return; close.Stop(); Leave(w); };
+            w.MouseLeftButtonUp += (s, e) =>
             {
-                WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Topmost = true, ShowActivated = false,
-                SizeToContent = SizeToContent.WidthAndHeight, Background = B(bg), Cursor = Cursors.Hand,
-                Content = new Border { BorderBrush = B(0x2A2A2A), BorderThickness = new Thickness(term ? 1 : 0), Padding = new Thickness(16, 11, 16, 13), Child = stack, MinWidth = 300 },
+                close.Stop(); Leave(w);
+                if (i.Aumid != null) ShellActions.Run("explorer.exe", @"shell:AppsFolder\" + i.Aumid);   // opens the app that sent it
             };
+            w.Closed += (s, e) => { close.Stop(); shown.Remove(w); Arrange(); };
             w.SourceInitialized += (s, e) =>
             {
                 var h = new WindowInteropHelper(w).Handle;
                 W32.SetWindowLong(h, W32.GWL_EXSTYLE, W32.GetWindowLong(h, W32.GWL_EXSTYLE) | W32.WS_EX_TOOLWINDOW | W32.WS_EX_NOACTIVATE);
-                int corner = term ? 1 : 2; W32.DwmSetWindowAttribute(h, W32.DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, 4);
             };
-            var close = new DispatcherTimer { Interval = TimeSpan.FromSeconds(seconds) };
-            close.Tick += (s, e) => { if (w.IsMouseOver) return; close.Stop(); w.Close(); };
-            w.MouseLeftButtonUp += (s, e) => { close.Stop(); w.Close(); };
-            w.Closed += (s, e) => { close.Stop(); shown.Remove(w); Arrange(); };
             RenderGuard.Watch(w);
-            while (shown.Count >= MaxShown) shown[0].Close();
+            // Windows 7 showed one balloon at a time
+            int max = t.Id == "win7" ? 1 : MaxShown;
+            while (shown.Count >= max) shown[0].Close();
             shown.Add(w);
             w.Show();
             Arrange();
+            Enter(w);
             close.Start();
+        }
+
+        static Window Base(bool transparent) => new Window
+        {
+            WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, Topmost = true, ShowActivated = false,
+            SizeToContent = SizeToContent.WidthAndHeight, AllowsTransparency = transparent, Background = transparent ? Brushes.Transparent : Brushes.Black, Cursor = Cursors.Hand,
+        };
+
+        static Window TerminalBanner(ShellTheme t, Item i)
+        {
+            Color g = t.Accent, d = t.BarFgDim;
+            var mono = new FontFamily("Consolas");
+            var stack = new StackPanel { MaxWidth = 380 };
+            stack.Children.Add(new TextBlock { Text = "[" + (i.App ?? "").ToLowerInvariant() + "]  " + i.When.ToString("HH:mm"), Foreground = B(d), FontFamily = mono, FontSize = 11.5 });
+            if (!string.IsNullOrEmpty(i.Title)) stack.Children.Add(new TextBlock { Text = i.Title, Foreground = B(g), FontFamily = mono, FontSize = 14, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+            if (!string.IsNullOrEmpty(i.Body)) stack.Children.Add(new TextBlock { Text = Cut(i.Body), Foreground = B(Core.Applier.Mix(g, Colors.White, 0.35)), FontFamily = mono, FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+            var w = Base(false);
+            w.Content = new Border { BorderBrush = B(0x2A2A2A), BorderThickness = new Thickness(1), Padding = new Thickness(16, 11, 16, 13), Child = stack, MinWidth = 300 };
+            w.SourceInitialized += (s, e) => { var h = new WindowInteropHelper(w).Handle; int corner = 1; W32.DwmSetWindowAttribute(h, W32.DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, 4); };
+            return w;
+        }
+
+        static string Cut(string s) => s.Length > 300 ? s.Substring(0, 299) + "…" : s;
+
+        /// <summary>Zen: a frosted card that surfaces at the lower right, above the bar.</summary>
+        static Window ZenCard(Item i)
+        {
+            var stack = new StackPanel { Margin = new Thickness(16, 12, 16, 14) };
+            var top = new DockPanel();
+            var when = ZenStyle.Text(i.When.ToString("HH:mm"), 11.5, ZenStyle.Ink2);
+            DockPanel.SetDock(when, Dock.Right);
+            top.Children.Add(when);
+            var dot = new Ellipse { Width = 8, Height = 8, Fill = B(ZenStyle.Koi), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(dot, Dock.Left);
+            top.Children.Add(dot);
+            top.Children.Add(ZenStyle.Text(i.App ?? "", 12, ZenStyle.Pond, FontWeights.SemiBold));
+            stack.Children.Add(top);
+            if (!string.IsNullOrEmpty(i.Title)) { var tt = ZenStyle.Text(i.Title, 14.5, ZenStyle.Ink, FontWeights.SemiBold); tt.TextWrapping = TextWrapping.Wrap; tt.Margin = new Thickness(0, 4, 0, 0); stack.Children.Add(tt); }
+            if (!string.IsNullOrEmpty(i.Body)) { var bt = ZenStyle.Text(Cut(i.Body), 13, ZenStyle.Ink2); bt.TextWrapping = TextWrapping.Wrap; bt.Margin = new Thickness(0, 2, 0, 0); stack.Children.Add(bt); }
+            var pane = ZenStyle.Pane(stack, 20, 175);
+            pane.Width = 340;
+            var w = Base(true);
+            w.Content = new Border { Child = pane, Padding = new Thickness(24, 14, 24, 30) };
+            return w;
+        }
+
+        /// <summary>Windows 7: the balloon tip above the clock, with its tail and close button.</summary>
+        static Window SevenBalloon(Item i)
+        {
+            var stack = new StackPanel { MaxWidth = 320 };
+            var head = new DockPanel();
+            var x = new TextBlock { Text = "", FontFamily = new FontFamily(IconFont), FontSize = 9, Foreground = B(0x6D6D6D), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12, 2, 0, 0) };
+            DockPanel.SetDock(x, Dock.Right);
+            head.Children.Add(x);
+            var info = new Grid { Width = 16, Height = 16, Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Top };
+            info.Children.Add(new Ellipse { Fill = new RadialGradientBrush(C(0x7FB2F0), C(0x1F5FB8)) { GradientOrigin = new Point(0.4, 0.3) } });
+            info.Children.Add(new TextBlock { Text = "i", Foreground = B(0xFFFFFF), FontWeight = FontWeights.Bold, FontFamily = new FontFamily("Georgia"), FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+            DockPanel.SetDock(info, Dock.Left);
+            head.Children.Add(info);
+            var title = string.IsNullOrEmpty(i.Title) ? i.App : i.Title;
+            head.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.Bold, FontFamily = new FontFamily("Segoe UI"), FontSize = 12, Foreground = B(0x1E1E1E), TextWrapping = TextWrapping.Wrap });
+            stack.Children.Add(head);
+            var text = string.IsNullOrEmpty(i.Title) ? i.Body : (string.IsNullOrEmpty(i.Body) ? i.App : i.Body);
+            if (!string.IsNullOrEmpty(text)) stack.Children.Add(new TextBlock { Text = Cut(text), FontFamily = new FontFamily("Segoe UI"), FontSize = 12, Foreground = B(0x1E1E1E), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(23, 4, 0, 0) });
+            // the balloon with its tail pointing down at the tray
+            var shape = new Grid();
+            var bubble = new Border
+            {
+                Child = stack, Padding = new Thickness(11, 9, 10, 12), CornerRadius = new CornerRadius(6),
+                Background = V((0, C(0xFFFFFF)), (1, C(0xE4E5F0))), BorderBrush = B(0x767676), BorderThickness = new Thickness(1),
+            };
+            shape.Children.Add(bubble);
+            var tail = new Path { Data = Geometry.Parse("M0,0 L18,0 L20,16 Z"), Fill = B(0xE4E5F0), Stroke = B(0x767676), StrokeThickness = 1, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 46, -15) };
+            var cover = new Border { Height = 2, Width = 17, Background = B(0xE4E5F0), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 47, 0) };
+            shape.Children.Add(tail); shape.Children.Add(cover);
+            shape.Effect = new DropShadowEffect { BlurRadius = 8, ShadowDepth = 2, Opacity = 0.35 };
+            var w = Base(true);
+            w.Content = new Border { Child = shape, Padding = new Thickness(10, 10, 10, 26) };
+            return w;
+        }
+
+        static void Enter(Window w)
+        {
+            if (!(w.Content is FrameworkElement c)) return;
+            if (theme?.Id == "zen") { ZenStyle.Ripple(c, new Point(0.9, 1), 420); return; }
+            c.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(theme?.Id == "win7" ? 250 : 160)));
+        }
+
+        static void Leave(Window w)
+        {
+            if (!(w.Content is FrameworkElement c) || !w.IsVisible) { try { w.Close(); } catch { } return; }
+            var a = new DoubleAnimation(0, TimeSpan.FromMilliseconds(180));
+            a.Completed += (s, e) => { try { w.Close(); } catch { } };
+            c.BeginAnimation(UIElement.OpacityProperty, a);
         }
 
         static void Arrange()
         {
             var mi = W32.PrimaryMonitor(out double sc);
-            double top = mi.rcWork.Top / sc + 8, right = mi.rcWork.Right / sc - 10;
-            for (int i = shown.Count - 1; i >= 0; i--)   // newest on top
+            double right = mi.rcWork.Right / sc, top = mi.rcWork.Top / sc, bottom = mi.rcWork.Bottom / sc;
+            bool term = theme?.Start == StartKind.Terminal;
+            double y = term ? top + 8 : bottom;
+            for (int i = shown.Count - 1; i >= 0; i--)   // newest nearest to the bar
             {
                 var w = shown[i];
                 w.UpdateLayout();
-                w.Left = right - w.ActualWidth; w.Top = top;
-                top += w.ActualHeight + 8;
+                w.Left = right - w.ActualWidth - (term ? 10 : 0);
+                if (term) { w.Top = y; y += w.ActualHeight + 8; }
+                else { w.Top = y - w.ActualHeight + (theme?.Id == "zen" ? 16 : 6); y = w.Top + (theme?.Id == "zen" ? 20 : 6); }
             }
         }
     }

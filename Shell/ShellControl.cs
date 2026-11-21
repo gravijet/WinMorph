@@ -96,6 +96,7 @@ namespace WinMorph.Shell
         {
             Core.LockGuard.Disarm();
             CursorSkin.Reset();   // the user's own mouse pointers again
+            Notify.RestoreBanners();   // Windows' notification banners as they were
             if (Core.Reg.Get(SettingsKey, OrigAutoHideValue) is int orig)
             {
                 Core.Applier.SetAutoHideRaw(orig == 1);

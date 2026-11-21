@@ -385,6 +385,12 @@ namespace WinMorph.Shell
                 return false;
             }
             if (vk == 0x7B && down && alt && W32.KeyDown(0x11) && W32.KeyDown(0x10)) { Ui(ShellControl.EmergencyStop); return true; } // Ctrl+Alt+Shift+F12
+            // volume keys: the look's own display instead of Windows' pop-up (keys the shell sends itself pass through)
+            if ((vk == 0xAD || vk == 0xAE || vk == 0xAF) && (flags & 0x10) == 0)
+            {
+                if (down) Ui(() => VolumeKey(vk));
+                return true;
+            }
 
             if (vk == 0x09 && down && alt)                                                                   // Alt+Tab
             {
@@ -403,6 +409,13 @@ namespace WinMorph.Shell
             if (ShellActions.Own != null && vk == 0x1B && down && !alt && W32.KeyDown(0x11) && W32.KeyDown(0x10)) { Ui(ShellActions.TaskManager); return true; } // Ctrl+Shift+Esc → the look's task manager
             if (vk == 0x1B && down && !alt && W32.KeyDown(0x11) && !W32.KeyDown(0x10)) { Ui(() => ToggleMenu()); return true; } // Ctrl+Esc
             return false;
+        }
+
+        void VolumeKey(uint vk)
+        {
+            if (!Audio.Available) { KeyHook.Tap((byte)vk); return; }   // no endpoint to talk to: Windows handles it
+            if (vk == 0xAD) Audio.Muted = !Audio.Muted; else Audio.Change(vk == 0xAF ? 2 : -2);
+            if (Hacker) Osd.Volume(t, Audio.Level, Audio.Muted); else VolumeOsd.Show(t);
         }
 
         static bool LockSaverReady => ShellActions.SaverReady();
@@ -940,61 +953,85 @@ namespace WinMorph.Shell
             return b;
         }
 
-        // ---------------- tray (clock and system buttons) ----------------
-        // ---------- Zen: focus timer, breathing, background sound ----------
-        void ZenTray(StackPanel sp, Color fg, Color hover)
+        // ---------------- tray: the look's own symbols and panels (no Windows flyouts) ----------------
+        void OpenFlyout(string kind, FrameworkElement el)
         {
-            Border Item(TextBlock tb, Action a, string tip) { var b = Click(tb, a, hover, pad: new Thickness(8, 0, 8, 0), radius: new CornerRadius(12)); b.ToolTip = tip; sp.Children.Add(b); return b; }
-            TextBlock Txt(string s) => new TextBlock { Text = s, Foreground = B(fg), FontFamily = new FontFamily(t.Font), FontSize = t.FontSize, VerticalAlignment = VerticalAlignment.Center };
-            var timer = Txt(Zen.TimerText);
-            Item(timer, () => { Zen.ToggleTimer(); timer.Text = Zen.TimerText; }, De ? "Fokus-Timer: 25 Minuten Fokus, dann 5 Minuten Pause (Klick = Start/Stopp)" : "Focus timer: 25 minutes of focus, then a 5 minute break (click = start/stop)");
-            Item(Txt("≋"), () => Zen.Breathe(t), De ? "Atemübung (1 Minute)" : "Breathing exercise (1 minute)");
-            var sound = Txt(Zen.SoundText);
-            Item(sound, () => { Zen.NextSound(); sound.Text = Zen.SoundText; }, De ? "Hintergrundklang: aus → Rauschen → Regen" : "Background sound: off → noise → rain");
-            if (!preview) clockUpdaters.Add(() => { Zen.Tick(); timer.Text = Zen.TimerText; });
+            HoverPreview.CloseNow();
+            var bar = el != null ? Window.GetWindow(el) as BarWindow : null;
+            var r = bar != null && el.IsLoaded ? bar.ScreenRectOf(el) : new Rect(0, 0, 0, 0);
+            Flyouts.Open(t, kind, r);
         }
-
 
         FrameworkElement Tray()
         {
+            bool seven = t.Id == "win7";
             var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Stretch };
-            Color fg = t.BarFg;
-            Color hover = t.BtnHover;
-            FrameworkElement G(string glyph, Action a, string tip) { var b = Click(Glyph(glyph, 13, fg), a, hover, pad: new Thickness(6, 0, 6, 0), radius: new CornerRadius(t.Btn == BtnStyle.Pill ? 8 : 0)); b.ToolTip = tip; return b; }
-            sp.Children.Add(G("", ShellActions.QuickSettings, De ? "Netzwerk" : "Network"));
-            sp.Children.Add(G("", ShellActions.QuickSettings, De ? "Lautstärke" : "Volume"));
-
-            var clockText = new TextBlock { Foreground = B(fg), FontFamily = new FontFamily(t.Font), FontSize = t.ShowDate ? 11.5 : t.FontSize, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            var clockBtn = Click(clockText, ShellActions.Notifications, hover, pad: new Thickness(8, 0, 8, 0), radius: new CornerRadius(t.Btn == BtnStyle.Pill ? 8 : 0));
-            if (SysStats.Battery(out _, out _))
+            Color fg = t.BarFg, hover = t.BtnHover;
+            var radius = new CornerRadius(seven ? 2 : 15);
+            Border Item(UIElement child, string kind, string tip, double padX = 7)
             {
-                var bat = new TextBlock { Foreground = B(fg), FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily(t.Font) };
-                var batBtn = Click(bat, () => ShellActions.Run("ms-settings:batterysaver"), hover, pad: new Thickness(6, 0, 6, 0), radius: new CornerRadius(t.Btn == BtnStyle.Pill ? 8 : 0));
-                sp.Children.Add(batBtn);
-                clockUpdaters.Add(() => { if (SysStats.Battery(out int pct, out bool ac)) bat.Text = (ac ? "\u26A1" : "") + pct + "%"; });
+                Border b = null;
+                b = Click(child, () => OpenFlyout(kind, b), hover, radius: radius, pad: new Thickness(padX, seven ? 0 : 6, padX, seven ? 0 : 6));
+                if (!seven) b.VerticalAlignment = VerticalAlignment.Center;
+                b.ToolTip = tip;
+                sp.Children.Add(b);
+                return b;
             }
-            if (t.Id == "zen") ZenTray(sp, fg, hover);
-            sp.Children.Add(clockBtn);
+
+            if (!seven)
+            {
+                // Zen: the focus timer only while it runs, and the lotus that opens the calm panel
+                var timer = ZenStyle.Text("", 13, fg, FontWeights.SemiBold);
+                var timerBtn = Item(timer, "zen", De ? "Fokus-Timer" : "Focus timer", 9);
+                timerBtn.Visibility = Visibility.Collapsed;
+                Item(ZenStyle.Lotus(19), "zen", De ? "Ruhe: Fokus, Atmen, Klang, Nicht stören" : "Calm: focus, breathing, sound, do not disturb", 8);
+                if (!preview) clockUpdaters.Add(() => { Zen.Tick(); timer.Text = Zen.TimerText; timerBtn.Visibility = Zen.Running ? Visibility.Visible : Visibility.Collapsed; });
+            }
+
+            var net = new TrayGlyph(TrayGlyph.Kind.Wifi, seven, fg) { Level = 4 };
+            var netBtn = Item(net, "net", De ? "Netzwerk" : "Network");
+            var vol = new TrayGlyph(TrayGlyph.Kind.Sound, seven, fg) { Level = 60 };
+            var volBtn = Item(vol, "vol", De ? "Lautstärke" : "Volume");
+            volBtn.MouseWheel += (s, e) => { Audio.Change(e.Delta > 0 ? 2 : -2); VolumeOsd.Show(t); };
+            TrayGlyph bat = null; Border batBtn = null;
+            if (SysStats.Battery(out _, out _)) { bat = new TrayGlyph(TrayGlyph.Kind.Battery, seven, fg) { Level = 100 }; batBtn = Item(bat, "bat", De ? "Akku" : "Battery", seven ? 5 : 7); }
+
+            var clockText = new TextBlock { Foreground = B(fg), FontFamily = seven ? new FontFamily("Segoe UI") : ZenStyle.Family, FontSize = seven ? 12 : 13.5, FontWeight = seven ? FontWeights.Normal : FontWeights.SemiBold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, LineHeight = seven ? 15 : double.NaN };
+            var clockBtn = Item(clockText, "clock", "", seven ? 8 : 10);
+            clockBtn.ToolTipOpening += (s, e) => clockBtn.ToolTip = DateTime.Now.ToString(De ? "dddd, d. MMMM yyyy" : "dddd, MMMM d, yyyy", De ? new CultureInfo("de-DE") : new CultureInfo("en-US"));
+
+            int tick = 0;
             clockUpdaters.Add(() =>
             {
                 var now = DateTime.Now;
-                clockText.Text = t.ShowDate && t.Layout == BarLayout.Bottom ? now.ToString("HH:mm") + "\n" + now.ToString(De ? "dd.MM.yyyy" : "yyyy-MM-dd") : now.ToString("HH:mm");
+                clockText.Text = seven ? now.ToString("HH:mm") + "\n" + now.ToString(De ? "dd.MM.yyyy" : "M/d/yyyy", CultureInfo.InvariantCulture) : now.ToString("HH:mm");
+                if (tick++ % 3 != 0) return;
+                // network: Wi-Fi strength, cable, or offline
+                var cur = Wlan.Current;
+                if (cur != null) { net.Set(TrayGlyph.Kind.Wifi, (int)Math.Ceiling(cur.Signal / 25.0)); netBtn.ToolTip = cur.Ssid + (De ? "\nInternetzugriff" : "\nInternet access"); }
+                else if (System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable()) { net.Set(TrayGlyph.Kind.Wired, 4); netBtn.ToolTip = De ? "Verbunden über Kabel" : "Connected by cable"; }
+                else { net.Set(TrayGlyph.Kind.Offline, 0); netBtn.ToolTip = De ? "Nicht verbunden" : "Not connected"; }
+                int l = Audio.Level; bool m = Audio.Muted;
+                vol.Set(TrayGlyph.Kind.Sound, Math.Max(0, l), m);
+                volBtn.ToolTip = l < 0 ? (De ? "Kein Audiogerät" : "No audio device") : (De ? "Lautsprecher: " : "Speakers: ") + (m ? (De ? "stumm" : "muted") : l + " %");
+                var b = Hardware.Battery();
+                if (bat != null && b != null)
+                {
+                    bat.Set(TrayGlyph.Kind.Battery, b.Percent, false, b.Charging || b.Plugged);
+                    batBtn.ToolTip = b.Percent + (De ? " % " : "% ") + (b.Charging ? (De ? "– wird geladen" : "– charging") : b.Left.HasValue ? (De ? "– noch " : "– ") + Hardware.Duration(b.Left.Value, De) + (De ? "" : " left") : "");
+                }
             });
 
-            if (t.Layout == BarLayout.Bottom && t.Btn != BtnStyle.Pill)
+            if (seven)
             {
-                var desk = new Border { Width = t.Btn == BtnStyle.Glass ? 14 : 6, Background = Brushes.Transparent, BorderBrush = B(A(fg, 70)), BorderThickness = new Thickness(1, 0, 0, 0), Cursor = Cursors.Hand, ToolTip = De ? "Desktop anzeigen" : "Show desktop", Margin = new Thickness(4, 0, 0, 0) };
+                // Windows 7's "show desktop" strip at the very end of the bar
+                var desk = new Border { Width = 15, Background = V((0, C(0xFFFFFF, 50)), (1, C(0xFFFFFF, 18))), BorderBrush = B(0xFFFFFF, 90), BorderThickness = new Thickness(1, 0, 0, 0), Cursor = Cursors.Hand, ToolTip = De ? "Desktop anzeigen" : "Show desktop", Margin = new Thickness(6, 0, 0, 0) };
+                desk.MouseEnter += (s, e) => desk.Background = V((0, C(0xFFFFFF, 110)), (1, C(0xFFFFFF, 50)));
+                desk.MouseLeave += (s, e) => desk.Background = V((0, C(0xFFFFFF, 50)), (1, C(0xFFFFFF, 18)));
                 desk.MouseLeftButtonUp += (s, e) => ShellActions.ShowDesktop();
                 sp.Children.Add(desk);
             }
-
-            switch (t.Btn)
-            {
-                case BtnStyle.Pill when t.Layout == BarLayout.Bottom:
-                    return new Border { Child = sp, Background = B(0xFFFFFF, 25), CornerRadius = new CornerRadius(16), Margin = new Thickness(0, 7, 8, 7), Padding = new Thickness(6, 0, 6, 0) };
-                default:
-                    return sp;
-            }
+            return sp;
         }
     }
 

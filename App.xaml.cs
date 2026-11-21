@@ -89,6 +89,13 @@ namespace WinMorph
                     Shell.CustomLock.RenderTest(a[1], a[2], () => Shutdown(0));
                     return;
                 }
+                if (a.Length >= 4 && a[0] == "--ui-test")
+                {
+                    // --ui-test <look> <surface> <png>: one surface on the real screen, photographed (changes nothing)
+                    ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                    Shell.UiTest.Run(a[1], a[2], a[3], () => Shutdown(0));
+                    return;
+                }
                 if (a.Length >= 3 && a[0] == "--lock-design")
                 {
                     // --lock-design <presetId> <png>: the picture used for the real Windows lock screen

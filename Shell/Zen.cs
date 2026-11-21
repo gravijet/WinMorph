@@ -39,8 +39,8 @@ namespace WinMorph.Shell
             get
             {
                 var left = end - DateTime.Now;
-                if (left <= TimeSpan.Zero) return L("◔ Fokus", "◔ Focus");
-                return (focus ? "◔ " : "☕ ") + ((int)left.TotalMinutes).ToString("00") + ":" + left.Seconds.ToString("00");
+                if (left <= TimeSpan.Zero) return "";
+                return (focus ? L("Fokus ", "Focus ") : L("Pause ", "Break ")) + ((int)left.TotalMinutes).ToString("00") + ":" + left.Seconds.ToString("00");
             }
         }
 
@@ -49,7 +49,7 @@ namespace WinMorph.Shell
             if (Running) { end = DateTime.MinValue; Notify.Show("Zen", L("Fokus beendet", "Focus stopped")); return; }
             focus = true;
             end = DateTime.Now.AddMinutes(25);
-            Notify.Show("Zen", L("25 Minuten Fokus", "25 minutes of focus"), L("Eine Sache. Ganz in Ruhe.", "One thing. Calmly."));
+            Notify.Show("Zen", L("Fokus läuft – 25 Minuten", "Focus started – 25 minutes"));
         }
 
         /// <summary>Called once a second by the bar.</summary>
@@ -60,12 +60,12 @@ namespace WinMorph.Shell
             {
                 focus = false;
                 end = DateTime.Now.AddMinutes(5);
-                Notify.Show("Zen", L("Zeit für eine Pause", "Time for a break"), L("5 Minuten: aufstehen, trinken, aus dem Fenster schauen.", "5 minutes: stand up, drink, look out of the window."), 12);
+                Notify.Show("Zen", L("Pause – 5 Minuten", "Break – 5 minutes"), null, 12);
             }
             else
             {
                 end = DateTime.MinValue;
-                Notify.Show("Zen", L("Pause vorbei", "Break is over"), L("Klick auf ◔, wenn du weitermachen möchtest.", "Click ◔ when you want to continue."), 10);
+                Notify.Show("Zen", L("Pause vorbei", "Break is over"), null, 10);
             }
         }
 
@@ -98,7 +98,7 @@ namespace WinMorph.Shell
             {
                 phase++;
                 if (phase == phases.Length) { phase = 0; round++; }
-                if (round == rounds) { w.Close(); Notify.Show("Zen", L("Gut gemacht.", "Well done."), L("Eine Minute nur für dich.", "One minute just for you.")); return; }
+                if (round == rounds) { w.Close(); return; }
                 var (text, secs, target) = phases[phase];
                 word.Text = text;
                 info.Text = L("Runde ", "Round ") + (round + 1) + " / " + rounds + "   ·   " + L("Esc oder Klick beendet", "Esc or click to stop");
@@ -119,11 +119,11 @@ namespace WinMorph.Shell
         // ---------------- background sounds (generated, no files, no internet) ----------------
         static SoundPlayer player;
         static int sound;   // 0 off, 1 noise, 2 rain
-        public static string SoundText => sound == 0 ? "♪" : sound == 1 ? L("♪ Rauschen", "♪ Noise") : L("♪ Regen", "♪ Rain");
+        public static int Sound => sound;
 
-        public static void NextSound()
+        public static void SetSound(int which)
         {
-            sound = (sound + 1) % 3;
+            sound = Math.Max(0, Math.Min(2, which));
             StopSound();
             if (sound == 0) return;
             try
