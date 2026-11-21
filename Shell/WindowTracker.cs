@@ -102,6 +102,17 @@ namespace WinMorph.Shell
         /// <summary>WinMorph's own app windows (hacker task manager, file manager): listed like other apps.</summary>
         public static readonly HashSet<IntPtr> OwnApps = new HashSet<IntPtr>();
 
+        /// <summary>Own app windows that stand in for a Windows program (explorer.exe, taskmgr.exe): pinned icons treat them as that program.</summary>
+        static readonly Dictionary<IntPtr, string> ownAs = new Dictionary<IntPtr, string>();
+
+        public static void StandsFor(System.Windows.Window w, string exe)
+        {
+            var path = Path.Combine(Environment.GetFolderPath(exe == "explorer.exe" ? Environment.SpecialFolder.Windows : Environment.SpecialFolder.System), exe);
+            IntPtr h = IntPtr.Zero;
+            w.SourceInitialized += (s, e) => { h = new System.Windows.Interop.WindowInteropHelper(w).Handle; ownAs[h] = path; };
+            w.Closed += (s, e) => ownAs.Remove(h);
+        }
+
         public static bool IsAppWindow(IntPtr h, uint ownPid)
         {
             if (!W32.IsWindowVisible(h)) return false;
@@ -126,6 +137,7 @@ namespace WinMorph.Shell
             {
                 if (!IsAppWindow(h, ownPid)) return true;
                 var info = new WinInfo { Hwnd = h, Title = W32.Text(h), Minimized = W32.IsIconic(h) };
+                if (ownAs.TryGetValue(h, out var standIn)) identity[h] = (standIn, null);
                 if (!identity.TryGetValue(h, out var id))
                 {
                     // process path and app id never change for a window, so look them up only once

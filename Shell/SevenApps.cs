@@ -259,6 +259,7 @@ namespace WinMorph.Shell
 
         SevenTasks() : base(L("Windows Task-Manager", "Windows Task Manager"), 500, 560)
         {
+            WindowTracker.StandsFor(this, "taskmgr.exe");
             MinWidth = 420; MinHeight = 440;
             Icon = SysIcon("Taskmgr.exe", false);
             var root = new DockPanel();
@@ -669,6 +670,7 @@ namespace WinMorph.Shell
 
         SevenFiles() : base(L("Explorer", "Explorer"), 980, 640)
         {
+            WindowTracker.StandsFor(this, "explorer.exe");
             MinWidth = 560; MinHeight = 360;
             Icon = W32.FileIcon(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), false);
             var root = new DockPanel();

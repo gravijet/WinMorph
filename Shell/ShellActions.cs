@@ -25,7 +25,7 @@ namespace WinMorph.Shell
 
         public static void Folder(Environment.SpecialFolder f) => Files(Environment.GetFolderPath(f));
         public static void Downloads() { if (Own != null) Files(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")); else Run("explorer.exe", "shell:Downloads"); }
-        public static void ThisPC() { if (Seven) SevenFiles.Open(SevenFiles.ComputerPath); else Run("explorer.exe", "shell:MyComputerFolder"); }
+        public static void ThisPC() { if (Seven) SevenFiles.Open(SevenFiles.ComputerPath); else if (Own != null) Files(); else Run("explorer.exe", "shell:MyComputerFolder"); }
         public static void ControlPanel() => Run("control.exe");
         public static void Settings() => Run("ms-settings:");
         public static void RunDialog()

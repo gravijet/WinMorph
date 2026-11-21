@@ -63,6 +63,17 @@ namespace WinMorph.Shell
 
             ThemeToolTips();
             ShellActions.Own = t.Id == "win7" || t.Id == "terminal" ? t : null;
+            if (ShellActions.Own != null)
+            {
+                // the look's own Explorer and Task Manager, also when opened from the Start menu, a desktop icon or Ctrl+Alt+Del
+                AppEntry.OwnApp = a =>
+                {
+                    if (a.Is("explorer.exe")) { ShellActions.Files(); return true; }
+                    if (a.Is("taskmgr.exe")) { ShellActions.TaskManager(); return true; }
+                    return false;
+                };
+                OwnAppRedirect.Start();
+            }
             ShellActions.Windows = () => tracker.ByRecentUse();
             CursorSkin.Apply(t);
             origAutoHide = ShellControl.TakeTaskbar();
@@ -307,6 +318,8 @@ namespace WinMorph.Shell
             foreach (var b in bars) try { b.Close(); } catch { }
             tracker.Dispose();
             ShellActions.Own = null; ShellActions.Windows = null;
+            AppEntry.OwnApp = null;
+            OwnAppRedirect.Stop();
             if (keepHidden) return;
             CursorSkin.Reset();
             ShowNative();

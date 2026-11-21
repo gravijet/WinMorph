@@ -160,6 +160,7 @@ namespace WinMorph.Shell
 
         HackerTasks(ShellTheme theme) : base(theme, "top · " + L("Task-Manager", "task manager"), 860, 600)
         {
+            WindowTracker.StandsFor(this, "taskmgr.exe");
             var root = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
             head = Text("", G, 13.5); head.Margin = new Thickness(10, 0, 10, 0);
             bars = Text("", G); bars.Margin = new Thickness(10, 2, 10, 6);
@@ -168,7 +169,6 @@ namespace WinMorph.Shell
             buttons.Children.Add(Btn(L("beenden", "kill") + " ⌦", Kill));
             buttons.Children.Add(Btn(L("wechseln", "switch") + " ⏎", SwitchTo));
             buttons.Children.Add(Btn(L("ordner", "location"), Location));
-            buttons.Children.Add(Btn("taskmgr.exe", () => ShellActions.Run("taskmgr.exe")));
             DockPanel.SetDock(buttons, Dock.Right);
             tools.Children.Add(buttons);
             var prompt = Text("filter> ", D);
@@ -345,6 +345,7 @@ namespace WinMorph.Shell
 
         HackerFiles(ShellTheme theme) : base(theme, "files", 980, 640)
         {
+            WindowTracker.StandsFor(this, "explorer.exe");
             var root = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
             // path line
             var top = new DockPanel { Margin = new Thickness(10, 0, 10, 6) };
@@ -373,7 +374,7 @@ namespace WinMorph.Shell
             {
                 (L("öffnen", "open"), OpenSel), (L("kopieren", "copy"), () => ToClipboard(false)), (L("ausschneiden", "cut"), () => ToClipboard(true)), (L("einfügen", "paste"), Paste),
                 (L("umbenennen", "rename"), Rename), (L("löschen", "delete"), () => Delete(false)), (L("neuer ordner", "new dir"), NewFolder),
-                (L("eigenschaften", "props"), Props), ("explorer.exe", () => ShellActions.Run("explorer.exe", "\"" + dir + "\"")), (L("terminal hier", "terminal here"), () => ShellActions.Run("wt.exe", "-d \"" + dir + "\"")),
+                (L("eigenschaften", "props"), Props), (L("terminal hier", "terminal here"), () => ShellActions.Run("wt.exe", "-d \"" + dir + "\"")),
             }) acts.Children.Add(Btn(text, a));
             DockPanel.SetDock(acts, Dock.Top);
             root.Children.Add(acts);

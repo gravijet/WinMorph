@@ -36,8 +36,20 @@ namespace WinMorph.Shell
 
         public string PinKey => ParsingPath != null ? "app:" + ParsingPath : "exe:" + (Launch ?? ExePath);
 
+        /// <summary>Set by the design shell: opens the look's own app instead (Explorer, Task Manager); true when it did.</summary>
+        public static Func<AppEntry, bool> OwnApp;
+
+        /// <summary>True for Windows' own program of that file name (desktop link or Start menu entry).</summary>
+        public bool Is(string exe)
+        {
+            bool Same(string p) => p != null && (Path.GetFileName(p).Equals(exe, StringComparison.OrdinalIgnoreCase) || p.EndsWith("\\" + exe, StringComparison.OrdinalIgnoreCase));
+            return Same(ExePath) || Same(Launch) || Same(ParsingPath)
+                || exe.Equals("explorer.exe", StringComparison.OrdinalIgnoreCase) && string.Equals(ParsingPath, "Microsoft.Windows.Explorer", StringComparison.OrdinalIgnoreCase);
+        }
+
         public void Start()
         {
+            if (OwnApp?.Invoke(this) == true) return;
             try
             {
                 if (Launch != null) Process.Start(new ProcessStartInfo(Launch) { UseShellExecute = true });
