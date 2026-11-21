@@ -4,19 +4,21 @@
 
 **Windows-Looks per Klick.** · Download: **[winmorph.benjaminberger.at](https://winmorph.benjaminberger.at)**
 
-WinMorph legt ein komplett eigenes Design über Windows 10/11: Taskleiste, Startmenü, Alt+Tab, Fensterrahmen, Mauszeiger, Desktop und Sperrbildschirm, bei Windows 7 und Hacker auch Explorer, Task-Manager und Ausführen. **Windows-Einstellungen bleiben unverändert** (kein Dunkelmodus, keine Akzentfarbe, keine Schriften, Klänge oder Taskleisten-Optionen; Rahmen und Mauszeiger gelten nur, solange der Look läuft, und landen nie in der Registry). Ein Look wird immer komplett angewendet, und alles lässt sich vollständig und geprüft zurücksetzen.
+WinMorph legt ein komplett eigenes Design über Windows 10/11: Taskleiste, Startmenü, Alt+Tab, WLAN-, Ton-, Akku- und Kalender-Panels, Mitteilungen, Lautstärkeanzeige, Fensterrahmen, Mauszeiger, Desktop, Sperrbildschirm und eigene Apps für Explorer, Task-Manager und Ausführen. **Windows-Einstellungen bleiben unverändert** (kein Dunkelmodus, keine Akzentfarbe, keine Schriften, Klänge oder Taskleisten-Optionen; Rahmen und Mauszeiger gelten nur, solange der Look läuft, und landen nie in der Registry). Ein Look wird immer komplett angewendet, und alles lässt sich vollständig und geprüft zurücksetzen.
 
 ## Drei Looks
 
 | Look | Taskleiste & Start | Alt+Tab | Sperrbildschirm |
 |---|---|---|---|
-| **Windows 7** | Glasleiste mit Startkugel, zweispaltiges Startmenü mit Suche | Aero-Glas mit Live-Vorschau, die Glas-Markierung gleitet von Fenster zu Fenster | Aero-Anmeldung mit Kennwortfeld und blauem Pfeil |
-| **Zen** | schwebende helle Leiste mit Fokus-Timer (25/5), Atemübung, Regen; Startmenü als Hängerolle, die sich nach unten aufrollt | Shōji: Papier-Schiebetüren gleiten auf und zeigen den Inhalt der App (auch minimierter); die Fenster hängen als Ema-Täfelchen an einer Kordel | Atemkreis; das Passwort legt sich als Tintensteine auf einen Pinselstrich |
+| **Windows 7** | Glasleiste mit Startkugel, zweispaltiges Startmenü mit Kontobild und Suche | Aero-Glas mit Live-Vorschau | Windows-7-Anmeldung mit Kontobild, „Benutzer wechseln“, Ein/Aus-Knopf, echter Fehlerseite |
+| **Zen** („Morgenteich“) | Milchglas-Leiste über einem Koi-Teich, Lotus als Start; Startmenü aus Glas mit angehefteten Apps als Kieseln und allen Apps A–Z | Teichspiegel: das gewählte Fenster live im Glasrahmen, jedes Fenster ein Kiesel mit Wasserring | Uhr und Glasfeld über dem Teich, jeder Tastendruck ein Wasserring |
 | **Hacker** | Statuszeile mit Netz, CPU, RAM, Lautstärke, Akku, Uhr; Windows-Taste = echtes Terminal | Prozess-Tabelle mit PID, RAM und Live-Vorschau | Terminal-Sperre mit Code-Regen |
 
-Eigene Apps: **Windows 7** bringt Explorer (Win+E), Task-Manager (Strg+Umschalt+Esc) und Ausführen (Win+R) im Windows-7-Stil (mit dem originalen Aero-Steuerelement-Design von WPF) und die Aero-Mauszeiger. **Hacker** bringt Dateimanager, Task-Manager (`top`) und Ausführen im Terminal-Stil und Mauszeiger in der Hacker-Farbe. Hacker gibt es in jeder Farbe (Grün, Cyan, Bernstein, Rot, Violett, Weiß oder eigene).
+Eigene Apps: Jeder Look bringt Explorer, Task-Manager und Ausführen in seinem Stil mit: **Windows 7** mit dem originalen Aero-Steuerelement-Design von WPF, **Zen** als „Dateien“, „Aktivität“ und „Ausführen“ aus Milchglas, **Hacker** im Terminal-Stil. Sie erscheinen nicht nur bei Win+E, Strg+Umschalt+Esc und Win+R, sondern auch, wenn Explorer oder Task-Manager ganz normal geöffnet werden (Startmenü, Desktop-Symbol, andere Programme, Strg+Alt+Entf): das Windows-Fenster wird beim Erscheinen versteckt und die App des Looks öffnet am selben Ordner. Systemsteuerung, Papierkorb und andere Windows-Orte bleiben Windows'. Dazu eigene Mauszeiger (Aero, Zen, Hacker-Farbe).
 
-Sperrbildschirm: Der erste Tastendruck weckt nur und zeigt das Passwortfeld, erst der nächste zählt zum Passwort.
+Panels und Mitteilungen: WLAN (mit Verbinden), Ton, Akku mit Energiesparplänen und Helligkeit, Uhr mit Kalender, bei Zen dazu Mitteilungen und ein Ruhe-Panel (Fokus-Timer, Atemübung, Hintergrundklang, Nicht stören, Bluetooth). Mitteilungen von Apps erscheinen im Design des Looks; dafür sind Windows' Banner nur solange aus, wie der Look läuft, und werden danach exakt wiederhergestellt (Anruf- und Wecker-Apps behalten Windows' Banner). Die Lautstärketasten zeigen die Anzeige des Looks. Hacker gibt es in jeder Farbe (Grün, Cyan, Bernstein, Rot, Violett, Weiß oder eigene).
+
+Sperrbildschirm: ohne Tastenhinweise; Windows Hello erscheint als Schaltfläche, wenn es eingerichtet ist. Bei Windows 7 und Zen ist das Kennwortfeld sofort da, bei Hacker weckt der erste Tastendruck.
 
 Dazu in jedem Look: Fensterrahmen in den Farben des Looks, Desktop des Looks, Win+X-Schnellmenü, Leisten auf allen Bildschirmen, Live-Vorschau beim Darüberfahren. Ein kurzes Alt+Tab wechselt sofort (wie bei Windows), der Umschalter erscheint erst, wenn Alt gehalten wird.
 
@@ -44,7 +46,9 @@ Notfall: Strg+Alt+Umschalt+F12 beendet den Design-Shell sofort. Ohne Oberfläche
 
 ## App
 
-Die App ist eine Siebdruck-Werkstatt: Jeder Look ist ein Druck. Beim Auswählen zieht eine Rakel über den Andruckbogen und legt die Vorschau frei. Der Auftragszettel zeigt die Druckgänge (Desktop, Sperrbildschirm, Shell); beim Anwenden füllt sich jeder Farbfleck, bekommt ein Häkchen und seine Zeit, und der Knopf selbst wird zum Fortschrittsbalken. Die Änderungen-Seite stempelt jede Änderung GEÄNDERT oder ORIGINAL. Tasten: `1`–`3` wählen den Look, `Strg+Enter` wendet an. Schriften: Bricolage Grotesque und Instrument Sans (SIL Open Font License, siehe `Fonts/`).
+Links die Vorschau des gewählten Looks (beim Wechsel zieht eine Rakel das neue Bild auf), darunter die drei Looks, rechts was der Look ändert und „Anwenden“; beim Anwenden füllt sich jeder Bereich, bekommt ein Häkchen und seine Zeit, und der Knopf selbst wird zum Fortschrittsbalken. Die Seite „Änderungen“ zeigt jede Änderung mit Originalwert. Tasten: `1`–`3` wählen den Look, `Strg+Enter` wendet an. Schriften: Bricolage Grotesque und Instrument Sans (SIL Open Font License, siehe `Fonts/`).
+
+Wer einen Look baut oder umgestaltet: `LOOKS.md` (jede Oberfläche, Sperrbildschirm ohne Hinweise, kein Fülltext, Prüfbefehle).
 
 ## Systemvoraussetzungen
 
@@ -79,7 +83,7 @@ Die Versionsnummer steht an einer Stelle: `Directory.Build.props`. Jeder Push ba
 ```
 dotnet build WinMorph.csproj -c Release -o build
 mkdir Setup/out
-makensis.exe /DAppVersion=6.1.0 Setup/WinMorph.nsi
+makensis.exe /DAppVersion=6.2.0 Setup/WinMorph.nsi
 ```
 Zum Bauen des Installers wird [NSIS 3](https://nsis.sourceforge.io/) benötigt. Die Versionsnummer für `AppVersion` muss `Directory.Build.props` entsprechen. Der Installer (`Setup/out/WinMorph-Setup.exe`) enthält die zuvor gebaute App und deren Konfigurationsdatei aus `build/`. `Setup/test.ps1` prüft auf einem frischen Windows-Testsystem Neuinstallation, den alten Update-Aufruf und Deinstallation. Er aktiviert keinen Look.
 
@@ -100,7 +104,8 @@ Das skalierbare Original des Logos liegt in `website/public/favicon.svg`. `WinMo
 | `--live-preview <scene> <png>` | Live-Hintergrund als Bild speichern (z. B. `zen-desk`) |
 | `--switcher-demo <id>` | Alt+Tab des Looks mit den echten Fenstern zeigen, wechselt alle 1,5 s (ändert nichts) |
 | `--lock-test <id> <präfix>` | Sperrbildschirm im Ruhezustand, beim Tippen und nach falschem Passwort als Bilder speichern (sperrt nichts) |
-| `--own-app <win7\|terminal> <tasks\|run\|files> [ordner]` | eigene App des Looks für ein paar Sekunden öffnen (Test) |
+| `--own-app <win7\|zen\|terminal> <tasks\|run\|files> [ordner]` | eigene App des Looks für ein paar Sekunden öffnen (Test) |
+| `--ui-test <id> <net\|vol\|bat\|clock\|zen> <png>` | Panel des Looks auf dem Bildschirm öffnen und fotografieren (ändert nichts) |
 | `--screenshot <png> <id\|changes> <de\|en>` | Bild der App speichern |
 | `--selftest <datei>` | Backup/Restore an einem Test-Schlüssel prüfen |
 | `--uninstall` | WinMorph deinstallieren (mit Rückfrage) |
