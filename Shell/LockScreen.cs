@@ -252,98 +252,209 @@ namespace WinMorph.Shell
         {
             var root = new Grid { ClipToBounds = true };
             var bg = (FrameworkElement)Background(wall, live);
-            string hint = L("Drücke eine Taste, um zu entsperren", "Press any key to unlock");
 
             switch (t.Lock)
             {
                 case LockKind.Seven:
                 {
+                    // Windows 7's own lock: picture tile, name, "Locked", the password field with the round blue arrow,
+                    // "Switch User", the red power button and the edition at the bottom – nothing that Windows 7 did not show.
                     root.Children.Add(bg);
-                    var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 0, 40) };
-                    var frame = new Border { Width = 150, Height = 150, CornerRadius = new CornerRadius(10), Background = V((0, C(0xFFFFFF, 140)), (1, C(0xFFFFFF, 60))), BorderBrush = B(0xFFFFFF, 200), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Center, Padding = new Thickness(9), Effect = new DropShadowEffect { BlurRadius = 20, ShadowDepth = 2, Opacity = 0.5 } };
-                    frame.Child = Avatar(130, t.Accent, Core.Applier.Mix(t.Accent, Colors.Black, 0.4), 4);
+                    var segoe = new FontFamily("Segoe UI");
+                    var center = new Grid { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 60) };
+                    var sp = new StackPanel();
+                    center.Children.Add(sp);
+
+                    var frame = new Border
+                    {
+                        Width = 150, Height = 150, CornerRadius = new CornerRadius(9), Padding = new Thickness(10), HorizontalAlignment = HorizontalAlignment.Center,
+                        Background = V((0, C(0xFFFFFF, 150)), (0.5, C(0xFFFFFF, 90)), (1, C(0xFFFFFF, 60))), BorderBrush = B(0xFFFFFF, 210), BorderThickness = new Thickness(1),
+                        Effect = new DropShadowEffect { BlurRadius = 22, ShadowDepth = 3, Opacity = 0.55, Color = C(0x061A3A) },
+                    };
+                    var pic = AccountPicture.Get(192);
+                    frame.Child = pic != null
+                        ? (UIElement)new Border { CornerRadius = new CornerRadius(3), Background = new ImageBrush(pic) { Stretch = Stretch.UniformToFill }, BorderBrush = B(0x000000, 90), BorderThickness = new Thickness(1) }
+                        : Avatar(128, t.Accent, Core.Applier.Mix(t.Accent, Colors.Black, 0.4), 3);
                     sp.Children.Add(frame);
-                    var name = Text(ShellActions.UserName, 26, C(0xFFFFFF));
-                    name.Margin = new Thickness(0, 14, 0, 4);
-                    name.Effect = new DropShadowEffect { BlurRadius = 6, ShadowDepth = 1, Opacity = 0.7 };
+                    var name = Text(ShellActions.UserName, 24, C(0xFFFFFF), null, "Segoe UI");
+                    name.Margin = new Thickness(0, 12, 0, 2);
+                    name.Effect = new DropShadowEffect { BlurRadius = 5, ShadowDepth = 1, Opacity = 0.8, Color = C(0x061A3A) };
                     sp.Children.Add(name);
-                    var state = Text(L("Gesperrt", "Locked"), 15, C(0xFFFFFF, 220));
-                    state.Effect = new DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.6 };
+                    var state = Text(L("Gesperrt", "Locked"), 14, C(0xFFFFFF, 225), null, "Segoe UI");
+                    state.Effect = new DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.7, Color = C(0x061A3A) };
                     sp.Children.Add(state);
 
-                    // the Windows 7 sign-in line: white password box and the round blue arrow
-                    var pwText = new TextBlock { FontSize = 13, Foreground = B(0x1E1E1E), VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Segoe UI") };
-                    var placeholder = new TextBlock { Text = L("Kennwort", "Password"), FontSize = 13, FontStyle = FontStyles.Italic, Foreground = B(0x8D8D8D), VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Segoe UI") };
+                    // the password line
+                    var pwText = new TextBlock { FontSize = 13, Foreground = B(0x1E1E1E), VerticalAlignment = VerticalAlignment.Center, FontFamily = segoe };
+                    var placeholder = new TextBlock { Text = L("Kennwort", "Password"), FontSize = 13, FontStyle = FontStyles.Italic, Foreground = B(0x8D8D8D), VerticalAlignment = VerticalAlignment.Center, FontFamily = segoe };
+                    var caret = new Border { Width = 1, Height = 15, Background = B(0x1E1E1E), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+                    var fieldRow = new StackPanel { Orientation = Orientation.Horizontal };
+                    fieldRow.Children.Add(pwText); fieldRow.Children.Add(caret);
                     var fieldGrid = new Grid();
-                    fieldGrid.Children.Add(placeholder); fieldGrid.Children.Add(pwText);
+                    fieldGrid.Children.Add(placeholder); fieldGrid.Children.Add(fieldRow);
                     var field = new Border
                     {
-                        Width = 226, Height = 28, CornerRadius = new CornerRadius(2), Padding = new Thickness(7, 0, 7, 0), Child = fieldGrid,
-                        Background = V((0, C(0xFFFFFF)), (1, C(0xF4F7FB))), BorderBrush = B(0x5F7FA6), BorderThickness = new Thickness(1),
-                        Effect = new DropShadowEffect { BlurRadius = 6, ShadowDepth = 0, Color = C(0xBFE3FF), Opacity = 0.9 },
+                        Width = 226, Height = 26, CornerRadius = new CornerRadius(2), Padding = new Thickness(6, 0, 6, 0), Child = fieldGrid,
+                        Background = V((0, C(0xFFFFFF)), (1, C(0xF4F7FB))), BorderBrush = B(0x3D6DA8), BorderThickness = new Thickness(1),
+                        Effect = new DropShadowEffect { BlurRadius = 7, ShadowDepth = 0, Color = C(0xBFE3FF), Opacity = 0.9 },
                     };
-                    var arrowGlyph = new TextBlock { Text = "", FontFamily = new FontFamily(IconFont), FontSize = 13, Foreground = B(0xFFFFFF), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-                    var arrow = new Grid { Width = 30, Height = 30, Margin = new Thickness(8, 0, 0, 0) };
-                    arrow.Children.Add(new System.Windows.Shapes.Ellipse { Fill = new RadialGradientBrush(C(0x6FB5F2), C(0x1E5BAA)) { GradientOrigin = new Point(0.5, 0.25), Center = new Point(0.5, 0.4), RadiusX = 0.7, RadiusY = 0.7 }, Stroke = B(0x0E3A75), StrokeThickness = 1 });
+                    var arrowGlyph = new TextBlock { Text = "", FontFamily = new FontFamily(IconFont), FontSize = 12, Foreground = B(0xFFFFFF), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                    var arrow = new Grid { Width = 29, Height = 29, Margin = new Thickness(7, 0, 0, 0), Cursor = Cursors.Hand, Background = Brushes.Transparent };
+                    var arrowBall = new System.Windows.Shapes.Ellipse { Fill = new RadialGradientBrush(C(0x6FB5F2), C(0x1E5BAA)) { GradientOrigin = new Point(0.5, 0.25), Center = new Point(0.5, 0.4), RadiusX = 0.7, RadiusY = 0.7 }, Stroke = B(0x0E3A75), StrokeThickness = 1 };
+                    arrow.Children.Add(arrowBall);
                     arrow.Children.Add(new System.Windows.Shapes.Ellipse { Margin = new Thickness(4, 2, 4, 14), Fill = V((0, C(0xFFFFFF, 150)), (1, C(0xFFFFFF, 10))) });
                     arrow.Children.Add(arrowGlyph);
-                    var pwRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(38, 12, 0, 0), Opacity = 0, Visibility = Visibility.Collapsed };
+                    arrow.MouseEnter += (o, e) => arrowBall.Fill = new RadialGradientBrush(C(0x93CBFA), C(0x2A6FC2)) { GradientOrigin = new Point(0.5, 0.25), Center = new Point(0.5, 0.4), RadiusX = 0.7, RadiusY = 0.7 };
+                    arrow.MouseLeave += (o, e) => arrowBall.Fill = new RadialGradientBrush(C(0x6FB5F2), C(0x1E5BAA)) { GradientOrigin = new Point(0.5, 0.25), Center = new Point(0.5, 0.4), RadiusX = 0.7, RadiusY = 0.7 };
+                    arrow.MouseLeftButtonUp += (o, e) => { e.Handled = true; auth?.Submit?.Invoke(); };
+                    var pwRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(36, 14, 0, 0) };
                     pwRow.Children.Add(field); pwRow.Children.Add(arrow);
-                    var rowMove = new TranslateTransform(); pwRow.RenderTransform = rowMove;
                     sp.Children.Add(pwRow);
-                    var note = Text("", 13, C(0xFFFFFF, 225));
-                    note.Margin = new Thickness(0, 12, 0, 0); note.TextWrapping = TextWrapping.Wrap; note.MaxWidth = 460;
-                    note.Effect = new DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.7 };
+
+                    // a quiet line under the field: Windows Hello (only when it is set up) and short messages
+                    var note = Text("", 12, C(0xFFFFFF, 230), null, "Segoe UI");
+                    note.Margin = new Thickness(0, 10, 0, 0); note.TextWrapping = TextWrapping.Wrap; note.MaxWidth = 420; note.MinHeight = 18;
+                    note.Effect = new DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.7, Color = C(0x061A3A) };
                     sp.Children.Add(note);
-                    root.Children.Add(sp);
-                    var brand = Text(p.Name, 26, C(0xFFFFFF, 220), FontWeights.Light);
-                    brand.VerticalAlignment = VerticalAlignment.Bottom; brand.Margin = new Thickness(0, 0, 0, 40);
+                    var hello = Text(L("Mit Windows Hello anmelden", "Sign in with Windows Hello"), 12, C(0xBFE3FF), null, "Segoe UI");
+                    hello.Cursor = Cursors.Hand; hello.Visibility = Visibility.Collapsed; hello.Margin = new Thickness(0, 4, 0, 0);
+                    hello.MouseEnter += (o, e) => hello.TextDecorations = TextDecorations.Underline;
+                    hello.MouseLeave += (o, e) => hello.TextDecorations = null;
+                    hello.MouseLeftButtonUp += (o, e) => { e.Handled = true; auth?.UseHello?.Invoke(); };
+                    sp.Children.Add(hello);
+
+                    // "Switch User": the glassy Windows 7 button
+                    Border GlassButton(string text, Action a)
+                    {
+                        var tb = Text(text, 13, C(0xFFFFFF), null, "Segoe UI");
+                        tb.Margin = new Thickness(16, 5, 16, 6);
+                        var normal = V((0, C(0xFFFFFF, 70)), (0.5, C(0xFFFFFF, 35)), (0.51, C(0xFFFFFF, 15)), (1, C(0xFFFFFF, 30)));
+                        var hot = V((0, C(0xFFFFFF, 110)), (0.5, C(0xFFFFFF, 60)), (0.51, C(0xFFFFFF, 30)), (1, C(0xFFFFFF, 60)));
+                        var btn = new Border { Child = tb, CornerRadius = new CornerRadius(3), BorderBrush = B(0xFFFFFF, 140), BorderThickness = new Thickness(1), Background = normal, Cursor = Cursors.Hand, HorizontalAlignment = HorizontalAlignment.Center };
+                        btn.MouseEnter += (o, e) => btn.Background = hot;
+                        btn.MouseLeave += (o, e) => btn.Background = normal;
+                        btn.MouseLeftButtonUp += (o, e) => { e.Handled = true; a?.Invoke(); };
+                        return btn;
+                    }
+                    var switchUser = GlassButton(L("Benutzer wechseln", "Switch User"), () => auth?.UseWindows?.Invoke());
+                    switchUser.Margin = new Thickness(0, 28, 0, 0);
+                    sp.Children.Add(switchUser);
+
+                    // "Welcome" with the turning ring while the password is checked (as Windows 7 did)
+                    var welcome = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 18, 0, 0), Visibility = Visibility.Collapsed };
+                    var ring = new System.Windows.Shapes.Ellipse
+                    {
+                        Width = 22, Height = 22, StrokeThickness = 3, Stroke = new LinearGradientBrush(C(0xFFFFFF), C(0xFFFFFF, 0), 0), RenderTransformOrigin = new Point(0.5, 0.5),
+                        StrokeDashArray = new DoubleCollection { 5, 2.2 }, Margin = new Thickness(0, 0, 10, 0),
+                    };
+                    var spin = new RotateTransform();
+                    ring.RenderTransform = spin;
+                    welcome.Children.Add(ring);
+                    welcome.Children.Add(Text(L("Willkommen", "Welcome"), 24, C(0xFFFFFF), null, "Segoe UI"));
+                    sp.Children.Add(welcome);
+
+                    // the error page: Windows 7 swaps the tile for its message and an OK button
+                    var error = new StackPanel { Visibility = Visibility.Collapsed, VerticalAlignment = VerticalAlignment.Center };
+                    var errText = Text(L("Der Benutzername oder das Kennwort ist falsch.", "The user name or password is incorrect."), 15, C(0xFFFFFF), null, "Segoe UI");
+                    errText.Effect = new DropShadowEffect { BlurRadius = 5, ShadowDepth = 1, Opacity = 0.8, Color = C(0x061A3A) };
+                    error.Children.Add(errText);
+                    Action dismiss = null;
+                    var ok = GlassButton("OK", () => dismiss?.Invoke());
+                    ok.Margin = new Thickness(0, 22, 0, 0); ((TextBlock)ok.Child).Margin = new Thickness(30, 5, 30, 6);
+                    error.Children.Add(ok);
+                    center.Children.Add(error);
+                    root.Children.Add(center);
+
+                    // the edition at the bottom
+                    var brand = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 38) };
+                    var logo = ClassicLogo(30); logo.Margin = new Thickness(0, 0, 10, 0);
+                    brand.Children.Add(logo);
+                    var brandText = new TextBlock { FontFamily = new FontFamily("Segoe UI Light"), FontSize = 26, Foreground = B(0xFFFFFF, 235), VerticalAlignment = VerticalAlignment.Center };
+                    brandText.Inlines.Add(new System.Windows.Documents.Run("Windows"));
+                    brandText.Inlines.Add(new System.Windows.Documents.Run(" 7") { FontFamily = new FontFamily("Segoe UI"), FontWeight = FontWeights.SemiBold });
+                    brandText.Inlines.Add(new System.Windows.Documents.Run("  " + AccountPicture.SevenEdition) { FontSize = 20 });
+                    brand.Children.Add(brandText);
+                    brand.Effect = new DropShadowEffect { BlurRadius = 8, ShadowDepth = 1, Opacity = 0.6, Color = C(0x061A3A) };
                     root.Children.Add(brand);
 
-                    if (auth == null)
+                    // the red power button at the bottom right, with its menu
+                    var powerMenu = new StackPanel { Visibility = Visibility.Collapsed };
+                    var power = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 34, 34) };
+                    var redBall = new Grid { Width = 34, Height = 34, Cursor = Cursors.Hand, Background = Brushes.Transparent };
+                    redBall.Children.Add(new System.Windows.Shapes.Ellipse { Fill = new RadialGradientBrush(C(0xF08A6E), C(0xB3261E)) { GradientOrigin = new Point(0.5, 0.2), Center = new Point(0.5, 0.35), RadiusX = 0.75, RadiusY = 0.75 }, Stroke = B(0x6E120C), StrokeThickness = 1 });
+                    redBall.Children.Add(new System.Windows.Shapes.Ellipse { Margin = new Thickness(5, 2, 5, 16), Fill = V((0, C(0xFFFFFF, 140)), (1, C(0xFFFFFF, 0))) });
+                    redBall.Children.Add(new TextBlock { Text = "", FontFamily = new FontFamily(IconFont), FontSize = 15, Foreground = B(0xFFFFFF), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+                    var drop = new Border { Width = 16, Height = 22, Margin = new Thickness(2, 0, 0, 0), CornerRadius = new CornerRadius(3), Background = V((0, C(0xFFFFFF, 60)), (1, C(0xFFFFFF, 20))), BorderBrush = B(0xFFFFFF, 110), BorderThickness = new Thickness(1), Cursor = Cursors.Hand, VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock { Text = "", FontFamily = new FontFamily(IconFont), FontSize = 8, Foreground = B(0xFFFFFF), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+                    power.Children.Add(redBall); power.Children.Add(drop);
+                    redBall.MouseLeftButtonUp += (o, e) => { e.Handled = true; ShellActions.ShutdownNow(); };
+                    drop.MouseLeftButtonUp += (o, e) => { e.Handled = true; powerMenu.Visibility = powerMenu.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible; };
+                    var menuBox = new Border
                     {
-                        Tick(() => note.Text = DateTime.Now.ToString("HH:mm") + "  ·  " + hint);
-                        break;
+                        Child = powerMenu, Background = B(0xF5F6F7), BorderBrush = B(0x979797), BorderThickness = new Thickness(1), Padding = new Thickness(2),
+                        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 34, 74),
+                        Effect = new DropShadowEffect { BlurRadius = 6, ShadowDepth = 2, Opacity = 0.4 },
+                    };
+                    void PowerItem(string text, Action a)
+                    {
+                        var tb = new TextBlock { Text = text, FontFamily = segoe, FontSize = 12, Foreground = B(0x1E1E1E), Margin = new Thickness(26, 4, 30, 4) };
+                        var it = new Border { Child = tb, CornerRadius = new CornerRadius(2), BorderThickness = new Thickness(1), BorderBrush = Brushes.Transparent, Background = Brushes.Transparent, Cursor = Cursors.Hand };
+                        it.MouseEnter += (o, e) => { it.Background = V((0, C(0xF1F6FD)), (1, C(0xD5E7FC))); it.BorderBrush = B(0xA8D8EB); };
+                        it.MouseLeave += (o, e) => { it.Background = Brushes.Transparent; it.BorderBrush = Brushes.Transparent; };
+                        it.MouseLeftButtonUp += (o, e) => { e.Handled = true; powerMenu.Visibility = Visibility.Collapsed; a(); };
+                        powerMenu.Children.Add(it);
                     }
-                    auth.Terminal = false; auth.Accent = t.Accent;
-                    bool shown = false;
+                    PowerItem(L("Energie sparen", "Sleep"), ShellActions.Sleep);
+                    PowerItem(L("Neu starten", "Restart"), ShellActions.RestartNow);
+                    PowerItem(L("Herunterfahren", "Shut down"), ShellActions.ShutdownNow);
+                    menuBox.SetBinding(UIElement.VisibilityProperty, new System.Windows.Data.Binding("Visibility") { Source = powerMenu });
+                    root.Children.Add(power);
+                    root.Children.Add(menuBox);
+
+                    if (auth == null) break;
+                    auth.Terminal = false; auth.Accent = t.Accent; auth.AlwaysOpen = true;
+                    bool erred = false, busyShown = false;
+                    var spinAnim = new DoubleAnimation(0, 360, TimeSpan.FromSeconds(1.1)) { RepeatBehavior = RepeatBehavior.Forever };
+                    void Busy(bool on)
+                    {
+                        if (on == busyShown) return;
+                        busyShown = on;
+                        pwRow.Visibility = note.Visibility = switchUser.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+                        welcome.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+                        state.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+                        if (on) { hello.Visibility = Visibility.Collapsed; spin.BeginAnimation(RotateTransform.AngleProperty, spinAnim); }
+                        else spin.BeginAnimation(RotateTransform.AngleProperty, null);
+                    }
+                    dismiss = () =>
+                    {
+                        if (!erred) return;
+                        erred = false;
+                        error.Visibility = Visibility.Collapsed;
+                        sp.Visibility = Visibility.Visible;
+                        sp.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200)));
+                        auth.Message(null, false);
+                    };
+                    auth.KeyFilter = k => { if (!erred) return false; dismiss(); return true; };
                     auth.Render = () =>
                     {
                         if (auth.Unlocked) return;
-                        if (auth.Typing != shown)
-                        {
-                            shown = auth.Typing;
-                            if (shown)
-                            {
-                                pwRow.Visibility = Visibility.Visible;
-                                pwRow.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
-                                rowMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(8, 0, TimeSpan.FromMilliseconds(260)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
-                            }
-                            else { pwRow.BeginAnimation(UIElement.OpacityProperty, null); pwRow.Opacity = 0; pwRow.Visibility = Visibility.Collapsed; }
-                        }
+                        Busy(auth.Busy);
                         placeholder.Visibility = auth.Length == 0 ? Visibility.Visible : Visibility.Hidden;
-                        pwText.Text = new string('●', Math.Min(auth.Length, 24)) + (auth.Blink && auth.Length > 0 ? "|" : "");
-                        if (auth.Note != null) { note.Text = auth.Note; note.Foreground = B(auth.NoteBad ? C(0xFFD6D6) : C(0xFFFFFF, 225)); }
-                        else if (shown) { note.Text = L("Enter: Entsperren   ·   F1: Windows Hello   ·   F2: Windows-Anmeldung", "Enter: unlock   ·   F1: Windows Hello   ·   F2: Windows sign-in"); note.Foreground = B(C(0xFFFFFF, 170)); }
-                        else { note.Text = DateTime.Now.ToString("HH:mm") + "  ·  " + hint; note.Foreground = B(C(0xFFFFFF, 200)); }
+                        pwText.Text = new string('●', Math.Min(auth.Length, 26));
+                        caret.Opacity = auth.Blink ? 1 : 0;
+                        note.Text = erred ? "" : auth.Note ?? "";
+                        note.Foreground = B(auth.Note != null && auth.NoteBad ? C(0xFFD6D6) : C(0xFFFFFF, 230));
+                        hello.Visibility = auth.HelloReady && !busyShown ? Visibility.Visible : Visibility.Collapsed;
                     };
                     auth.OnDenied = () =>
                     {
+                        Busy(false);
+                        erred = true;
+                        sp.Visibility = Visibility.Collapsed;
+                        error.Visibility = Visibility.Visible;
+                        error.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200)));
                         auth.Render();
-                        field.BorderBrush = B(0xC42B1C);
-                        Shake(pwRow);
-                        var back = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
-                        back.Tick += (o, e) => { back.Stop(); field.BorderBrush = B(0x5F7FA6); };
-                        back.Start();
                     };
-                    auth.OnGranted = () =>
-                    {
-                        // like Windows 7: just "Welcome"
-                        pwRow.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(150)));
-                        note.Text = "";
-                        state.Text = L("Willkommen", "Welcome");
-                        state.FontSize = 22;
-                    };
+                    auth.OnGranted = () => Busy(true);
                     Tick(auth.Tick);
                     break;
                 }
@@ -433,6 +544,14 @@ namespace WinMorph.Shell
                         var info = new TextBlock { Foreground = B(D), FontFamily = new FontFamily(mono), FontSize = 13, Margin = new Thickness(0, 10, 0, 0) };
                         authPanel.Children.Add(info);
                         auth.Prompt = prompt; auth.Info = info; auth.Box = authBox; auth.Accent = G; auth.Terminal = true;
+                        // fingerprint or face: offered as one more terminal button, only when Windows Hello is set up
+                        var hello = new TextBlock { Text = "[ windows hello ]", Foreground = B(G), FontFamily = new FontFamily(mono), FontSize = 13, Margin = new Thickness(0, 12, 0, 0), Cursor = Cursors.Hand, Visibility = Visibility.Collapsed, HorizontalAlignment = HorizontalAlignment.Left };
+                        var helloBox = new Border { Child = hello, HorizontalAlignment = HorizontalAlignment.Left };
+                        hello.MouseEnter += (o, e) => { helloBox.Background = B(G); hello.Foreground = B(0x000000); };
+                        hello.MouseLeave += (o, e) => { helloBox.Background = null; hello.Foreground = B(G); };
+                        hello.MouseLeftButtonUp += (o, e) => { e.Handled = true; auth.UseHello?.Invoke(); };
+                        authPanel.Children.Add(helloBox);
+                        Tick(() => hello.Visibility = auth.HelloReady ? Visibility.Visible : Visibility.Collapsed);
                     }
                     root.Children.Add(sp);
 
@@ -441,7 +560,7 @@ namespace WinMorph.Shell
                     bool blink = false; int tick = 0;
                     if (still)
                     {
-                        prompt.Text = "> " + L("authentifizieren: beliebige taste drücken", "authenticate: press any key") + " █";
+                        prompt.Text = L("sitzung gesperrt", "session locked") + " █";
                         status.Text = L("geschützte sitzung   │   ", "secure session   │   ") + host + "   │   " + SysInfo.Os.ToLowerInvariant() + "   │   winmorph hacker";
                         break;
                     }
@@ -452,7 +571,7 @@ namespace WinMorph.Shell
                         clock.Text = now.ToString("HH:mm:ss");
                         date.Text = now.ToString(De ? "dddd, dd. MMMM yyyy" : "dddd, MMMM dd yyyy", Ci).ToLowerInvariant();
                         if (auth != null) auth.Tick();
-                        else prompt.Text = "> " + L("authentifizieren: beliebige taste drücken", "authenticate: press any key") + (blink ? " █" : "  ");
+                        else prompt.Text = L("sitzung gesperrt", "session locked") + (blink ? " █" : "  ");
                         if (tick++ % 2 == 0) status.Text = StatusLine();
                     });
                     break;
@@ -530,7 +649,7 @@ namespace WinMorph.Shell
                             tr.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, TimeSpan.FromMilliseconds(300)) { EasingFunction = new BounceEase { Bounces = 1, Bounciness = 4, EasingMode = EasingMode.EaseOut } });
                         }
                         hold.Visibility = auth.Length == 0 ? Visibility.Visible : Visibility.Hidden;
-                        note.Text = auth.Note ?? L("Enter · entsperren      F1 · Windows Hello", "Enter · unlock      F1 · Windows Hello");
+                        note.Text = auth.Note ?? "";
                         note.Foreground = B(auth.Note != null && auth.NoteBad ? shu : C(0x8A7A62));
                     };
                     auth.OnDenied = () =>

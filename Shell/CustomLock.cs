@@ -59,7 +59,8 @@ namespace WinMorph.Shell
             var presetId = Core.Reg.Get(ShellControl.SettingsKey, "LastPreset") as string;
             var p = Core.Presets.Find(presetId ?? "") ?? Core.Presets.All[0];
             theme = ShellThemes.ForLock(p.Id);
-            auth = new LockAuth();
+            auth = new LockAuth { UseHello = Hello, UseWindows = RealLock, Submit = Verify };
+            CheckHello(auth);
             HackerPanel.CloseAll();
             HoverPreview.CloseNow();
             // the Windows screen saver must not start on top while WinMorph's lock is shown
@@ -138,11 +139,14 @@ namespace WinMorph.Shell
                 if (Ignore.Contains(key) && key != Key.L) return;
                 if (key == Key.L && (DateTime.Now - shownAt).TotalSeconds < 2) return;
                 auth.Begin();
-                eatWakeText = printable;
+                // looks that show their password field from the start type the first key right away
+                eatWakeText = printable && !auth.AlwaysOpen;
                 if (key == Key.F1) Hello();
                 if (key == Key.F2) RealLock();
+                if (key == Key.Enter && auth.AlwaysOpen) Verify();
                 return;
             }
+            if (auth.KeyFilter?.Invoke(key) == true) { e.Handled = true; return; }
             switch (key)
             {
                 case Key.Enter: Verify(); break;
@@ -171,20 +175,21 @@ namespace WinMorph.Shell
         // ---------------- unlock ----------------
         static void Verify()
         {
-            if (auth.Length == 0) { auth.Message(M("passwort eingeben – oder [F1] windows hello", "type your password – or [F1] windows hello", "Gib dein Passwort ein – oder F1 für Windows Hello", "Type your password – or F1 for Windows Hello"), false); return; }
-            verifying = true;
+            if (verifying || helloBusy) return;
+            if (auth.Length == 0) { auth.Message(M("passwort eingeben", "type your password", "Gib dein Kennwort ein.", "Type your password."), false); return; }
+            verifying = true; auth.Busy = true; auth.Changed();
             auth.Message(M("prüfe …", "verifying …", "Einen Moment …", "One moment …"), false);
             var pw = auth.Take();
             string user = Environment.UserName, domain = Environment.UserDomainName;
             Task.Run(() => CheckPassword(user, domain, pw)).ContinueWith(t =>
             {
-                verifying = false;
+                verifying = false; auth.Busy = false;
                 if (t.Result) Unlock();
                 else
                 {
                     fails++;
                     if (fails >= 5) { auth.Message(M("zu viele versuche – windows übernimmt", "too many attempts – windows takes over", "Zu viele Versuche – Windows übernimmt die Anmeldung", "Too many attempts – Windows takes over the sign-in"), true); RealLock(); return; }
-                    auth.Denied(M("ZUGRIFF VERWEIGERT · falsches passwort (" + fails + "/5)", "ACCESS DENIED · wrong password (" + fails + "/5)", "Das Passwort ist falsch. Versuch es noch einmal.", "The password is incorrect. Try again."));
+                    auth.Denied(M("zugriff verweigert: falsches passwort", "access denied: wrong password", "Der Benutzername oder das Kennwort ist falsch.", "The user name or password is incorrect."));
                 }
             }, TaskScheduler.FromCurrentSynchronizationContext());
         }
@@ -206,26 +211,38 @@ namespace WinMorph.Shell
             catch { return false; }
         }
 
+        /// <summary>Whether Windows Hello is set up: the looks only offer it then.</summary>
+        static async void CheckHello(LockAuth a)
+        {
+            try
+            {
+                var avail = await global::Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync();
+                a.HelloReady = avail == global::Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available;
+                if (auth == a && active) a.Changed();
+            }
+            catch { }
+        }
+
         /// <summary>Fingerprint, face or PIN through the small Windows Hello prompt.</summary>
         static async void Hello()
         {
             if (helloBusy || verifying) return;
             helloBusy = true;
-            auth.Message(M("windows hello: finger auflegen / in die kamera schauen …", "windows hello: touch the sensor / look at the camera …", "Windows Hello: Finger auflegen oder in die Kamera schauen", "Windows Hello: touch the sensor or look at the camera"), false);
+            auth.Message(M("windows hello: finger auflegen oder in die kamera schauen", "windows hello: touch the sensor or look at the camera", "Finger auflegen oder in die Kamera schauen", "Touch the sensor or look at the camera"), false);
             try
             {
                 var avail = await global::Windows.Security.Credentials.UI.UserConsentVerifier.CheckAvailabilityAsync();
                 if (avail != global::Windows.Security.Credentials.UI.UserConsentVerifierAvailability.Available)
                 {
-                    auth.Message(M("windows hello ist hier nicht eingerichtet – passwort eingeben oder [F2]", "windows hello is not set up here – type your password or [F2]", "Windows Hello ist nicht eingerichtet – bitte Passwort eingeben", "Windows Hello is not set up – please type your password"), true);
+                    auth.Message(M("windows hello ist nicht eingerichtet", "windows hello is not set up", "Windows Hello ist nicht eingerichtet.", "Windows Hello is not set up."), true);
                     return;
                 }
                 var h = new WindowInteropHelper(windows[0]).Handle;
                 var result = await HelloInterop.Request(h, L("WinMorph entsperren", "Unlock WinMorph"));
                 if (result == global::Windows.Security.Credentials.UI.UserConsentVerificationResult.Verified) { Unlock(); return; }
-                auth.Message(M("windows hello abgebrochen – passwort eingeben oder [F1] erneut", "windows hello cancelled – type your password or [F1] again", "Windows Hello abgebrochen – Passwort eingeben oder F1", "Windows Hello cancelled – type your password or press F1"), true);
+                auth.Message(M("windows hello abgebrochen", "windows hello cancelled", "Windows Hello wurde abgebrochen.", "Windows Hello was cancelled."), true);
             }
-            catch (Exception ex) { Log(ex); auth.Message(M("windows hello nicht verfügbar – passwort eingeben oder [F2]", "windows hello unavailable – type your password or [F2]", "Windows Hello ist gerade nicht verfügbar – bitte Passwort eingeben", "Windows Hello is unavailable – please type your password"), true); }
+            catch (Exception ex) { Log(ex); auth.Message(M("windows hello nicht verfügbar", "windows hello unavailable", "Windows Hello ist gerade nicht verfügbar.", "Windows Hello is unavailable right now."), true); }
             finally { helloBusy = false; if (active) Focus(); }
         }
 
@@ -280,7 +297,7 @@ namespace WinMorph.Shell
             {
                 step++;
                 if (step == 1) { Shot(prefix + "-idle.png"); a.Begin(); foreach (var ch in "geheim12") a.Add(ch); }
-                else if (step == 2) { Shot(prefix + "-typing.png"); a.Take(); a.Denied(M("ZUGRIFF VERWEIGERT · falsches passwort (1/5)", "ACCESS DENIED · wrong password (1/5)", "Das Passwort ist falsch. Versuch es noch einmal.", "The password is incorrect. Try again.")); }
+                else if (step == 2) { Shot(prefix + "-typing.png"); a.Take(); a.Denied(M("zugriff verweigert: falsches passwort", "access denied: wrong password", "Der Benutzername oder das Kennwort ist falsch.", "The user name or password is incorrect.")); }
                 else if (step == 3) { Shot(prefix + "-denied.png"); tm.Stop(); LockScreen.StopTimers(); w.Close(); done(); }
             };
             tm.Start();
@@ -352,6 +369,16 @@ namespace WinMorph.Shell
         public DateTime LastInput = DateTime.Now;
         string message; bool messageBad;
         bool blink;
+        /// <summary>The look shows its password field from the start (Windows 7): the first key is already typed.</summary>
+        public bool AlwaysOpen;
+        /// <summary>Windows Hello is set up; the looks offer it only then (checked when the lock opens).</summary>
+        public bool HelloReady;
+        /// <summary>The password is being checked right now.</summary>
+        public bool Busy;
+        /// <summary>Set by the lock: what a click in the design does (Windows Hello, the Windows sign-in, unlock).</summary>
+        public Action UseHello, UseWindows, Submit;
+        /// <summary>A design may take keys first (Windows 7 error page: any key = OK). True = handled.</summary>
+        public Func<Key, bool> KeyFilter;
         /// <summary>Set by looks that draw the password stage themselves (Windows 7, Zen); called on every change.</summary>
         public Action Render;
         /// <summary>Set by such looks: wrong password (shake etc.) and unlocked.</summary>
@@ -383,9 +410,8 @@ namespace WinMorph.Shell
             string cursor = blink ? "█" : " ";
             if (!Typing)
             {
-                Prompt.Text = Terminal ? "> " + L("authentifizieren: beliebige taste drücken", "authenticate: press any key") + " " + cursor
-                                       : L("Taste drücken oder klicken, um zu entsperren", "Press a key or click to unlock");
-                if (Info != null) Info.Text = Terminal ? L("[F1] windows hello   [F2] windows-anmeldung", "[F1] windows hello   [F2] windows sign-in") : "";
+                Prompt.Text = Terminal ? L("sitzung gesperrt", "session locked") + " " + cursor : "";
+                if (Info != null) { Info.Text = message ?? ""; Info.Foreground = B(message != null && messageBad ? Color.FromRgb(0xFF, 0x3B, 0x5C) : Core.Applier.Mix(Accent, Colors.Black, 0.35)); }
             }
             else
             {
@@ -393,8 +419,7 @@ namespace WinMorph.Shell
                 Prompt.Text = Terminal ? L("passwort für ", "password for ") + user + ": " + dots + cursor : (pw.Length == 0 ? L("Passwort", "Password") : dots) + (blink ? "|" : " ");
                 if (Info != null)
                 {
-                    Info.Text = message ?? (Terminal ? "[enter] " + L("entsperren", "unlock") + "   [esc] " + L("zurück", "back") + L("   [F1] windows hello   [F2] windows-anmeldung", "   [F1] windows hello   [F2] windows sign-in")
-                                                      : L("Enter: entsperren  ·  F1: Windows Hello  ·  F2: Windows-Anmeldung", "Enter: unlock  ·  F1: Windows Hello  ·  F2: Windows sign-in"));
+                    Info.Text = message ?? "";
                     Info.Foreground = B(message != null && messageBad ? Color.FromRgb(0xFF, 0x3B, 0x5C) : Core.Applier.Mix(Accent, Colors.Black, Terminal ? 0.35 : 0.0));
                     if (!Terminal && message == null) Info.Foreground = B(Color.FromArgb(190, 255, 255, 255));
                 }
@@ -421,11 +446,11 @@ namespace WinMorph.Shell
 
         public void Granted()
         {
-            message = Terminal ? L("ZUGRIFF ERLAUBT · willkommen zurück", "ACCESS GRANTED · welcome back") : L("Willkommen zurück", "Welcome back");
+            message = Terminal ? L("zugriff erlaubt", "access granted") : L("Willkommen", "Welcome");
             messageBad = false;
             Typing = true; Clear(); Unlocked = true;
             if (OnGranted != null) { OnGranted(); return; }
-            if (Prompt != null) Prompt.Text = Terminal ? L("> zugriff erlaubt", "> access granted") : "✓";
+            if (Prompt != null) Prompt.Text = Terminal ? L("sitzung entsperrt", "session unlocked") : "";
             if (Info != null) { Info.Text = message; Info.Foreground = B(Accent); }
             if (Box != null) Box.BorderBrush = B(Accent);
         }

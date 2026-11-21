@@ -123,6 +123,10 @@ namespace WinMorph.Shell
         }
         public static void Sleep() => SetSuspendState(false, false, false);
 
+        /// <summary>Without a question (the lock screen's power button, like Windows' own).</summary>
+        public static void ShutdownNow() => Run("shutdown.exe", "/s /t 0");
+        public static void RestartNow() => Run("shutdown.exe", "/r /t 0");
+
         public static void Shutdown() { if (Confirm(De ? "Computer jetzt herunterfahren?" : "Shut down now?")) Run("shutdown.exe", "/s /t 0"); }
         public static void Restart() { if (Confirm(De ? "Computer jetzt neu starten?" : "Restart now?")) Run("shutdown.exe", "/r /t 0"); }
         public static void SignOut() { if (Confirm(De ? "Jetzt abmelden?" : "Sign out now?")) Run("shutdown.exe", "/l"); }
