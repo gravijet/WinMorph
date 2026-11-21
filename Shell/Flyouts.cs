@@ -856,7 +856,7 @@ namespace WinMorph.Shell
             body.Children.Add(sh);
             body.Children.Add(soundRow);
 
-            Setting("", L("Nicht stören", "Do not disturb"), Switch(Notify.Quiet, on => Notify.Quiet = on), L("Mitteilungen sammeln sich leise im Kalender", "Notifications gather quietly in the calendar"));
+            Setting("", L("Nicht stören", "Do not disturb"), Switch(Notify.Quiet, on => Notify.Quiet = on), L("WinMorph-Hinweise nur im Kalender", "WinMorph notices only in the calendar"));
 
             var bt = new Border();
             Setting("", "Bluetooth", bt);

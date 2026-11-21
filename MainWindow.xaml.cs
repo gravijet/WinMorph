@@ -408,8 +408,8 @@ namespace WinMorph
                     ("desktop", "Desktop", "Desktop", "Aero-Hintergrund", "Aero wallpaper"),
                     ("lock", "Sperrbildschirm", "Lock screen", "Windows-7-Anmeldung mit Kontobild, auch bei Win+L", "Windows 7 sign-in with your account picture, also on Win+L"),
                     ("shell", "Taskleiste, Startmenü, Alt+Tab", "Taskbar, Start menu, Alt+Tab", "Glasleiste mit Startkugel, Aero-Alt+Tab, blaue Titelleisten", "Glass bar with start orb, Aero Alt+Tab, blue title bars"),
-                    ("shell", "WLAN, Ton, Akku, Uhr, Mitteilungen", "Wi-Fi, sound, battery, clock, notifications", "Die Windows-7-Panels und Sprechblasen", "The Windows 7 panels and balloon tips"),
-                    ("shell", "Explorer, Task-Manager, Ausführen", "Explorer, Task Manager, Run", "Im Windows-7-Stil, wie auch immer sie geöffnet werden; Aero-Mauszeiger", "In Windows 7 style however they are opened; Aero pointers"),
+                    ("shell", "WLAN, Ton, Akku, Uhr", "Wi-Fi, sound, battery, clock", "Die Windows-7-Panels und Sprechblasen", "The Windows 7 panels and balloon tips"),
+                    ("shell", "Explorer, Task-Manager, Ausführen", "Explorer, Task Manager, Run", "Im Windows-7-Stil; Ordner öffnen sich immer darin; Aero-Mauszeiger", "In Windows 7 style; folders always open in it; Aero pointers"),
                 };
                 case "zen": return new[]
                 {
@@ -424,7 +424,7 @@ namespace WinMorph
                     ("desktop", "Desktop", "Desktop", "Live-Systeminfos neben deinen Symbolen", "Live system info next to your icons"),
                     ("lock", "Sperrbildschirm", "Lock screen", "Terminal-Anmeldung im Code-Regen, auch bei Win+L", "Terminal sign-in in the code rain, also on Win+L"),
                     ("shell", "Statuszeile, Terminal, Alt+Tab", "Status line, terminal, Alt+Tab", "Netz, CPU, RAM, Akku, Uhr; Windows-Taste öffnet das Terminal", "Network, CPU, RAM, battery, clock; the Windows key opens the terminal"),
-                    ("shell", "Dateien, Task-Manager, Ausführen", "Files, task manager, run", "Terminal-Apps, wie auch immer sie geöffnet werden; Mauszeiger in deiner Farbe", "Terminal apps however they are opened; pointers in your colour"),
+                    ("shell", "Dateien, Task-Manager, Ausführen", "Files, task manager, run", "Terminal-Apps; Ordner öffnen sich immer darin; Mauszeiger in deiner Farbe", "Terminal apps; folders always open in them; pointers in your colour"),
                 };
             }
         }

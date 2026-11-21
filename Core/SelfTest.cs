@@ -125,6 +125,19 @@ namespace WinMorph.Core
                 var wav = WinMorph.Shell.Zen.Wav(true);
                 Check(wav.Length == 44 + 12 * 22050 * 2 && wav[0] == 'R' && wav[8] == 'W', "Zen rain sound is a valid WAV (" + wav.Length + " bytes)");
 
+                // a 6.2.0 test build switched Windows' banners off: the clean-up gives them back exactly
+                if (!WinMorph.Shell.ShellControl.IsRunning)
+                {
+                    const string aumid = "WinMorph.SelfTest.Banner";
+                    var bannerKey = @"HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\" + aumid;
+                    using (var k = Reg.Create(bannerKey)) k.SetValue("ShowBanner", 0, Microsoft.Win32.RegistryValueKind.DWord);
+                    using (var k = Reg.Create(WinMorph.Shell.ShellControl.SettingsKey)) k.SetValue("BannersOff", new[] { aumid + "|1" }, Microsoft.Win32.RegistryValueKind.MultiString);
+                    WinMorph.Shell.Notify.RestoreBanners();
+                    bool back = Reg.Get(bannerKey, "ShowBanner") is int v1 && v1 == 1 && Reg.Get(WinMorph.Shell.ShellControl.SettingsKey, "BannersOff") == null;
+                    Registry.CurrentUser.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\" + aumid, false);
+                    Check(back, "banner clean-up restores the recorded value");
+                }
+
                 // read-only system checks
                 var m = Native.GetNcm();
                 Check(!string.IsNullOrEmpty(m.lfCaptionFont.lfFaceName), "read window metrics (caption font: " + m.lfCaptionFont.lfFaceName + ")");

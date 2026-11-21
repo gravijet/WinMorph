@@ -1,16 +1,16 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Windows.Threading;
 
 namespace WinMorph.Shell
 {
     /// <summary>
-    /// Looks with their own apps replace Windows' Explorer and Task Manager however they are opened:
-    /// from a desktop icon, another program, Ctrl+Alt+Del or a link. The Windows window is hidden the
-    /// moment it appears and the look's own app opens at the same place. Windows that only Windows can
-    /// show (Control Panel, Recycle Bin, network places) come back unchanged.
+    /// The look's own file manager replaces Windows' Explorer windows however they are opened: from a desktop
+    /// icon, another program or a link. The Explorer window is hidden the moment it appears and the look's app
+    /// opens at the same folder. Places only Windows can show (Control Panel, Recycle Bin, network) come back
+    /// unchanged. Task Manager is never closed or ended (that is what malware does): the look's own one opens
+    /// from Ctrl+Shift+Esc, the Start menu, Win+X and the bar instead.
     /// </summary>
     internal static class OwnAppRedirect
     {
@@ -45,7 +45,6 @@ namespace WinMorph.Shell
             if (DateTime.Now < bypassUntil || busy.Contains(hwnd) || leave.Contains(hwnd)) return;
             var cls = W32.ClassOf(hwnd);
             if (cls == "CabinetWClass") Explorer(hwnd);
-            else if (cls == "TaskManagerWindow") TaskManager(hwnd);
         }
 
         static void Explorer(IntPtr hwnd)
@@ -70,22 +69,6 @@ namespace WinMorph.Shell
                 if (target.Length == 0) ShellActions.ThisPC(); else ShellActions.Files(target);
             };
             tm.Start();
-        }
-
-        static void TaskManager(IntPtr hwnd)
-        {
-            // an elevated Task Manager cannot be hidden by a normal process: then it stays as it is
-            if (!W32.ShowWindow(hwnd, W32.SW_HIDE) && W32.IsWindowVisible(hwnd)) { leave.Add(hwnd); return; }
-            W32.GetWindowThreadProcessId(hwnd, out uint pid);
-            W32.PostMessage(hwnd, 0x0010, IntPtr.Zero, IntPtr.Zero);
-            var tm = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
-            tm.Tick += (s, e) =>
-            {
-                tm.Stop();
-                try { using (var p = Process.GetProcessById((int)pid)) if (!p.HasExited && p.ProcessName.Equals("Taskmgr", StringComparison.OrdinalIgnoreCase)) p.Kill(); } catch { }
-            };
-            tm.Start();
-            ShellActions.TaskManager();
         }
 
         /// <summary>The folder an Explorer window shows (a file system path or a shell id like ::{GUID}), or null.</summary>

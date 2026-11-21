@@ -12,18 +12,15 @@ using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using Microsoft.Win32;
-using Windows.UI.Notifications;
-using Windows.UI.Notifications.Management;
 using static WinMorph.Shell.Ui;
 
 namespace WinMorph.Shell
 {
     /// <summary>
-    /// Notifications in the look's own design: Windows 7 balloon tips at the tray, frosted Zen cards, black
-    /// terminal banners. App notifications are read from the Windows notification centre (they stay there).
-    /// While the look runs, Windows' own banners are switched off per app and given back exactly as they were
-    /// when the look stops (also after a crash: <see cref="RestoreBanners"/> runs from any WinMorph process).
-    /// Apps that ring (calls, alarms) keep Windows' banner, because only that one has the answer buttons.
+    /// WinMorph's own notices in the look's design (Windows 7 balloon tips, frosted Zen cards, terminal banners):
+    /// focus timer, Wi-Fi, the terminal timer. Other apps' notifications stay Windows': WinMorph neither reads them
+    /// nor changes their settings (both look like spyware to antivirus programs). <see cref="RestoreBanners"/> only
+    /// cleans up after version 6.2.0 test builds, which switched Windows' banners off.
     /// </summary>
     internal static class Notify
     {
@@ -32,9 +29,6 @@ namespace WinMorph.Shell
         static readonly List<Window> shown = new List<Window>();
         static readonly List<Item> history = new List<Item>();
         static ShellTheme theme;
-        static DispatcherTimer poll;
-        static HashSet<uint> seen;
-        static bool busy;
         const int MaxShown = 3;
         static bool De => Core.Loc.De;
         static string L(string de, string en) => De ? de : en;
@@ -51,67 +45,18 @@ namespace WinMorph.Shell
         const string SettingsRoot = @"HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings";
         const string BannersOff = "BannersOff";   // REG_MULTI_SZ in WinMorph's key: "aumid|original" ("-" = had no value)
 
-        // apps whose banners carry answer/snooze buttons stay with Windows
-        static readonly string[] KeepWindows = { "teams", "yourphone", "phonelink", "whatsapp", "skype", "zoom", "windowsalarms", "alarms", "calling", "discord", "signal", "telegram" };
-
-        /// <summary>Starts the look's notifications: reads the notification centre if Windows allows it.</summary>
         public static void Use(ShellTheme t)
         {
             Stop();
             theme = t;
-            var ui = Dispatcher.CurrentDispatcher;
-            // off the UI thread: waiting for the permission there could freeze the shell
-            Task.Run(() =>
-            {
-                try
-                {
-                    var l = UserNotificationListener.Current;
-                    if (l.GetAccessStatus() != UserNotificationListenerAccessStatus.Allowed) l.RequestAccessAsync().AsTask().Wait(30000);
-                    if (l.GetAccessStatus() != UserNotificationListenerAccessStatus.Allowed) return;   // Windows' banners stay
-                    ui.BeginInvoke(new Action(() =>
-                    {
-                        if (theme != t) return;   // stopped or restarted meanwhile
-                        foreach (var aumid in KnownApps()) BannerOff(aumid);
-                        poll = new DispatcherTimer(TimeSpan.FromSeconds(1.5), DispatcherPriority.Background, (s, e) => Poll(l), ui);
-                        Poll(l);
-                    }));
-                }
-                catch { }
-            });
         }
 
         public static void Stop()
         {
-            poll?.Stop(); poll = null; seen = null; theme = null;
+            theme = null;
             foreach (var w in shown.ToList()) try { w.Close(); } catch { }
             shown.Clear();
             RestoreBanners();
-        }
-
-        static IEnumerable<string> KnownApps()
-        {
-            try { using (var k = Core.Reg.Open(SettingsRoot)) return k?.GetSubKeyNames().ToList() ?? new List<string>(); }
-            catch { return new string[0]; }
-        }
-
-        static bool Rings(string aumid) => KeepWindows.Any(x => aumid.IndexOf(x, StringComparison.OrdinalIgnoreCase) >= 0);
-
-        static void BannerOff(string aumid)
-        {
-            if (string.IsNullOrEmpty(aumid) || Rings(aumid)) return;
-            try
-            {
-                var list = Recorded();
-                if (list.Any(x => x.StartsWith(aumid + "|", StringComparison.OrdinalIgnoreCase))) return;
-                var key = SettingsRoot + "\\" + aumid;
-                var cur = Core.Reg.Get(key, "ShowBanner");
-                if (cur is int v && v == 0) return;   // the user had switched it off already: nothing to give back
-                // remember first, then change: a crash in between never loses the original
-                list.Add(aumid + "|" + (cur is int c ? c.ToString() : "-"));
-                using (var k = Core.Reg.Create(ShellControl.SettingsKey)) k.SetValue(BannersOff, list.ToArray(), RegistryValueKind.MultiString);
-                using (var k = Core.Reg.Create(key)) k.SetValue("ShowBanner", 0, RegistryValueKind.DWord);
-            }
-            catch { }
         }
 
         static List<string> Recorded() => (Core.Reg.Get(ShellControl.SettingsKey, BannersOff) as string[])?.ToList() ?? new List<string>();
@@ -136,44 +81,6 @@ namespace WinMorph.Shell
                 using (var k = Core.Reg.Open(ShellControl.SettingsKey, true)) k?.DeleteValue(BannersOff, false);
             }
             catch { }
-        }
-
-        static void Poll(UserNotificationListener l)
-        {
-            if (busy) return;
-            busy = true;
-            var ui = Dispatcher.CurrentDispatcher;
-            Task.Run(() =>
-            {
-                var fresh = new List<Item>();
-                try
-                {
-                    var list = l.GetNotificationsAsync(NotificationKinds.Toast).AsTask().Result;
-                    var ids = new HashSet<uint>(list.Select(n => n.Id));
-                    if (seen != null)
-                        foreach (var n in list.Where(n => !seen.Contains(n.Id)))
-                        {
-                            string aumid = null, app = "App";
-                            try { aumid = n.AppInfo.AppUserModelId; app = n.AppInfo.DisplayInfo.DisplayName; } catch { }
-                            var bind = n.Notification.Visual.GetBinding(KnownNotificationBindings.ToastGeneric);
-                            var texts = bind?.GetTextElements().Select(x => x.Text).Where(x => !string.IsNullOrWhiteSpace(x)).ToList() ?? new List<string>();
-                            fresh.Add(new Item { When = DateTime.Now, App = app, Aumid = aumid, Title = texts.FirstOrDefault() ?? "", Body = string.Join("\n", texts.Skip(1)) });
-                        }
-                    seen = ids;
-                }
-                catch { }
-                ui.BeginInvoke(new Action(() =>
-                {
-                    busy = false;
-                    foreach (var f in fresh)
-                    {
-                        bool windowsShows = f.Aumid == null || Rings(f.Aumid) || !(Core.Reg.Get(SettingsRoot + "\\" + f.Aumid, "ShowBanner") is int b && b == 0);
-                        Add(f);
-                        if (!windowsShows) Banner(f);
-                        else if (f.Aumid != null) BannerOff(f.Aumid);   // a new app: Windows showed this one, the next ones are the look's
-                    }
-                }));
-            });
         }
 
         static void Add(Item i)
@@ -205,7 +112,6 @@ namespace WinMorph.Shell
             w.MouseLeftButtonUp += (s, e) =>
             {
                 close.Stop(); Leave(w);
-                if (i.Aumid != null) ShellActions.Run("explorer.exe", @"shell:AppsFolder\" + i.Aumid);   // opens the app that sent it
             };
             w.Closed += (s, e) => { close.Stop(); shown.Remove(w); Arrange(); };
             w.SourceInitialized += (s, e) =>

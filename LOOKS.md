@@ -18,14 +18,14 @@ Ein Look ist erst fertig, wenn **nichts mehr nach Windows 11 aussieht**. Wer ein
 | Taskleiste | `Shell/ShellHost.cs` | eigene Form, eigene Startschaltfläche, eigene Laufend-Markierung |
 | Tray-Symbole | `Shell/TrayGlyph.cs` | WLAN, Ton, Akku selbst gezeichnet, keine Windows-11-Glyphen |
 | WLAN, Ton, Akku, Uhr/Kalender | `Shell/Flyouts.cs` (Hacker: `HackerPanels.cs`) | eigene Panels, keine Windows-Schnelleinstellungen |
-| Mitteilungen | `Shell/Notify.cs` | eigene Banner und eigene Liste; Windows-Banner nur während der Look läuft aus |
+| Hinweise | `Shell/Notify.cs` | WinMorphs eigene Hinweise im Look; fremde Mitteilungen werden weder gelesen noch umgestellt |
 | Lautstärketasten | `Shell/ShellHost.cs` (`VolumeKey`), `VolumeOsd` | eigene Anzeige statt Windows-Popup |
 | Startmenü | `Shell/StartMenu*.cs` | eigenes Layout, nicht das Windows-11-Raster |
 | Win+X / Rechtsklick / Tooltips | `QuickMenu.cs`, `MiniMenu.cs`, `ShellHost.ThemeToolTips` | im Look |
 | Alt+Tab | `Shell/Switcher.cs` | eigene Darstellung mit Live-Vorschau |
 | Vorschau beim Darüberfahren | `Shell/HoverPreview.cs` | im Look |
 | Fensterrahmen | `ShellTheme.Frame` | Titelleisten in den Farben des Looks |
-| Explorer, Task-Manager, Ausführen | `SevenApps.cs`, `ZenApps.cs`, `HackerApps.cs` | eigene Apps, auch beim normalen Öffnen (Startmenü, Desktop, Strg+Alt+Entf) über `OwnAppRedirect` |
+| Explorer, Task-Manager, Ausführen | `SevenApps.cs`, `ZenApps.cs`, `HackerApps.cs` | eigene Apps; Explorer-Fenster werden über `OwnAppRedirect` ersetzt, der Task-Manager über alle eigenen Wege (Strg+Umschalt+Esc, Startmenü, Win+X) |
 | Mauszeiger | `Shell/CursorSkin.cs` | eigene Zeiger, nur für die Sitzung |
 | Sperrbildschirm | `Shell/LockScreen.cs`, `CustomLock.cs` | siehe Abschnitt 3 |
 | Bildlaufleisten, Titelzeile eigener Apps | `ZenStyle.ScrollBars`, `ZenWindow.Body` | keine Windows-Pfeilleisten, keine Windows-Knöpfe in eigenen Apps |
@@ -46,7 +46,8 @@ Ein Look ist erst fertig, wenn **nichts mehr nach Windows 11 aussieht**. Wer ein
 
 - Leisten werden nur neu aufgebaut, wenn sich wirklich etwas geändert hat (Signatur-Vergleich), Tooltips lesen den aktuellen Titel.
 - Vollbild wird selbst geprüft (`BarWindow.CheckFullscreen`), nie blind `ABN_FULLSCREENAPP` folgen.
-- Alles, was zur Laufzeit an Windows geändert wird (Taskleiste, Banner, Zeiger, Win+L), wird vor der Änderung gemerkt und von jedem WinMorph-Prozess zurückgegeben (`ShellControl.GiveBackTaskbar`).
+- Alles, was zur Laufzeit an Windows geändert wird (Taskleiste, Zeiger, Win+L), wird vor der Änderung gemerkt und von jedem WinMorph-Prozess zurückgegeben (`ShellControl.GiveBackTaskbar`).
+- **Nichts, was nach Schadsoftware aussieht**: keine fremden Prozesse beenden (auch nicht den Task-Manager), keine Mitteilungs- oder Sicherheitseinstellungen anderer Apps ändern, keine fremden Mitteilungen mitlesen. Defender entfernt WinMorph sonst als „Behavior:Win32/Execution.A!ml“ (so geschehen mit einem 6.2-Testbuild).
 
 ## 6. Prüfen, bevor es fertig ist
 
@@ -68,6 +69,6 @@ Jedes Bild ansehen. Danach den Look einmal echt anwenden (`--apply <look>`), Sta
 
 - Windows-Einstellungen-App (`ms-settings:`), Systemsteuerung und Verwaltungswerkzeuge: Windows' eigene Fenster. Die Panels der Looks decken WLAN, Ton, Akku/Energie, Helligkeit, Bluetooth und Mitteilungen ab; tiefe Einstellungen öffnen Windows.
 - Tray-Symbole fremder Programme (OneDrive, Discord …): nur über Windows erreichbar.
-- Mitteilungen von Anruf- und Wecker-Apps behalten Windows' Banner, weil nur dieser Annehmen/Schlummern kann.
-- Ein Task-Manager, der mit Administratorrechten läuft, lässt sich von einem normalen Prozess nicht ersetzen.
+- Mitteilungen anderer Apps zeigt Windows (siehe „Nichts, was nach Schadsoftware aussieht“).
+- Ein Windows-Task-Manager, der auf anderem Weg geöffnet wird (Strg+Alt+Entf), bleibt Windows'.
 - Titelleisten-Knöpfe fremder Programme zeichnet Windows; der Look färbt nur die Leiste.
