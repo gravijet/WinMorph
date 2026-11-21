@@ -49,7 +49,7 @@ namespace WinMorph.Live
         public static readonly List<WallItem> All = new List<WallItem>
         {
             // ---- calm desktop of the Zen look ----
-            S("zen-desk", "calm", "Zen-Landschaft", "Zen landscape", "Licht folgt der Tageszeit, Uhr & Gedanke des Tages", "Light follows the time of day, clock & daily thought", interactive: false),
+            S("zen-desk", "calm", "Koi-Teich", "Koi pond", "Koi schwimmen unter den Seerosen", "Koi swim beneath the lily pads", interactive: false),
             // ---- hacker ----
             S("hacker-desk", "hacker", "Hacker-Desktop", "Hacker desktop", "Ruhig, mit Live-Systeminfos · spart Akku", "Calm, with live system info · saves battery", interactive: false),
             S("matrix-hud", "hacker", "Matrix + System-HUD", "Matrix + system HUD", "Code-Regen mit Live-Systemmonitor · interaktiv", "Code rain with live system monitor · interactive"),

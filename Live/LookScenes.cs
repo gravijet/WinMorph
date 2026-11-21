@@ -57,118 +57,185 @@ namespace WinMorph.Live
     }
 
     /// <summary>
-    /// Zen desktop: a mountain landscape whose light follows the time of day, a big calm clock,
-    /// the date and a thought for the day. Changes once a minute – practically no battery use.
+    /// Zen desktop "Morgenteich": the koi pond of the wallpaper, and the koi swim. They glide slowly under
+    /// the lily pads, beat their tails, turn away from the edges, and now and then a ring of water spreads.
+    /// Water and floating leaves are drawn once; each frame only the small areas around the koi change.
     /// </summary>
     sealed class ZenScene : Scene
     {
-        public override int Fps => 1;
-        uint[] bg;
-        int bgKey = -1;
-        string drawn;
+        public override int Fps => 20;
+        public override double Resolution => 0.6;
 
-        // hour, sky top, sky bottom, sun/moon, mountains, text
-        static readonly (double h, uint top, uint bottom, uint sun, uint mount, uint text)[] Light =
+        sealed class Fish
         {
-            (0,  0x0E1424, 0x283050, 0xE8E6DA, 0x1A2036, 0xE6E2D6),
-            (5,  0x1E2440, 0x6A5A78, 0xF2D0B0, 0x3A3448, 0xF4EDE2),
-            (7,  0xF0C7A4, 0xF8E8D4, 0xF29E6A, 0xB39276, 0x5A4636),
-            (10, 0xF5EFE4, 0xE6D8C2, 0xD99A6C, 0xB8A07F, 0x5E4D3A),
-            (16, 0xF3E4CC, 0xEBCFA8, 0xE08A55, 0xA98868, 0x5A4532),
-            (19, 0xE79A6E, 0x8E5F7C, 0xF36B3A, 0x5C4258, 0xFBEFE6),
-            (21, 0x232A48, 0x4A3E60, 0xEDE6D2, 0x2A2840, 0xEAE4D8),
-            (24, 0x0E1424, 0x283050, 0xE8E6DA, 0x1A2036, 0xE6E2D6),
-        };
-
-        static readonly string[] ThoughtsDe =
-        {
-            "Atme. Du bist genau hier.", "Eins nach dem anderen.", "Langsam ist auch ein Tempo.", "Was jetzt zählt, ist dieser Moment.",
-            "Ruhe ist eine Fähigkeit, keine Laune.", "Weniger, aber besser.", "Du musst heute nicht alles schaffen.", "Lass los, was du nicht halten musst.",
-            "Ein klarer Kopf beginnt mit einem tiefen Atemzug.", "Pausen sind Teil der Arbeit.", "Achte auf das, was gut ist.", "Der Berg wächst nicht, du wächst.",
-            "Stille ist auch eine Antwort.", "Heute ist genug.", "Konzentration ist ein Geschenk an dich selbst.", "Kleine Schritte tragen weit.",
-            "Sei freundlich – auch zu dir.", "Nichts muss perfekt sein.", "Schau aus dem Fenster. Atme aus.", "Der Fluss eilt nicht und kommt doch an.",
-        };
-        static readonly string[] ThoughtsEn =
-        {
-            "Breathe. You are right here.", "One thing at a time.", "Slow is a speed too.", "What matters is this moment.",
-            "Calm is a skill, not a mood.", "Less, but better.", "You don't have to do it all today.", "Let go of what you don't need to hold.",
-            "A clear mind starts with a deep breath.", "Breaks are part of the work.", "Notice what is good.", "The mountain doesn't grow, you do.",
-            "Silence is an answer too.", "Today is enough.", "Focus is a gift to yourself.", "Small steps go a long way.",
-            "Be kind – to yourself as well.", "Nothing has to be perfect.", "Look out of the window. Breathe out.", "The river doesn't hurry, yet it arrives.",
-        };
-
-        protected override void Init() { bg = null; drawn = null; }
-
-        static Color Col(uint v) => Color.FromRgb((byte)(v >> 16), (byte)(v >> 8), (byte)v);
-
-        static (Color top, Color bottom, Color sun, Color mount, Color text) At(double hour)
-        {
-            int i = 0;
-            while (i < Light.Length - 2 && hour >= Light[i + 1].h) i++;
-            var a = Light[i]; var b = Light[i + 1];
-            double t = (hour - a.h) / (b.h - a.h);
-            Color M(uint x, uint y) => Mix(Col(x), Col(y), t);
-            return (M(a.top, b.top), M(a.bottom, b.bottom), M(a.sun, b.sun), M(a.mount, b.mount), M(a.text, b.text));
+            public double X, Y, A, Len, Phase, Tail;
+            public int Pattern, SW, SH;
+            public uint[][] Frames;   // premultiplied ARGB, the koi facing right, tail in six positions
         }
 
-        void BuildBackground(double hour)
+        sealed class Ring { public double X, Y, Age; }
+
+        uint[] water, floating, composite;
+        readonly List<Fish> fish = new List<Fish>();
+        readonly List<Ring> rings = new List<Ring>();
+        double nextRing;
+        const int TailFrames = 6;
+
+        static uint[] Pixels(int w, int h, Action<DrawingContext> draw, bool keepAlpha)
         {
-            var p = At(hour);
-            bg = new uint[W * H];
-            for (int y = 0; y < H; y++)
+            var dv = new DrawingVisual();
+            using (var dc = dv.RenderOpen()) draw(dc);
+            var rtb = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(dv);
+            var buf = new int[w * h];
+            rtb.CopyPixels(buf, w * 4, 0);
+            var res = new uint[w * h];
+            for (int i = 0; i < buf.Length; i++) res[i] = keepAlpha ? (uint)buf[i] : (uint)buf[i] & 0xFFFFFF;
+            return res;
+        }
+
+        protected override void Init()
+        {
+            water = Pixels(W, H, dc => Core.PondArt.Water(dc, W, H), false);
+            floating = Pixels(W, H, dc => Core.PondArt.Floating(dc, W, H), true);
+            composite = (uint[])water.Clone();
+            for (int i = 0; i < composite.Length; i++) composite[i] = Over(floating[i], composite[i]);
+            fish.Clear(); rings.Clear();
+            var rnd = new Random(5);
+            foreach (var k in Core.PondArt.StillKoi)
             {
-                var c = Rgb(Mix(p.top, p.bottom, y / (double)(H - 1)));
-                for (int x = 0; x < W; x++) bg[y * W + x] = c;
-            }
-            var keep = Px; Px = bg;
-            // sun by day (climbs and sinks with the time), moon at night – to the right of the clock
-            bool day = hour >= 6 && hour < 20;
-            double f = day ? (hour - 6) / 14 : 0.5;
-            double sx = W * 0.78, sy = day ? H * (0.5 - 0.24 * Math.Sin(Math.PI * f)) : H * 0.22;
-            Glow(sx, sy, H * 0.22, p.sun.R / 3, p.sun.G / 3, p.sun.B / 3, 0.5);
-            int sr = (int)(H * (day ? 0.075 : 0.05));
-            for (int y = -sr; y <= sr; y++)
-                for (int x = -sr; x <= sr; x++)
+                double len = k.len * H;
+                var f = new Fish { X = k.x * W, Y = k.y * H, A = k.angle * Math.PI / 180, Len = len, Pattern = k.pattern, Phase = rnd.NextDouble() * 10, SW = (int)(len * 1.4), SH = (int)(len * 0.62) };
+                f.Frames = new uint[TailFrames][];
+                for (int i = 0; i < TailFrames; i++)
                 {
-                    double d = Math.Sqrt(x * x + y * y);
-                    if (d <= sr) Blend((int)sx + x, (int)sy + y, p.sun.R, p.sun.G, p.sun.B, (int)(235 * Math.Min(1, (sr - d) + 0.3)));
+                    double tail = -1 + 2.0 * i / (TailFrames - 1);
+                    var fr = f; double t2 = tail;
+                    f.Frames[i] = Pixels(f.SW, f.SH, dc => Core.PondArt.Koi(dc, new Point(fr.SW * 0.55, fr.SH / 2.0), 0, fr.Len, fr.Pattern, t2, false), true);
                 }
-            Px = keep;
-            // four mountain ranges, the far ones fade into the sky
-            for (int i = 0; i < 4; i++)
-            {
-                var c = Mix(Mix(p.bottom, p.mount, 0.38 + i * 0.2), Color.FromRgb(0, 0, 0), i * 0.07);
-                uint cv = Rgb(c);
-                double baseY = H * (0.58 + i * 0.09), amp = H * (0.075 - i * 0.01);
-                for (int x = 0; x < W; x++)
-                {
-                    double u = x / (double)W * Math.PI * 2;
-                    double ridge = baseY - amp * (0.62 * Math.Sin(u * (0.8 + i * 0.45) + i * 2.3) + 0.38 * Math.Sin(u * (2.2 + i * 0.7) + i * 1.1) + 0.12 * Math.Sin(u * 7.3 + i));
-                    for (int y = Math.Max(0, (int)ridge); y < H; y++) bg[y * W + x] = cv;
-                }
+                fish.Add(f);
             }
+            nextRing = 3;
+        }
+
+        static uint Over(uint src, uint dst)
+        {
+            uint a = src >> 24;
+            if (a == 0) return dst;
+            if (a == 255) return src & 0xFFFFFF;
+            uint inv = 255 - a;
+            uint r = ((src >> 16) & 255) + (((dst >> 16) & 255) * inv) / 255;
+            uint g = ((src >> 8) & 255) + (((dst >> 8) & 255) * inv) / 255;
+            uint b = (src & 255) + ((dst & 255) * inv) / 255;
+            return (Math.Min(255, r) << 16) | (Math.Min(255, g) << 8) | Math.Min(255, b);
         }
 
         public override void Step(double dt)
         {
-            var now = DateTime.Now;
-            double hour = now.Hour + now.Minute / 60.0;
-            int key = (int)(hour * 12);   // light changes every 5 minutes
-            var stamp = now.ToString("yyyyMMddHHmm");
-            if (bg == null || key != bgKey) { BuildBackground(hour); bgKey = key; drawn = null; }
-            if (stamp == drawn) return;
-            drawn = stamp;
-            Array.Copy(bg, Px, Px.Length);
-            var p = At(hour);
-            bool de = Core.Loc.De;
-            var clock = SceneText.Get(now.ToString("HH:mm"), "Segoe UI Light", H * 0.15, FontWeights.Light);
-            int y0 = (int)(H * 0.1);
-            SceneText.Draw(Px, W, H, clock, (W - clock.W) / 2, y0, p.text, 0.92);
-            var date = SceneText.Get(now.ToString(de ? "dddd, d. MMMM" : "dddd, MMMM d", de ? new CultureInfo("de-DE") : new CultureInfo("en-US")), "Segoe UI", H * 0.028, FontWeights.Normal);
-            SceneText.Draw(Px, W, H, date, (W - date.W) / 2, y0 + clock.H, p.text, 0.8);
-            var list = de ? ThoughtsDe : ThoughtsEn;
-            var thought = SceneText.Get("„" + list[now.DayOfYear % list.Length] + "“", "Segoe UI Light", H * 0.024, FontWeights.Light);
-            SceneText.Draw(Px, W, H, thought, (W - thought.W) / 2, y0 + clock.H + date.H + (int)(H * 0.02), p.text, 0.7);
+            dt = Math.Min(dt, 0.2);
+            Array.Copy(composite, Px, Px.Length);
+            double margin = Math.Min(W, H) * 0.09, speedBase = H * 0.032;
+            var boxes = new List<(int x0, int y0, int x1, int y1)>();
+            foreach (var f in fish)
+            {
+                // wandering: a slow, uneven turning, and away from the banks
+                double turn = Math.Sin(T * 0.31 + f.Phase) * 0.32 + Math.Sin(T * 0.113 + f.Phase * 2.1) * 0.22;
+                double want = double.NaN;
+                if (f.X < margin) want = 0; else if (f.X > W - margin) want = Math.PI;
+                else if (f.Y < margin) want = Math.PI / 2; else if (f.Y > H - margin) want = -Math.PI / 2;
+                if (!double.IsNaN(want))
+                {
+                    double d = Math.Atan2(Math.Sin(want - f.A), Math.Cos(want - f.A));
+                    turn += Math.Sign(d) * 0.9;
+                }
+                f.A += turn * dt;
+                double speed = speedBase * (0.75 + 0.35 * Math.Sin(T * 0.21 + f.Phase));
+                f.X += Math.Cos(f.A) * speed * dt;
+                f.Y += Math.Sin(f.A) * speed * dt;
+                f.Tail += dt * (2.2 + speed / speedBase);
+                double r = Math.Sqrt(f.SW * f.SW + f.SH * f.SH) / 2 + f.Len * 0.12 + 2;
+                boxes.Add(((int)(f.X - r), (int)(f.Y - r), (int)(f.X + r), (int)(f.Y + r)));
+            }
+            // under the koi: plain water again, then their shadows and bodies, then the leaves that float over them
+            foreach (var b in boxes) CopyBox(water, b);
+            foreach (var f in fish) Blit(f, true);
+            foreach (var f in fish) Blit(f, false);
+            foreach (var b in boxes) FloatBox(b);
+
+            // now and then a ring of water at a koi's head
+            nextRing -= dt;
+            if (nextRing <= 0 && fish.Count > 0)
+            {
+                var f = fish[R.Next(fish.Count)];
+                rings.Add(new Ring { X = f.X + Math.Cos(f.A) * f.Len * 0.45, Y = f.Y + Math.Sin(f.A) * f.Len * 0.45 });
+                nextRing = 4 + R.NextDouble() * 5;
+            }
+            for (int i = rings.Count - 1; i >= 0; i--)
+            {
+                var ring = rings[i];
+                ring.Age += dt;
+                if (ring.Age > 3) { rings.RemoveAt(i); continue; }
+                double p = ring.Age / 3;
+                int alpha = (int)(70 * (1 - p) * (1 - p));
+                Circle(ring.X, ring.Y, H * (0.01 + 0.06 * Math.Sqrt(p)), 255, 255, 255, alpha);
+                if (p > 0.15) Circle(ring.X, ring.Y, H * (0.06 * Math.Sqrt(p - 0.15)), 255, 255, 255, alpha / 2);
+            }
+        }
+
+        void CopyBox(uint[] src, (int x0, int y0, int x1, int y1) b)
+        {
+            int x0 = Math.Max(0, b.x0), x1 = Math.Min(W, b.x1), y0 = Math.Max(0, b.y0), y1 = Math.Min(H, b.y1);
+            if (x1 <= x0) return;
+            for (int y = y0; y < y1; y++) Array.Copy(src, y * W + x0, Px, y * W + x0, x1 - x0);
+        }
+
+        void FloatBox((int x0, int y0, int x1, int y1) b)
+        {
+            int x0 = Math.Max(0, b.x0), x1 = Math.Min(W, b.x1), y0 = Math.Max(0, b.y0), y1 = Math.Min(H, b.y1);
+            for (int y = y0; y < y1; y++)
+                for (int x = x0; x < x1; x++) { int i = y * W + x; uint s = floating[i]; if (s >> 24 != 0) Px[i] = Over(s, Px[i]); }
+        }
+
+        /// <summary>Draws a koi turned to its heading (bilinear), or its shadow a little below it.</summary>
+        void Blit(Fish f, bool shadow)
+        {
+            int frame = (int)Math.Round((Math.Sin(f.Tail) + 1) / 2 * (TailFrames - 1));
+            var spr = f.Frames[Math.Max(0, Math.Min(TailFrames - 1, frame))];
+            double cs = Math.Cos(f.A), sn = Math.Sin(f.A);
+            double cx = f.X + (shadow ? f.Len * 0.06 : 0), cy = f.Y + (shadow ? f.Len * 0.1 : 0);
+            double ox = f.SW * 0.55, oy = f.SH / 2.0;   // the sprite's pivot (where the koi was drawn)
+            double rad = Math.Sqrt(f.SW * f.SW + f.SH * f.SH) / 2 + 2;
+            int x0 = Math.Max(0, (int)(cx - rad)), x1 = Math.Min(W - 1, (int)(cx + rad)), y0 = Math.Max(0, (int)(cy - rad)), y1 = Math.Min(H - 1, (int)(cy + rad));
+            for (int y = y0; y <= y1; y++)
+            {
+                double dy = y - cy;
+                for (int x = x0; x <= x1; x++)
+                {
+                    double dx = x - cx;
+                    double u = cs * dx + sn * dy + ox, v = -sn * dx + cs * dy + oy;
+                    if (u < 0 || v < 0 || u >= f.SW - 1 || v >= f.SH - 1) continue;
+                    int iu = (int)u, iv = (int)v; double fu = u - iu, fv = v - iv;
+                    int i0 = iv * f.SW + iu;
+                    uint p00 = spr[i0], p10 = spr[i0 + 1], p01 = spr[i0 + f.SW], p11 = spr[i0 + f.SW + 1];
+                    double w00 = (1 - fu) * (1 - fv), w10 = fu * (1 - fv), w01 = (1 - fu) * fv, w11 = fu * fv;
+                    double a = (p00 >> 24) * w00 + (p10 >> 24) * w10 + (p01 >> 24) * w01 + (p11 >> 24) * w11;
+                    if (a < 1) continue;
+                    int di = y * W + x;
+                    uint d = Px[di];
+                    if (shadow)
+                    {
+                        // the koi's shadow on the bottom of the pond: darker teal
+                        double k = 1 - a / 255.0 * 0.28;
+                        Px[di] = (uint)((int)(((d >> 16) & 255) * k) << 16 | (int)(((d >> 8) & 255) * k) << 8 | (int)((d & 255) * k));
+                        continue;
+                    }
+                    double r = ((p00 >> 16) & 255) * w00 + ((p10 >> 16) & 255) * w10 + ((p01 >> 16) & 255) * w01 + ((p11 >> 16) & 255) * w11;
+                    double g = ((p00 >> 8) & 255) * w00 + ((p10 >> 8) & 255) * w10 + ((p01 >> 8) & 255) * w01 + ((p11 >> 8) & 255) * w11;
+                    double bl = (p00 & 255) * w00 + (p10 & 255) * w10 + (p01 & 255) * w01 + (p11 & 255) * w11;
+                    double inv = 1 - a / 255.0;
+                    Px[di] = (uint)(Cl((int)(r + ((d >> 16) & 255) * inv)) << 16 | Cl((int)(g + ((d >> 8) & 255) * inv)) << 8 | Cl((int)(bl + (d & 255) * inv)));
+                }
+            }
         }
     }
 
