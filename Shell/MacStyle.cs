@@ -91,29 +91,53 @@ namespace WinMorph.Shell
                     catch { }
                 }
                 if (src == null) src = Core.WallpaperArt.Render(Core.Presets.Find("macos"), 480, 270, false);
-                const int w = 384, h = 216;
-                var img = new Image { Source = src, Width = w + 60, Height = h + 60, Stretch = Stretch.Fill, Effect = new BlurEffect { Radius = 22, KernelType = KernelType.Gaussian } };
-                var host = new Canvas { Width = w, Height = h, ClipToBounds = true };
-                Canvas.SetLeft(img, -30); Canvas.SetTop(img, -30);
-                host.Children.Add(img);
-                host.Measure(new Size(w, h)); host.Arrange(new Rect(0, 0, w, h)); host.UpdateLayout();
-                var rtb = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
-                rtb.Render(host);
-                // vibrancy lifts the colour of what is behind
-                var px = new byte[w * h * 4];
-                rtb.CopyPixels(px, w * 4, 0);
-                for (int i = 0; i < px.Length; i += 4)
-                {
-                    double b = px[i], g = px[i + 1], r = px[i + 2], l = 0.3 * r + 0.59 * g + 0.11 * b;
-                    px[i] = Sat(l + (b - l) * 1.45); px[i + 1] = Sat(l + (g - l) * 1.45); px[i + 2] = Sat(l + (r - l) * 1.45);
-                }
-                var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Pbgra32, null, px, w * 4);
-                bmp.Freeze();
-                return frost = bmp;
+                return frost = Frost(src);
             }
         }
 
+        /// <summary>A picture blurred and with more colour, the way macOS materials show what is behind them.</summary>
+        static BitmapSource Frost(ImageSource src, double lift = 0)
+        {
+            const int w = 384, h = 216;
+            var img = new Image { Source = src, Width = w + 60, Height = h + 60, Stretch = Stretch.Fill, Effect = new BlurEffect { Radius = 22, KernelType = KernelType.Gaussian } };
+            RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+            var host = new Canvas { Width = w, Height = h, ClipToBounds = true };
+            Canvas.SetLeft(img, -30); Canvas.SetTop(img, -30);
+            host.Children.Add(img);
+            host.Measure(new Size(w, h)); host.Arrange(new Rect(0, 0, w, h)); host.UpdateLayout();
+            var rtb = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(host);
+            // vibrancy lifts the colour of what is behind
+            var px = new byte[w * h * 4];
+            rtb.CopyPixels(px, w * 4, 0);
+            for (int i = 0; i < px.Length; i += 4)
+            {
+                double b = px[i], g = px[i + 1], r = px[i + 2], l = 0.3 * r + 0.59 * g + 0.11 * b;
+                px[i] = Lift(Sat(l + (b - l) * 1.45), lift); px[i + 1] = Lift(Sat(l + (g - l) * 1.45), lift); px[i + 2] = Lift(Sat(l + (r - l) * 1.45), lift); px[i + 3] = 255;
+            }
+            var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Pbgra32, null, px, w * 4);
+            bmp.Freeze();
+            return bmp;
+        }
+
         static byte Sat(double v) => (byte)Math.Max(0, Math.Min(255, v));
+        static byte Lift(byte v, double k) => (byte)(v + (255 - v) * k);
+
+        static BitmapSource light, lightFrom;
+        /// <summary>
+        /// The material of surfaces that open over windows (menus, panels, Spotlight, the switcher): the wallpaper
+        /// frost lifted towards white, so it stays light and neutral whatever window is behind. The screen itself
+        /// is never read.
+        /// </summary>
+        static BitmapSource LightFrost
+        {
+            get
+            {
+                var f = FrostImage;
+                if (light == null || lightFrom != f) { light = Frost(f, 0.5); lightFrom = f; }
+                return light;
+            }
+        }
 
         /// <summary>Average brightness of the top strip of the wallpaper: the menu bar text is dark on light pictures.</summary>
         public static bool LightTop
@@ -138,9 +162,9 @@ namespace WinMorph.Shell
         /// A vibrant pane: the blurred wallpaper at the place on the screen where the pane is, a tint, and the fine
         /// light rim and dark hairline of macOS materials.
         /// </summary>
-        public static Grid Glass(UIElement content, double radius, Color tint, bool shadow = true, bool rim = true)
+        public static Grid Glass(UIElement content, double radius, Color tint, bool shadow = true, bool rim = true, bool behind = false)
         {
-            var brush = new ImageBrush(FrostImage) { Stretch = Stretch.Fill, ViewboxUnits = BrushMappingMode.RelativeToBoundingBox };
+            var brush = new ImageBrush(behind ? LightFrost : FrostImage) { Stretch = Stretch.Fill, ViewboxUnits = BrushMappingMode.RelativeToBoundingBox };
             RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.HighQuality);
             var cr = new CornerRadius(radius);
             var g = new Grid();
@@ -160,7 +184,8 @@ namespace WinMorph.Shell
                 try
                 {
                     var p = g.PointToScreen(new Point(0, 0));
-                    var mi = W32.Monitor(W32.MonitorFromPoint(new W32.POINT { X = (int)p.X + 2, Y = (int)p.Y + 2 }, 2), out double sc);
+                    var mon = W32.MonitorFromPoint(new W32.POINT { X = (int)p.X + 2, Y = (int)p.Y + 2 }, 2);
+                    var mi = W32.Monitor(mon, out double sc);
                     double mw = mi.rcMonitor.Right - mi.rcMonitor.Left, mh = mi.rcMonitor.Bottom - mi.rcMonitor.Top;
                     double vw = Math.Min(1, g.ActualWidth * sc / mw), vh = Math.Min(1, g.ActualHeight * sc / mh);
                     // stay on the picture (a pane still sliding in from outside the screen keeps showing glass)
@@ -523,6 +548,9 @@ namespace WinMorph.Shell
                 case "gauge": S("M4.2,16 A8.4,8.4 0 1 1 19.8,16", 1.8); S("M12,13.4 L15.8,8.4", 2.0); G(new EllipseGeometry(new Point(12, 13.6), 1.7, 1.7), br); break;
                 case "bell": S("M6.2,16.6 L6.2,10.8 A5.8,5.8 0 0 1 17.8,10.8 L17.8,16.6 L19.4,18.4 L4.6,18.4 Z M10,20.6 A2,2 0 0 0 14,20.6", 1.6); break;
                 case "airplay": S("M6,17 L3.6,17 Q2.6,17 2.6,16 L2.6,4.6 Q2.6,3.6 3.6,3.6 L20.4,3.6 Q21.4,3.6 21.4,4.6 L21.4,16 Q21.4,17 20.4,17 L18,17", 1.5); F("M12,13 L17.4,20.4 L6.6,20.4 Z"); break;
+                case "globe": S("M12,2.8 A9.2,9.2 0 1 1 11.99,2.8 Z M12,3 Q6.8,12 12,21 Q17.2,12 12,3 M2.9,12 L21.1,12 M4.4,7.2 Q12,9.2 19.6,7.2 M4.4,16.8 Q12,14.8 19.6,16.8", 1.4); break;
+                case "equal": S("M5.6,9.2 L18.4,9.2 M5.6,14.8 L18.4,14.8", 2.2); break;
+                case "doc.text": S("M6.2,2.8 L13.8,2.8 L18.6,7.6 L18.6,20 Q18.6,21.2 17.4,21.2 L6.2,21.2 Q5,21.2 5,20 L5,4 Q5,2.8 6.2,2.8 Z M13.6,3 L13.6,7.8 L18.4,7.8 M8.4,12 L15.4,12 M8.4,15 L15.4,15 M8.4,18 L12.6,18", 1.4); break;
                 default: G(new EllipseGeometry(new Point(12, 12), 4, 4), br); break;
             }
             return new Viewbox { Width = size, Height = size, Child = canvas, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, SnapsToDevicePixels = false };
@@ -816,7 +844,7 @@ namespace WinMorph.Shell
                 }
                 sp.Children.Add(row);
             }
-            var pane = MacStyle.Glass(sp, 11, MacStyle.MenuTint);
+            var pane = MacStyle.Glass(sp, 11, MacStyle.MenuTint, behind: true);
             Content = new Border { Child = pane, Padding = new Thickness(14, 8, 14, 22), Background = Brushes.Transparent };
             Deactivated += (s, e) => Dismiss(false);
             PreviewKeyDown += OnKey;
@@ -954,7 +982,7 @@ namespace WinMorph.Shell
                 else if (cancel == null) cancel = () => { Close(); r?.Invoke(); };
             }
             sp.Children.Add(row);
-            Content = new Border { Child = MacStyle.Glass(sp, 18, C(0xF4F4F6, 238)), Padding = new Thickness(30, 20, 30, 40), Background = Brushes.Transparent };
+            Content = new Border { Child = MacStyle.Glass(sp, 18, C(0xF4F4F6, 238), behind: true), Padding = new Thickness(30, 20, 30, 40), Background = Brushes.Transparent };
             PreviewKeyDown += (s, e) =>
             {
                 if (e.Key == Key.Enter && primaryRun != null) { e.Handled = true; primaryRun(); }

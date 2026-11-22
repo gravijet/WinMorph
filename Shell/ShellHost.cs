@@ -422,6 +422,7 @@ namespace WinMorph.Shell
                 if (down && vk == 0x1B) { switching = false; Ui(CancelSwitcher); return true; }
                 if (down && (vk == 0x25 || vk == 0x26)) { Ui(() => switcher?.Move(-1)); return true; }
                 if (down && (vk == 0x27 || vk == 0x28)) { Ui(() => switcher?.Move(1)); return true; }
+                if (Mac && down && (vk == 0x51 || vk == 0x48)) { bool quit = vk == 0x51; Ui(() => SwitcherQuitOrHide(quit)); return true; }   // Cmd+Tab, then Q or H
                 if (up && (vk == 0xA4 || vk == 0xA5 || vk == 0x12)) { switching = false; KeyHook.Tap(0xE8); Ui(CommitSwitcher); return false; }
             }
             if (ShellActions.Own != null && vk == 0x1B && down && !alt && W32.KeyDown(0x11) && W32.KeyDown(0x10)) { Ui(ShellActions.TaskManager); return true; } // Ctrl+Shift+Esc → the look's task manager
@@ -490,6 +491,15 @@ namespace WinMorph.Shell
             try { switcher?.Close(); } catch { }
             switcher = null;
             if (w != null) W32.Activate(w.Hwnd);
+        }
+
+        /// <summary>macOS switcher: Q quits the chosen app (its windows are asked to close), H hides it.</summary>
+        void SwitcherQuitOrHide(bool quit)
+        {
+            var sel = switcher?.Selected;
+            if (sel == null) return;
+            foreach (var x in tracker.Windows.Where(x => x.Key == sel.Key).ToList()) { if (quit) W32.Close(x.Hwnd); else W32.Minimize(x.Hwnd); }
+            switcher.MarkSelected();
         }
 
         void CancelSwitcher() { switcherDelay?.Stop(); try { switcher?.Close(); } catch { } switcher = null; }

@@ -220,16 +220,17 @@ namespace WinMorph.Shell
         List<Item> AppMenu(string name)
         {
             var w = frontWin;
+            bool finder = name == "Finder";
             var items = new List<Item>
             {
                 new Item { Text = L("Über ", "About ") + name, Run = () => AboutApp(w, name) },
                 Item.Sep,
-                new Item { Text = name + L(" ausblenden", " Hide"), Shortcut = "⌃H", Enabled = w != null, Run = () => { foreach (var x in WindowsOf(w)) W32.Minimize(x.Hwnd); } },
                 new Item { Text = L("Andere ausblenden", "Hide Others"), Run = () => { foreach (var x in tracker.Windows.Where(x => w == null || x.Key != w.Key)) W32.Minimize(x.Hwnd); } },
                 new Item { Text = L("Alle einblenden", "Show All"), Run = () => { foreach (var x in tracker.Windows.Where(x => x.Minimized)) W32.ShowWindow(x.Hwnd, W32.SW_RESTORE); } },
-                Item.Sep,
-                new Item { Text = name + L(" beenden", " Quit"), Shortcut = "⌃Q", Enabled = w != null, Run = () => { foreach (var x in WindowsOf(w)) W32.Close(x.Hwnd); } },
             };
+            if (w != null) items.Insert(2, new Item { Text = name + L(" ausblenden", " Hide"), Shortcut = "⌃H", Run = () => { foreach (var x in WindowsOf(w)) W32.Minimize(x.Hwnd); } });
+            if (finder) { items.Insert(2, new Item { Text = L("Papierkorb entleeren …", "Empty Trash…"), Enabled = MacApps.TrashFull(), Run = MacFiles.EmptyTrash }); items.Insert(3, Item.Sep); }
+            else if (w != null) { items.Add(Item.Sep); items.Add(new Item { Text = name + L(" beenden", " Quit"), Shortcut = "⌃Q", Run = () => { foreach (var x in WindowsOf(w)) W32.Close(x.Hwnd); } }); }
             return items;
         }
 
@@ -257,6 +258,14 @@ namespace WinMorph.Shell
         {
             var w = frontWin;
             bool has = w != null;
+            // our own apps get their real menus; Finder without a window works on the desktop
+            if (has && key != "window" && key != "help")
+            {
+                var finderWin = MacFiles.Of(w.Hwnd);
+                if (finderWin != null) return finderWin.BarMenu(key);
+                if (MacApps.NameOf(w.Hwnd) != null) { var own = MacTasks.BarMenu(w.Hwnd, key); if (own.Count > 0) return own; }
+            }
+            if (name == "Finder" && (!has || IsExplorer(w)) && key != "window" && key != "help" && key != "go") return DesktopMenu(key);
             var items = new List<Item>();
             switch (key)
             {
@@ -290,18 +299,30 @@ namespace WinMorph.Shell
                 case "go":
                     void Go(string text, string path, string sc = null) => items.Add(new Item { Text = text, Shortcut = sc, Run = () => ShellActions.Files(path) });
                     string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                    items.Add(new Item { Text = L("Zurück", "Back"), Shortcut = "⌃[", Enabled = has, Run = () => SendToApp(0x12, 0x25) });
-                    items.Add(new Item { Text = L("Vorwärts", "Forward"), Shortcut = "⌃]", Enabled = has, Run = () => SendToApp(0x12, 0x27) });
-                    items.Add(Item.Sep);
+                    if (has)
+                    {
+                        items.Add(new Item { Text = L("Zurück", "Back"), Shortcut = "Alt+←", Run = () => SendToApp(0x12, 0x25) });
+                        items.Add(new Item { Text = L("Vorwärts", "Forward"), Shortcut = "Alt+→", Run = () => SendToApp(0x12, 0x27) });
+                        items.Add(Item.Sep);
+                    }
                     Go(L("Dokumente", "Documents"), Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments));
                     Go(L("Schreibtisch", "Desktop"), Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
                     Go("Downloads", Path.Combine(home, "Downloads"));
                     Go(L("Benutzerordner", "Home"), home);
                     Go(L("Computer", "Computer"), "");
+                    items.Add(new Item { Text = L("Papierkorb", "Trash"), Run = MacFiles.OpenTrash });
                     items.Add(new Item { Text = L("Programme", "Applications"), Run = () => ToggleMenu() });
                     items.Add(new Item { Text = L("Dienstprogramme", "Utilities"), Run = () => ShellActions.Run("control.exe") });
                     break;
                 case "window":
+                    if (!has)
+                    {
+                        items.Add(new Item { Text = L("Alle einblenden", "Show All"), Run = () => { foreach (var x in tracker.Windows.Where(x => x.Minimized)) W32.ShowWindow(x.Hwnd, W32.SW_RESTORE); } });
+                        items.Add(new Item { Text = L("Schreibtisch anzeigen", "Show Desktop"), Run = ShellActions.ShowDesktop });
+                        if (tracker.Windows.Count > 0) items.Add(Item.Sep);
+                        foreach (var x in tracker.Windows.Take(12)) { var win = x; items.Add(new Item { Text = Short(AppTitle(win) + " – " + W32.Text(win.Hwnd)), Run = () => W32.Activate(win.Hwnd) }); }
+                        break;
+                    }
                     items.Add(new Item { Text = L("Im Dock ablegen", "Minimize"), Shortcut = "⌃M", Enabled = has, Run = () => { if (w != null) W32.Minimize(w.Hwnd); } });
                     items.Add(new Item { Text = L("Zoomen", "Zoom"), Enabled = has, Run = () => { if (w != null) W32.ShowWindow(w.Hwnd, W32.IsZoomed(w.Hwnd) ? W32.SW_RESTORE : 3); } });
                     items.Add(new Item { Text = L("Fenster links anordnen", "Move Window to Left Side of Screen"), Enabled = has, Run = () => SendToApp(WIN, 0x25) });
@@ -316,8 +337,39 @@ namespace WinMorph.Shell
                     }
                     break;
                 default:
-                    items.Add(new Item { Text = name + L("-Hilfe", " Help"), Enabled = has, Run = () => SendToApp(0x70) });
+                    if (has && MacApps.NameOf(w.Hwnd) == null && !IsExplorer(w)) items.Add(new Item { Text = name + L("-Hilfe", " Help"), Shortcut = "F1", Run = () => SendToApp(0x70) });
                     items.Add(new Item { Text = L("WinMorph-Hilfe", "WinMorph Help"), Run = ShellActions.WinMorphApp });
+                    break;
+            }
+            return items;
+        }
+
+        /// <summary>Finder in front without a window: the desktop is the target.</summary>
+        List<Item> DesktopMenu(string key)
+        {
+            string desk = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            var items = new List<Item>();
+            switch (key)
+            {
+                case "file":
+                    items.Add(new Item { Text = L("Neues Finder-Fenster", "New Finder Window"), Shortcut = "⌃N", Run = () => MacFiles.OpenNew(null) });
+                    items.Add(new Item { Text = L("Neuer Ordner", "New Folder"), Shortcut = "⇧⌃N", Run = () => MacFiles.NewFolderIn(desk) });
+                    items.Add(Item.Sep);
+                    items.Add(new Item { Text = L("Papierkorb öffnen", "Open Trash"), Run = MacFiles.OpenTrash });
+                    break;
+                case "edit":
+                    bool files = false;
+                    try { files = Clipboard.ContainsFileDropList(); } catch { }
+                    items.Add(new Item { Text = L("Einsetzen", "Paste"), Shortcut = "⌃V", Enabled = files, Run = () => MacFiles.PasteInto(desk) });
+                    items.Add(Item.Sep);
+                    items.Add(new Item { Text = L("Suchen", "Find"), Shortcut = "⌃F", Run = () => MacSpotlight.Toggle() });
+                    break;
+                default:
+                    items.Add(new Item { Text = L("Schreibtisch anzeigen", "Show Desktop"), Run = ShellActions.ShowDesktop });
+                    items.Add(new Item { Text = "Launchpad", Run = () => ToggleMenu() });
+                    items.Add(Item.Sep);
+                    items.Add(new Item { Text = L("Kontrollzentrum", "Control Center"), Run = () => MacPanels.Toggle(t, "cc", new Rect(0, 0, 0, 0), null) });
+                    items.Add(new Item { Text = L("Mitteilungszentrale", "Notification Center"), Run = () => MacPanels.Toggle(t, "nc", new Rect(0, 0, 0, 0), null) });
                     break;
             }
             return items;
@@ -370,6 +422,7 @@ namespace WinMorph.Shell
                 }
                 var settingsWins = tracker.Windows.Where(w => !used.Contains(w.Hwnd) && IsSettingsWindow(w)).ToList();
                 foreach (var w in settingsWins) used.Add(w.Hwnd);
+                apps.Children.Add(Tile(MacStyle.Own("settings"), L("Systemeinstellungen", "System Settings"), settingsWins, () => { if (settingsWins.Count == 0) ShellActions.Settings(); else ActivateApp(settingsWins); }, null));
                 foreach (var grp in tracker.Windows.Where(w => !used.Contains(w.Hwnd)).GroupBy(w => w.Key))
                 {
                     var wins = grp.ToList();
@@ -377,12 +430,17 @@ namespace WinMorph.Shell
                     var img = MacApps.IconOf(first.Hwnd) ?? MacStyle.Tile(EntryFor(first)?.Icon ?? first.Icon);
                     apps.Children.Add(Tile(img, AppTitle(first), wins, () => ActivateApp(wins), () => DockMenu(wins, MacApps.NameOf(first.Hwnd) != null ? null : EntryFor(first))));
                 }
-                apps.Children.Add(Tile(MacStyle.Own("settings"), L("Systemeinstellungen", "System Settings"), settingsWins, () => { if (settingsWins.Count == 0) ShellActions.Settings(); else ActivateApp(settingsWins); }, null));
             });
 
             // Downloads and Trash, right of the separator
             string downloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-            extras.Children.Add(Tile(MacStyle.Own("downloads"), "Downloads", new List<WinInfo>(), () => ShellActions.Files(downloads), null));
+            FrameworkElement dl = null;
+            dl = Tile(MacStyle.Own("downloads"), "Downloads", new List<WinInfo>(), () =>
+            {
+                var bar = Window.GetWindow(dl) as BarWindow;
+                MacPanels.Toggle(t, "stack", bar != null ? bar.ScreenRectOf(dl) : new Rect(0, 0, 0, 0), null);
+            }, () => MacMenu.AtCursor(new List<Item> { new Item { Text = L("Im Finder öffnen", "Open in Finder"), Run = () => ShellActions.Files(downloads) } }));
+            extras.Children.Add(dl);
             var trashImg = new Image();
             var trash = Tile(MacStyle.Own("trash"), L("Papierkorb", "Trash"), new List<WinInfo>(), MacFiles.OpenTrash, () =>
                 MacMenu.AtCursor(new List<Item> { new Item { Text = L("Öffnen", "Open"), Run = MacFiles.OpenTrash }, Item.Sep, new Item { Text = L("Papierkorb entleeren", "Empty Trash"), Enabled = MacApps.TrashFull(), Run = MacFiles.EmptyTrash } }), trashImg);

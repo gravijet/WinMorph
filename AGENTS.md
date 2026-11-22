@@ -17,7 +17,7 @@ Weitere Prüfbefehle (Vorschaubilder, Panels, eigene Apps, Sperrbildschirm): `LO
 - Kein Fülltext in App und Shell (keine Sprüche, Taglines, Metaphern-Begriffe, Tastenkürzel im Fließtext).
 - Jede Oberfläche ist einzigartig für ihren Look, farbig mit einer benannten Palette, und bewegt sich in der Persönlichkeit des Looks.
 - Windows-Einstellungen werden nicht dauerhaft geändert; Laufzeit-Änderungen (Taskleiste, Mauszeiger, Win+L) werden vorher gemerkt und über `ShellControl.GiveBackTaskbar` aus jedem Prozess zurückgegeben.
-- Kein Verhalten, das Virenscanner als Schadsoftware werten: keine fremden Prozesse beenden, keine Mitteilungs-/Sicherheitseinstellungen anderer Apps ändern, keine fremden Mitteilungen lesen. Nach Änderungen an der Shell einmal echt anwenden und `Get-MpThreatDetection` prüfen.
+- Kein Verhalten, das Virenscanner als Schadsoftware werten: keine fremden Prozesse beenden, keine Mitteilungs-/Sicherheitseinstellungen anderer Apps ändern, keine fremden Mitteilungen lesen, den Bildschirm nicht abfotografieren (Glas zeigt das Hintergrundbild, nie den Bildschirm). Nach Änderungen an der Shell einmal echt anwenden und `Get-MpThreatDetection` prüfen.
 - Leisten nur bei echter Änderung neu aufbauen; Vollbild selbst prüfen (`BarWindow.CheckFullscreen`).
 
 ## Wo was liegt
@@ -28,5 +28,5 @@ Weitere Prüfbefehle (Vorschaubilder, Panels, eigene Apps, Sperrbildschirm): `LO
 - `Shell/OwnAppRedirect.cs` ersetzt Windows-Explorer-Fenster durch den Dateimanager des Looks
 - `Core/PondArt.cs` Zen-Teich (Standbild und Live), `Live/LookScenes.cs` Live-Hintergründe
 - `Shell/LockScreen.cs` Designs der Sperrbildschirme (macOS: `LockScreen.Mac.cs`), `Shell/CustomLock.cs` Entsperren
-- macOS: `Shell/MacStyle.cs` (Farben, Schrift, Vibrancy-Glas, Symbole, Icon-Raster, `MacMenu`, `MacAlert`), `ShellHost.Mac.cs` (Menüleiste, Dock), `MacPanels.cs` (Kontrollzentrum, WLAN, Batterie, Mitteilungszentrale, Lautstärke, Banner), `MacApps.cs` (Finder, Aktivitätsanzeige, Spotlight, Über diesen PC, Sofort beenden), `StartMenu.Mac.cs` (Launchpad), `Core/MacArt.cs` (Hintergrund, auch live)
+- macOS: `Shell/MacStyle.cs` (Farben, Schrift, Vibrancy-Glas, Symbole, Icon-Raster, `MacMenu`, `MacAlert`), `ShellHost.Mac.cs` (Menüleiste, Dock), `MacPanels.cs` (Kontrollzentrum, WLAN, Batterie, Mitteilungszentrale, Lautstärke, Banner, Downloads-Stapel), `MacApps.cs` (Finder, Aktivitätsanzeige, Über diesen PC, Sofort beenden; Menüleisten-Menüs der eigenen Apps), `MacSpotlight.cs` (Spotlight mit Rechner, Windows-Suchindex, Aktionen, Systemeinstellungen), `StartMenu.Mac.cs` (Launchpad), `Core/MacArt.cs` (Hintergrund, auch live)
 - Keine Apple-Grafiken, -Logos oder -Schriften einbauen: alles wird im Code gezeichnet; SF Pro nur, wenn der Nutzer sie installiert hat

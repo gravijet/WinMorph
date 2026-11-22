@@ -36,7 +36,7 @@ namespace WinMorph.Shell
         /// <summary>Opens a panel below its menu bar item (or closes it when it is open). kind: cc, net, bat, nc.</summary>
         public static bool Toggle(ShellTheme t, string kind, Rect anchor, Action closed)
         {
-            if (kind != "nc" && anchor.Width > 0) lastAnchor = anchor;
+            if (kind != "nc" && kind != "stack" && anchor.Width > 0) lastAnchor = anchor;
             if (open != null && openKind == kind) { Close(open); return false; }
             if (openKind == kind && (DateTime.Now - closedAt).TotalMilliseconds < 300) return false;
             MacMenu.Current?.Dismiss(true);
@@ -47,6 +47,7 @@ namespace WinMorph.Shell
                 case "net": w = Menu(Wifi(), anchor, 300); break;
                 case "bat": w = Menu(Battery(), anchor, 280); break;
                 case "nc": w = Center(); break;
+                case "stack": w = Stack(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"), anchor); break;
                 default: kind = "cc"; w = Menu(ControlCenter(), anchor, 330, right: true); break;
             }
             open = w; openKind = kind; onClosed = closed;
@@ -84,6 +85,87 @@ namespace WinMorph.Shell
             return w;
         }
 
+        /// <summary>
+        /// The Downloads stack of the Dock: the newest files as a grid above the Dock icon (pictures with a small
+        /// preview), the folder's name on top and "Open in Finder" below.
+        /// </summary>
+        static Window Stack(string folder, Rect anchor)
+        {
+            var w = Base();
+            var files = new List<System.IO.FileSystemInfo>();
+            try
+            {
+                files = new System.IO.DirectoryInfo(folder).EnumerateFileSystemInfos()
+                    .Where(f => (f.Attributes & (System.IO.FileAttributes.Hidden | System.IO.FileAttributes.System)) == 0 && !f.Name.StartsWith(".")
+                        && !f.Name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) && !f.Name.EndsWith(".crdownload", StringComparison.OrdinalIgnoreCase) && !f.Name.EndsWith(".part", StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(f => f.CreationTime > f.LastWriteTime ? f.CreationTime : f.LastWriteTime).Take(60).ToList();
+            }
+            catch { }
+            const double cellW = 96, cellH = 104;
+            int cols = files.Count == 0 ? 3 : Math.Max(3, Math.Min(5, files.Count));
+            var body = new StackPanel { Width = cols * cellW + 34 };
+            var title = T(System.IO.Path.GetFileName(folder), 15, MacStyle.Label, FontWeights.SemiBold);
+            title.HorizontalAlignment = HorizontalAlignment.Center; title.Margin = new Thickness(0, 12, 0, 6);
+            body.Children.Add(title);
+            var wrap = new WrapPanel { Margin = new Thickness(10, 0, 0, 0), Width = cols * cellW };   // room for the overlay scroll bar
+            foreach (var f in files)
+            {
+                string path = f.FullName;
+                bool dir = (f.Attributes & System.IO.FileAttributes.Directory) != 0;
+                var sp = new StackPanel();
+                var img = Img(dir ? MacStyle.FolderIcon : W32.FileIcon(path), 56);
+                img.HorizontalAlignment = HorizontalAlignment.Center;
+                sp.Children.Add(img);
+                if (!dir) w.Dispatcher.BeginInvoke(new Action(() => { if (!w.IsVisible) return; var th = W32.ShellItemIcon(path, 112); if (th != null) img.Source = th; }), DispatcherPriority.Background);
+                var name = T(f.Name, 11.5, MacStyle.Label);
+                name.TextWrapping = TextWrapping.Wrap; name.TextAlignment = TextAlignment.Center; name.MaxHeight = 30; name.HorizontalAlignment = HorizontalAlignment.Center; name.Margin = new Thickness(0, 5, 0, 0);
+                sp.Children.Add(name);
+                var cell = new Border { Child = sp, Width = cellW, Height = cellH, Padding = new Thickness(5, 6, 5, 4), CornerRadius = new CornerRadius(10), Background = Brushes.Transparent, ToolTip = f.Name };
+                cell.MouseEnter += (s, e) => cell.Background = B(0x000000, 16);
+                cell.MouseLeave += (s, e) => cell.Background = Brushes.Transparent;
+                cell.MouseLeftButtonDown += (s, e) => { e.Handled = true; cell.Background = B(0x000000, 34); };
+                cell.MouseLeftButtonUp += (s, e) => { e.Handled = true; Close(w, instant: true); if (dir) MacFiles.Open(path); else ShellActions.Run(path); };
+                cell.MouseRightButtonUp += (s, e) =>
+                {
+                    e.Handled = true;
+                    MacMenu.AtCursor(new List<MacMenu.Item>
+                    {
+                        new MacMenu.Item { Text = L("Öffnen", "Open"), Run = () => { Close(w, instant: true); if (dir) MacFiles.Open(path); else ShellActions.Run(path); } },
+                        new MacMenu.Item { Text = L("Im Finder zeigen", "Show in Finder"), Run = () => { Close(w, instant: true); MacFiles.Open(folder); } },
+                    });
+                };
+                wrap.Children.Add(cell);
+            }
+            var scroll = new ScrollViewer { Content = wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, MaxHeight = cellH * 3.5, Focusable = false };
+            body.Children.Add(scroll);
+            if (files.Count == 0)
+            {
+                var none = T(L("Keine Objekte", "No Items"), 13, MacStyle.Secondary);
+                none.HorizontalAlignment = HorizontalAlignment.Center; none.Margin = new Thickness(0, 18, 0, 18);
+                body.Children.Add(none);
+            }
+            body.Children.Add(new Border { Height = 0.6, Background = B(MacStyle.Line), Margin = new Thickness(0, 6, 0, 0) });
+            var more = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+            more.Children.Add(T(L("Im Finder öffnen", "Open in Finder"), 13, MacStyle.Blue));
+            var chev = MacStyle.Sym("chevron.right", 11, MacStyle.Blue);
+            chev.Margin = new Thickness(3, 1, 0, 0);
+            more.Children.Add(chev);
+            var link = new Border { Child = more, Padding = new Thickness(10, 8, 10, 10), Background = Brushes.Transparent, Cursor = Cursors.Arrow };
+            link.MouseLeftButtonUp += (s, e) => { e.Handled = true; Close(w, instant: true); MacFiles.Open(folder); };
+            body.Children.Add(link);
+            var pane = MacStyle.Glass(body, 18, C(0xF4F4F6, 214), behind: true);
+            w.Content = new Border { Child = pane, Padding = new Thickness(24, 24, 24, 30) };
+            w.Loaded += (s, e) =>
+            {
+                var (wl, wt, wr, wb) = Work();
+                double cx = anchor.Width > 0 ? anchor.Left + anchor.Width / 2 : (wl + wr) / 2;
+                w.Left = Math.Max(wl - 24, Math.Min(cx - w.ActualWidth / 2, wr - w.ActualWidth + 24));
+                w.Top = (anchor.Width > 0 ? anchor.Top : wb) - w.ActualHeight + 30 - 4;
+                MacStyle.Pop(pane, new Point(0.5, 1), 0.92, 220);
+            };
+            return w;
+        }
+
         static (double l, double t, double r, double b) Work()
         {
             var mi = W32.Monitor(W32.MonitorAtCursor(), out double s);
@@ -94,7 +176,7 @@ namespace WinMorph.Shell
         static Window Menu(UIElement body, Rect anchor, double width, bool right = false)
         {
             var w = Base();
-            var pane = MacStyle.Glass(body, 14, MacStyle.MenuTint);
+            var pane = MacStyle.Glass(body, 14, MacStyle.MenuTint, behind: true);
             pane.Width = width;
             w.Content = new Border { Child = pane, Padding = new Thickness(14, 6, 14, 24) };
             w.Loaded += (s, e) =>
@@ -455,7 +537,7 @@ namespace WinMorph.Shell
             return t.ToString(t.Date == DateTime.Today ? "HH:mm" : "dd.MM.");
         }
 
-        static Grid Card(Notify.Item i, double width = 344)
+        static Grid Card(Notify.Item i, double width = 344, bool behind = true)
         {
             var d = new DockPanel { Margin = new Thickness(12, 11, 12, 12) };
             var icon = Img(MacStyle.Own("settings"), 38);
@@ -472,7 +554,7 @@ namespace WinMorph.Shell
             var body = string.IsNullOrEmpty(i.Title) ? i.Body : (string.IsNullOrEmpty(i.Body) ? i.App : i.Body);
             if (!string.IsNullOrEmpty(body)) { var bt = T(body.Length > 220 ? body.Substring(0, 219) + "…" : body, 13, MacStyle.Label); bt.TextWrapping = TextWrapping.Wrap; bt.MaxHeight = 54; words.Children.Add(bt); }
             d.Children.Add(words);
-            var g = MacStyle.Glass(d, 20, C(0xF5F5F7, 190));
+            var g = MacStyle.Glass(d, 20, C(0xF5F5F7, 190), behind: behind);
             g.Width = width;
             return g;
         }
@@ -511,7 +593,7 @@ namespace WinMorph.Shell
             right.Children.Add(grid);
             Grid.SetColumn(right, 1);
             g.Children.Add(right);
-            var w = MacStyle.Glass(g, 22, C(0xF5F5F7, 200));
+            var w = MacStyle.Glass(g, 22, C(0xF5F5F7, 200), behind: true);
             w.Width = 344; w.Margin = new Thickness(0, 0, 0, 10);
             w.Cursor = Cursors.Hand;
             w.MouseLeftButtonUp += (s, e) => { CloseAll(); ShellActions.Run("outlookcal:"); };
@@ -536,7 +618,7 @@ namespace WinMorph.Shell
             words.Children.Add(T(L("Batterien", "Batteries"), 12, MacStyle.Secondary, FontWeights.SemiBold));
             words.Children.Add(MacStyle.Text(b.Percent + " %", 26, MacStyle.Label, FontWeights.Medium, display: true));
             row.Children.Add(words);
-            var w = MacStyle.Glass(row, 22, C(0xF5F5F7, 200));
+            var w = MacStyle.Glass(row, 22, C(0xF5F5F7, 200), behind: true);
             w.Width = 344;
             return w;
         }
@@ -603,7 +685,7 @@ namespace WinMorph.Shell
                 SizeToContent = SizeToContent.WidthAndHeight, AllowsTransparency = true, Background = Brushes.Transparent, Cursor = Cursors.Arrow,
             };
             MacStyle.Prepare(w);
-            var card = Card(i, 350);
+            var card = Card(i, 350, behind: false);
             w.Content = new Border { Child = card, Padding = new Thickness(16, 6, 16, 22) };
             w.MouseLeftButtonUp += (s, e) => Application.Current.Dispatcher.BeginInvoke(new Action(() => Toggle(Theme, "nc", new Rect(0, 0, 0, 0), null)));
             return w;

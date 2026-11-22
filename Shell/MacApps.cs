@@ -873,6 +873,118 @@ namespace WinMorph.Shell
             e.Handled = true;
         }
 
+        /// <summary>The Finder window behind a window handle: the menu bar acts on it directly.</summary>
+        public static MacFiles Of(IntPtr hwnd) => Application.Current?.Windows.OfType<MacFiles>().FirstOrDefault(f => new WindowInteropHelper(f).Handle == hwnd);
+
+        /// <summary>Copies or moves the files on the clipboard into a folder (Finder's Paste, also onto the desktop).</summary>
+        public static void PasteInto(string target, Action done = null)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(target) || !Clipboard.ContainsFileDropList()) return;
+                var files = Clipboard.GetFileDropList().Cast<string>().ToArray();
+                bool move = Clipboard.GetData("Preferred DropEffect") is MemoryStream ms && ms.Length >= 4 && (new BinaryReader(ms).ReadInt32() & 2) != 0;
+                Task.Run(() => HackerFiles.FileOp(move ? HackerFiles.FO_MOVE : HackerFiles.FO_COPY, files, target, (ushort)(HackerFiles.FOF_ALLOWUNDO | HackerFiles.FOF_RENAMEONCOLLISION)))
+                    .ContinueWith(_ => { if (move) try { Clipboard.Clear(); } catch { } done?.Invoke(); }, TaskScheduler.FromCurrentSynchronizationContext());
+            }
+            catch { }
+        }
+
+        /// <summary>A new folder with a free name ("Neuer Ordner", "Neuer Ordner 2" …) in a folder.</summary>
+        public static string NewFolderIn(string parent)
+        {
+            try
+            {
+                string name = L("Neuer Ordner", "untitled folder"), path = Path.Combine(parent, name);
+                for (int i = 2; Directory.Exists(path) || File.Exists(path); i++) path = Path.Combine(parent, name + " " + i);
+                Directory.CreateDirectory(path);
+                return path;
+            }
+            catch { return null; }
+        }
+
+        /// <summary>The menu bar's Ablage, Bearbeiten, Darstellung and Gehe zu for this Finder window; every item acts on it.</summary>
+        public List<Item> BarMenu(string key)
+        {
+            var sel = Sel;
+            bool fs = !string.IsNullOrEmpty(dir) && dir != Trash, any = sel.Count > 0;
+            var items = new List<Item>();
+            var list = listMode ? rows : icons;
+            switch (key)
+            {
+                case "file":
+                    items.Add(new Item { Text = L("Neues Finder-Fenster", "New Finder Window"), Shortcut = "⌃N", Run = () => OpenNew(fs ? dir : null) });
+                    items.Add(new Item { Text = L("Neuer Ordner", "New Folder"), Shortcut = "⇧⌃N", Enabled = fs, Run = NewFolder });
+                    items.Add(new Item { Text = L("Öffnen", "Open"), Enabled = any && dir != Trash, Run = OpenSel });
+                    items.Add(new Item { Text = L("Fenster schließen", "Close Window"), Shortcut = "⌃W", Run = Close });
+                    items.Add(Item.Sep);
+                    items.Add(new Item { Text = L("Informationen", "Get Info"), Enabled = fs, Run = Properties });
+                    items.Add(new Item { Text = L("Umbenennen", "Rename"), Shortcut = "F2", Enabled = fs && sel.Count == 1, Run = Rename });
+                    items.Add(Item.Sep);
+                    if (dir == Trash)
+                    {
+                        items.Add(new Item { Text = L("Zurücklegen", "Put Back"), Enabled = any, Run = PutBack });
+                        items.Add(new Item { Text = L("Papierkorb entleeren …", "Empty Trash…"), Enabled = all.Count > 0, Run = EmptyTrash });
+                    }
+                    else items.Add(new Item { Text = L("In den Papierkorb legen", "Move to Trash"), Shortcut = "Entf", Enabled = fs && any, Run = () => Delete(false) });
+                    break;
+                case "edit":
+                    items.Add(new Item { Text = L("Ausschneiden", "Cut"), Shortcut = "⌃X", Enabled = fs && any, Run = () => ToClipboard(true) });
+                    items.Add(new Item { Text = L("Kopieren", "Copy"), Shortcut = "⌃C", Enabled = fs && any, Run = () => ToClipboard(false) });
+                    items.Add(new Item { Text = L("Einsetzen", "Paste"), Shortcut = "⌃V", Enabled = fs && Clipboard.ContainsFileDropList(), Run = Paste });
+                    items.Add(new Item { Text = L("Alles auswählen", "Select All"), Shortcut = "⌃A", Enabled = all.Count > 0, Run = () => { list.SelectAll(); list.Focus(); } });
+                    items.Add(Item.Sep);
+                    items.Add(new Item { Text = L("Suchen", "Find"), Shortcut = "⌃F", Run = () => { filter.Focus(); filter.SelectAll(); } });
+                    break;
+                case "view":
+                    items.Add(new Item { Text = L("Als Symbole", "as Icons"), Checked = !listMode, Run = () => SetMode(false) });
+                    items.Add(new Item { Text = L("Als Liste", "as List"), Checked = listMode, Run = () => SetMode(true) });
+                    items.Add(Item.Sep);
+                    foreach (var (text, k) in new[] { (L("Nach Name sortieren", "Sort by Name"), "name"), (L("Nach Änderungsdatum sortieren", "Sort by Date Modified"), "time"), (L("Nach Größe sortieren", "Sort by Size"), "size"), (L("Nach Art sortieren", "Sort by Kind"), "kind") })
+                    {
+                        var sk = k;
+                        items.Add(new Item { Text = text, Checked = sortKey == sk, Run = () => { sortKey = sk; sortDesc = sk != "name"; Show(); } });
+                    }
+                    items.Add(Item.Sep);
+                    items.Add(new Item { Text = showDot ? L("Ausgeblendete Objekte ausblenden", "Hide Hidden Files") : L("Ausgeblendete Objekte einblenden", "Show Hidden Files"), Shortcut = "⇧⌃.", Run = () => { showDot = !showDot; Load(keep: true); } });
+                    items.Add(new Item { Text = L("Neu laden", "Reload"), Shortcut = "F5", Run = Reload });
+                    break;
+                case "go":
+                    items.Add(new Item { Text = L("Zurück", "Back"), Shortcut = "⌃[", Enabled = back.Count > 0, Run = Back });
+                    items.Add(new Item { Text = L("Vorwärts", "Forward"), Shortcut = "⌃]", Enabled = fwd.Count > 0, Run = Forward });
+                    items.Add(new Item { Text = L("Übergeordneter Ordner", "Enclosing Folder"), Enabled = fs, Run = Up });
+                    items.Add(Item.Sep);
+                    string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    foreach (var (text, path) in new[] { (L("Dokumente", "Documents"), Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)), (L("Schreibtisch", "Desktop"), Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)), ("Downloads", Path.Combine(home, "Downloads")), (L("Benutzerordner", "Home"), home), (L("Computer", "Computer"), ""), (L("Papierkorb", "Trash"), Trash) })
+                    {
+                        var target = path;
+                        items.Add(new Item { Text = text, Checked = dir == target, Run = () => Go(target) });
+                    }
+                    items.Add(Item.Sep);
+                    items.Add(new Item { Text = L("Gehe zum Ordner …", "Go to Folder…"), Run = AskFolder });
+                    break;
+            }
+            return items;
+        }
+
+        void AskFolder()
+        {
+            MacAlert a = null;
+            a = MacAlert.Ask(L("Gehe zum Ordner:", "Go to the folder:"), null, MacStyle.FolderIcon, new[]
+            {
+                (L("Abbrechen", "Cancel"), (Action)null, false),
+                (L("Öffnen", "Go"), (Action)(() =>
+                {
+                    var p = Environment.ExpandEnvironmentVariables((a?.Input?.Text ?? "").Trim().Trim('"'));
+                    if (p.StartsWith("~")) p = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + p.Substring(1);
+                    if (Directory.Exists(p)) { Go(p); Activate(); }
+                    else if (File.Exists(p)) { Go(Path.GetDirectoryName(p)); Activate(); }
+                }), true),
+            }, input: fsDir());
+        }
+
+        string fsDir() => !string.IsNullOrEmpty(dir) && dir != Trash ? dir : "";
+
         void Menu()
         {
             var sel = Sel;
@@ -1364,6 +1476,34 @@ namespace WinMorph.Shell
             }
         }
 
+        /// <summary>The menu bar's menus for Activity Monitor.</summary>
+        public static List<Item> BarMenu(IntPtr hwnd, string key)
+        {
+            var m = Application.Current?.Windows.OfType<MacTasks>().FirstOrDefault(f => new WindowInteropHelper(f).Handle == hwnd);
+            var items = new List<Item>();
+            if (m == null) return items;
+            var p = m.list.SelectedItem as Proc;
+            switch (key)
+            {
+                case "file":
+                    items.Add(new Item { Text = L("Fenster schließen", "Close Window"), Shortcut = "⌃W", Run = m.Close });
+                    break;
+                case "edit":
+                    items.Add(new Item { Text = L("Kopieren", "Copy"), Shortcut = "⌃C", Enabled = p != null, Run = () => { try { Clipboard.SetText(p.Name + " (PID " + p.Pid + ")"); } catch { } } });
+                    items.Add(new Item { Text = L("Suchen", "Find"), Shortcut = "⌃F", Run = () => { m.filter.Focus(); m.filter.SelectAll(); } });
+                    break;
+                case "view":
+                    items.Add(new Item { Text = "CPU", Checked = !m.memTab, Run = () => m.SetTab(false) });
+                    items.Add(new Item { Text = L("Speicher", "Memory"), Checked = m.memTab, Run = () => m.SetTab(true) });
+                    items.Add(Item.Sep);
+                    items.Add(new Item { Text = L("Prozess beenden", "Quit Process"), Enabled = p != null, Run = m.Stop });
+                    items.Add(new Item { Text = L("Zum Fenster wechseln", "Switch to Window"), Enabled = p != null && p.Hwnd != IntPtr.Zero, Run = m.SwitchTo });
+                    items.Add(new Item { Text = L("Im Finder zeigen", "Show in Finder"), Enabled = p?.PathV != null, Run = m.Location });
+                    break;
+            }
+            return items;
+        }
+
         void Stop()
         {
             if (!(list.SelectedItem is Proc p)) return;
@@ -1373,137 +1513,5 @@ namespace WinMorph.Shell
 
         void SwitchTo() { if (list.SelectedItem is Proc p && p.Hwnd != IntPtr.Zero) W32.Activate(p.Hwnd); }
         void Location() { if (list.SelectedItem is Proc p && p.PathV != null) ShellActions.Files(System.IO.Path.GetDirectoryName(p.PathV)); }
-    }
-
-    // =====================================================================
-    // Spotlight
-    // =====================================================================
-    internal sealed class MacSpotlight : Window
-    {
-        static MacSpotlight current;
-        static bool De => Core.Loc.De;
-        static string L(string de, string en) => De ? de : en;
-        readonly TextBox box;
-        readonly StackPanel results;
-        readonly Border resultsHost;
-        List<Intent> hits = new List<Intent>();
-        int sel;
-        readonly List<Border> rowEls = new List<Border>();
-
-        public static void Toggle(string text = null)
-        {
-            if (current != null) { current.Close(); return; }
-            current = new MacSpotlight();
-            current.Show();
-            current.Activate();
-            W32.SetForegroundWindow(new WindowInteropHelper(current).Handle);
-            if (!string.IsNullOrEmpty(text)) { current.box.Text = text; current.box.CaretIndex = text.Length; }
-        }
-
-        public static void CloseNow() { try { current?.Close(); } catch { } }
-
-        MacSpotlight()
-        {
-            WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; ShowInTaskbar = false; Topmost = true;
-            AllowsTransparency = true; Background = Brushes.Transparent; SizeToContent = SizeToContent.Height; Width = 720;
-            MacStyle.Prepare(this);
-            MacStyle.ToolWindow(this);
-            RenderGuard.Watch(this);
-            var stack = new StackPanel();
-            var head = new DockPanel { Height = 56, Margin = new Thickness(18, 0, 18, 0) };
-            var glass = MacStyle.Sym("magnifyingglass", 22, MacStyle.Secondary);
-            glass.Margin = new Thickness(0, 0, 12, 0);
-            DockPanel.SetDock(glass, Dock.Left);
-            head.Children.Add(glass);
-            box = new TextBox { Background = Brushes.Transparent, BorderThickness = new Thickness(0), FontFamily = MacStyle.Font, FontSize = 22, Foreground = B(MacStyle.Label), CaretBrush = B(MacStyle.Blue), VerticalContentAlignment = VerticalAlignment.Center, Padding = new Thickness(0) };
-            var hint = MacStyle.Text(L("Spotlight-Suche", "Spotlight Search"), 22, MacStyle.Tertiary);
-            hint.IsHitTestVisible = false; hint.Margin = new Thickness(2, 0, 0, 0);
-            box.TextChanged += (s, e) => { hint.Visibility = box.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed; Search(); };
-            var g = new Grid(); g.Children.Add(hint); g.Children.Add(box);
-            head.Children.Add(g);
-            stack.Children.Add(head);
-            results = new StackPanel { Margin = new Thickness(8, 0, 8, 8) };
-            resultsHost = new Border { Child = results, BorderBrush = B(MacStyle.Line), BorderThickness = new Thickness(0, 0.6, 0, 0), Visibility = Visibility.Collapsed };
-            stack.Children.Add(resultsHost);
-            var pane = MacStyle.Glass(stack, 28, C(0xF4F4F6, 215));
-            Content = new Border { Child = pane, Padding = new Thickness(20, 10, 20, 40) };
-            Deactivated += (s, e) => { try { Close(); } catch { } };
-            PreviewKeyDown += (s, e) =>
-            {
-                if (e.Key == Key.Escape) { if (box.Text.Length > 0) box.Text = ""; else Close(); e.Handled = true; }
-                else if (e.Key == Key.Down) { Select(sel + 1); e.Handled = true; }
-                else if (e.Key == Key.Up) { Select(sel - 1); e.Handled = true; }
-                else if (e.Key == Key.Enter) { Run(sel); e.Handled = true; }
-            };
-            Closed += (s, e) => { if (current == this) current = null; };
-            Loaded += (s, e) =>
-            {
-                var mi = W32.Monitor(W32.MonitorAtCursor(), out double sc);
-                double wl = mi.rcWork.Left / sc, wr = mi.rcWork.Right / sc, mt = mi.rcMonitor.Top / sc, mh = (mi.rcMonitor.Bottom - mi.rcMonitor.Top) / sc;
-                Left = wl + (wr - wl - ActualWidth) / 2; Top = mt + mh * 0.22;
-                MacStyle.Pop((FrameworkElement)Content, new Point(0.5, 0.2), 0.97, 200);
-                box.Focus();
-            };
-        }
-
-        void Search()
-        {
-            var text = box.Text.Trim();
-            results.Children.Clear(); rowEls.Clear();
-            hits = text.Length == 0 ? new List<Intent>() : Intents.For(text, 6);
-            if (text.Length > 0 && (text.Contains("\\") || text.Contains("/") || text.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || text.StartsWith("cmd", StringComparison.OrdinalIgnoreCase)))
-                hits.Insert(0, new Intent { Glyph = "", Title = L("Ausführen: ", "Run: ") + text, Sub = L("Befehl", "Command"), Run = () => HackerPanel.RunCommand(text, false) });
-            resultsHost.Visibility = hits.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-            string lastSection = null;
-            for (int i = 0; i < hits.Count; i++)
-            {
-                var h = hits[i];
-                string section = i == 0 ? L("Toptreffer", "Top Hit") : h.Icon != null ? L("Programme", "Applications") : L("Vorschläge", "Suggestions");
-                if (section != lastSection)
-                {
-                    var st = MacStyle.Text(section, 11.5, MacStyle.Secondary, FontWeights.SemiBold);
-                    st.Margin = new Thickness(12, 10, 0, 4);
-                    results.Children.Add(st);
-                    lastSection = section;
-                }
-                var d = new DockPanel { Height = 38 };
-                FrameworkElement icon = h.Icon != null ? (FrameworkElement)Img(MacStyle.Tile(h.Icon), 30) : new Border { Width = 30, Height = 30, Child = MacStyle.Sym(h.Title.StartsWith(L("Ausführen", "Run")) ? "arrow.right" : "magnifyingglass", 16, MacStyle.Secondary) };
-                icon.Margin = new Thickness(0, 0, 10, 0);
-                DockPanel.SetDock(icon, Dock.Left);
-                d.Children.Add(icon);
-                var sub = MacStyle.Text(h.Sub ?? "", 12, MacStyle.Secondary);
-                DockPanel.SetDock(sub, Dock.Right);
-                d.Children.Add(sub);
-                d.Children.Add(MacStyle.Text(h.Title, 14, MacStyle.Label));
-                var row = new Border { Child = d, CornerRadius = new CornerRadius(9), Padding = new Thickness(10, 0, 12, 0), Background = Brushes.Transparent };
-                int index = i;
-                row.MouseEnter += (s, e) => Select(index);
-                row.MouseLeftButtonUp += (s, e) => Run(index);
-                rowEls.Add(row);
-                results.Children.Add(row);
-            }
-            Select(0);
-        }
-
-        void Select(int i)
-        {
-            if (rowEls.Count == 0) return;
-            sel = Math.Max(0, Math.Min(rowEls.Count - 1, i));
-            for (int k = 0; k < rowEls.Count; k++)
-            {
-                bool on = k == sel;
-                rowEls[k].Background = on ? B(MacStyle.Blue) : Brushes.Transparent;
-                if (rowEls[k].Child is DockPanel d)
-                    foreach (var tb in d.Children.OfType<TextBlock>()) tb.Foreground = B(on ? (tb == d.Children[d.Children.Count - 1] ? Colors.White : C(0xFFFFFF, 210)) : (tb == d.Children[d.Children.Count - 1] ? MacStyle.Label : MacStyle.Secondary));
-            }
-        }
-
-        void Run(int i)
-        {
-            if (i < 0 || i >= hits.Count) return;
-            var a = hits[i].Run;
-            Close();
-            try { a?.Invoke(); } catch { }
-        }
     }
 }

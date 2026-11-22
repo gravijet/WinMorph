@@ -47,6 +47,27 @@ namespace WinMorph.Shell
                     w.Left = mi.rcWork.Right / sc - w.ActualWidth + 6; w.Top = mi.rcWork.Top / sc;
                     MacPanels.Enter(w);
                     break;
+                case "spotlight":
+                case var sp when sp.StartsWith("spotlight:"):
+                    // the apps first (as in the running shell), then the search; files take a moment
+                    AppCatalog.Loaded += () => System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        var p = surface.Length > 10 ? surface.Substring(10) : null;
+                        MacSpotlight.Toggle(p != null && p.StartsWith("#") ? null : p);
+                        var tm2 = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(2600) };
+                        tm2.Tick += (s2, e2) => { tm2.Stop(); var sw2 = MacSpotlight.Current; try { Shoot(sw2, png); } catch (Exception ex) { System.IO.File.WriteAllText(png + ".txt", ex.ToString()); } MacSpotlight.CloseNow(); done(); };
+                        tm2.Start();
+                    }));
+                    AppCatalog.LoadAsync(System.Windows.Application.Current.Dispatcher);
+                    return;
+                case "stack":
+                {
+                    var m2 = W32.Monitor(W32.MonitorAtCursor(), out double s2);
+                    double cx = (m2.rcWork.Left + m2.rcWork.Right) / 2.0 / s2;
+                    MacPanels.Toggle(t, "stack", new Rect(cx - 27, m2.rcWork.Bottom / s2 - 64, 54, 54), null);
+                    w = MacPanels.Open;
+                    break;
+                }
                 case "hud":
                     MacPanels.VolumeHud();
                     w = MacPanels.Hud;

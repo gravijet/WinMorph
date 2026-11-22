@@ -104,16 +104,20 @@ namespace WinMorph.Shell
         {
             AllowsTransparency = true; Background = Brushes.Transparent; SizeToContent = SizeToContent.WidthAndHeight;
             MacStyle.Prepare(this);
-            double icon = wins.Count > 10 ? 76 : 100, cell = icon + 22;
-            var grid = new Grid { Margin = new Thickness(12, 12, 12, 8) };
+            // icons as large as macOS draws them, smaller when many apps must fit on the screen
+            var mi = W32.Monitor(W32.MonitorAtCursor(), out double sc);
+            double avail = (mi.rcWork.Right - mi.rcWork.Left) / sc * 0.92 - 60;
+            double icon = Math.Max(40, Math.Min(108, Math.Floor(avail / Math.Max(1, wins.Count)) - 22)), cell = icon + 22;
+            var grid = new Grid { Margin = new Thickness(11, 11, 11, 6) };
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(cell) });
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
             var plates = new List<Border>();
+            macImgs.Clear();
             for (int i = 0; i < wins.Count; i++)
             {
                 var w = wins[i];
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(cell) });
-                var plate = new Border { Width = cell, Height = cell, CornerRadius = new CornerRadius(20), Background = Brushes.Transparent };
+                var plate = new Border { Width = cell, Height = cell, CornerRadius = new CornerRadius(Math.Round(cell * 0.19)), Background = Brushes.Transparent };
                 var entry = AppCatalog.Apps.FirstOrDefault(a => a.Matches(w));
                 var img = new Image { Source = MacApps.IconOf(w.Hwnd) ?? (w.ExePath != null && System.IO.Path.GetFileName(w.ExePath).Equals("explorer.exe", StringComparison.OrdinalIgnoreCase) ? MacStyle.Own("finder") : MacStyle.Tile(entry?.Icon ?? w.Icon)), Width = icon, Height = icon };
                 RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
@@ -121,27 +125,39 @@ namespace WinMorph.Shell
                 Grid.SetColumn(plate, i);
                 grid.Children.Add(plate);
                 plates.Add(plate);
+                macImgs.Add(img);
                 Clickable(plate, i);
+                plate.Cursor = Cursors.Arrow;
             }
             var name = MacStyle.Text("", 13, MacStyle.Label);
-            name.HorizontalAlignment = HorizontalAlignment.Center; name.TextAlignment = TextAlignment.Center;
-            Grid.SetRow(name, 1);
-            grid.Children.Add(name);
+            name.HorizontalAlignment = HorizontalAlignment.Center; name.TextAlignment = TextAlignment.Center; name.VerticalAlignment = VerticalAlignment.Top; name.Margin = new Thickness(0, 2, 0, 0);
+            var nameHost = new Canvas { ClipToBounds = false };
+            nameHost.Children.Add(name);
+            Grid.SetRow(nameHost, 1); Grid.SetColumnSpan(nameHost, Math.Max(1, wins.Count));
+            grid.Children.Add(nameHost);
             onSelect = (i, anim) =>
             {
-                for (int k = 0; k < plates.Count; k++) plates[k].Background = k == i ? B(0x000000, 34) : Brushes.Transparent;
-                var w = wins[i];
-                var own = MacApps.NameOf(w.Hwnd);
-                var entry = AppCatalog.Apps.FirstOrDefault(a => a.Matches(w));
-                name.Text = MacApps.AppName(w);
-                Grid.SetColumn(name, i);
-                Grid.SetColumnSpan(name, 1);
-                name.Width = Math.Max(cell, 220); name.Margin = new Thickness(-(Math.Max(cell, 220) - cell) / 2, 0, -(Math.Max(cell, 220) - cell) / 2, 0);
+                for (int k = 0; k < plates.Count; k++) plates[k].Background = k == i ? B(0x000000, 30) : Brushes.Transparent;
+                name.Text = MacApps.AppName(wins[i]);
+                // the name sits under the chosen icon and stays inside the bar
+                name.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                double total = cell * wins.Count, wdt = Math.Min(name.DesiredSize.Width, total);
+                name.MaxWidth = total;
+                Canvas.SetLeft(name, Math.Max(0, Math.Min(total - wdt, i * cell + cell / 2 - wdt / 2)));
             };
-            var pane = MacStyle.Glass(grid, 26, C(0xEFEFF1, 190));
+            var pane = MacStyle.Glass(grid, Math.Round(cell * 0.19) + 11, C(0xECECEF, 196), behind: true);
             var host = new Border { Child = pane, Padding = new Thickness(30) };
             Loaded += (s, e) => MacStyle.Pop(pane, new Point(0.5, 0.5), 0.97, 140);
             return host;
+        }
+
+        readonly List<Image> macImgs = new List<Image>();
+
+        /// <summary>macOS: Q (quit) or H (hide) while the switcher is open greys the chosen app out; the shell closes or hides its windows.</summary>
+        public void MarkSelected()
+        {
+            if (index < 0 || index >= macImgs.Count) return;
+            macImgs[index].BeginAnimation(OpacityProperty, new DoubleAnimation(0.38, TimeSpan.FromMilliseconds(160)));
         }
 
         void Place()

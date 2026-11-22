@@ -84,6 +84,13 @@ namespace WinMorph.Core
                     && new System.Collections.Generic.HashSet<WinMorph.Shell.LockKind>(themes.ConvertAll(x => x.Lock)).Count == 4, "every look has its own Alt+Tab and lock screen");
                 Check(WinMorph.Shell.ShellThemes.For("win11") == null && WinMorph.Shell.ShellThemes.ForLock("nexus")?.Id == "win7", "looks of older versions are ignored safely");
                 // macOS: the German menu bar date, the embedded font, the formula of the desktop (sky top left, deep glass bottom right)
+                {
+                    var ev = (Func<string, double?>)WinMorph.Shell.SpotCalc.Eval;
+                    Check(ev("2+3*4") == 14 && ev("(1,5+2)^2") == 12.25 && ev("2^3^2") == 512 && ev("-3*-2") == 6 && ev("10/4") == 2.5,
+                        "Spotlight calculator: precedence, brackets, decimal comma, powers");
+                    Check(ev("2024") == null && ev("hallo") == null && ev("2+") == null && ev("(1+2") == null && ev("1/0") == null && ev("") == null,
+                        "Spotlight calculator: plain numbers, words and broken sums are no result");
+                }
                 Check(WinMorph.Shell.MacStyle.MenuClock(new DateTime(2026, 11, 20, 20, 19, 0)) == (Loc.De ? "Fr. 20. Nov. 20:19" : WinMorph.Shell.MacStyle.MenuClock(new DateTime(2026, 11, 20, 20, 19, 0))), "macOS menu bar date");
                 Check(WinMorph.Shell.MacStyle.Font.Source.Length > 0 && new System.Windows.Media.Typeface(WinMorph.Shell.MacStyle.Font, System.Windows.FontStyles.Normal, System.Windows.FontWeights.Normal, System.Windows.FontStretches.Normal).TryGetGlyphTypeface(out var gt) && gt.FamilyNames.Values.Any(n => n.StartsWith("Inter") || n.StartsWith("SF")), "macOS font loads (SF Pro or the embedded Inter)");
                 {
